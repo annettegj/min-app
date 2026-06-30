@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1,
+    "name": "Nordic Ventures AS",
+    "geography": "Norden",
+    "productCategory": "SaaS",
+    "revenue": 250,
+    "averagePrice": 120000,
+    "icpFit": 5
+  },
+  {
+    "id": 2,
+    "name": "Oslo Retail Group",
+    "geography": "Norge",
+    "productCategory": "Retail",
+    "revenue": 80,
+    "averagePrice": 45000,
+    "icpFit": 3
+  },
+  {
+    "id": 3,
+    "name": "Berlin Tech GmbH",
+    "geography": "Europa",
+    "productCategory": "Hardware",
+    "revenue": 500,
+    "averagePrice": 300000,
+    "icpFit": 4
+  },
+  {
+    "id": 4,
+    "name": "Stockholm Scale AB",
+    "geography": "Norden",
+    "productCategory": "SaaS",
+    "revenue": 150,
+    "averagePrice": 95000,
+    "icpFit": 5
+  },
+  {
+    "id": 5,
+    "name": "Global Partners Ltd",
+    "geography": "Global",
+    "productCategory": "Consulting",
+    "revenue": 1200,
+    "averagePrice": 500000,
+    "icpFit": 2
+  }
+]
