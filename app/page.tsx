@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import companiesData from "@/data/companies.json";
+import { useState, useMemo, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 
 const GEOGRAPHIES = ["All", "Norway", "Nordics", "Europe", "Global"];
 
@@ -9,16 +9,15 @@ type Company = {
   id: number;
   name: string;
   geography: string;
-  productCategory: string;
-  revenue: number;
-  averagePrice: number;
-  icpFit: number;
+  product_category: string;
+  revenue_mnok: number;
+  avg_price_nok: number;
+  icp_fit: number;
 };
 
-const companies: Company[] = companiesData;
-
 export default function Home() {
-  const [geography, setGeography] = useState("Alle");
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [geography, setGeography] = useState("All");
   const [category, setCategory] = useState("");
   const [revenueMin, setRevenueMin] = useState("");
   const [revenueMax, setRevenueMax] = useState("");
@@ -33,19 +32,25 @@ export default function Home() {
     icpMin: number;
   }>(null);
 
+  useEffect(() => {
+    supabase.from("companies").select("*").then(({ data }) => {
+      if (data) setCompanies(data as Company[]);
+    });
+  }, []);
+
   const results = useMemo(() => {
     if (!searchParams) return [];
     return companies.filter((c) => {
       if (searchParams.geography !== "All" && c.geography !== searchParams.geography) return false;
-      if (searchParams.category && !c.productCategory.toLowerCase().includes(searchParams.category.toLowerCase())) return false;
-      if (searchParams.revenueMin && c.revenue < Number(searchParams.revenueMin)) return false;
-      if (searchParams.revenueMax && c.revenue > Number(searchParams.revenueMax)) return false;
-      if (searchParams.priceMin && c.averagePrice < Number(searchParams.priceMin)) return false;
-      if (searchParams.priceMax && c.averagePrice > Number(searchParams.priceMax)) return false;
-      if (c.icpFit < searchParams.icpMin) return false;
+      if (searchParams.category && !c.product_category.toLowerCase().includes(searchParams.category.toLowerCase())) return false;
+      if (searchParams.revenueMin && c.revenue_mnok < Number(searchParams.revenueMin)) return false;
+      if (searchParams.revenueMax && c.revenue_mnok > Number(searchParams.revenueMax)) return false;
+      if (searchParams.priceMin && c.avg_price_nok < Number(searchParams.priceMin)) return false;
+      if (searchParams.priceMax && c.avg_price_nok > Number(searchParams.priceMax)) return false;
+      if (c.icp_fit < searchParams.icpMin) return false;
       return true;
     });
-  }, [searchParams]);
+  }, [searchParams, companies]);
 
   function handleSearch() {
     setSearchState("loading");
@@ -195,10 +200,10 @@ export default function Home() {
                     <tr key={c.id} style={{ borderBottom: "1px solid #E4E7F2", background: i % 2 === 0 ? "#FFFFFF" : "#FAFBFF" }}>
                       <td style={{ padding: "14px 20px", fontWeight: 600, color: "#1A2456" }}>{c.name}</td>
                       <td style={{ padding: "14px 20px", color: "#4B5563" }}>{c.geography}</td>
-                      <td style={{ padding: "14px 20px", color: "#4B5563" }}>{c.productCategory}</td>
-                      <td style={{ padding: "14px 20px", color: "#4B5563" }}>{c.revenue} MNOK</td>
-                      <td style={{ padding: "14px 20px", color: "#4B5563" }}>{c.averagePrice.toLocaleString("nb-NO")} NOK</td>
-                      <td style={{ padding: "14px 20px", fontWeight: 700, color: icpColor(c.icpFit) }}>{c.icpFit}/5</td>
+                      <td style={{ padding: "14px 20px", color: "#4B5563" }}>{c.product_category}</td>
+                      <td style={{ padding: "14px 20px", color: "#4B5563" }}>{c.revenue_mnok} MNOK</td>
+                      <td style={{ padding: "14px 20px", color: "#4B5563" }}>{c.avg_price_nok.toLocaleString("nb-NO")} NOK</td>
+                      <td style={{ padding: "14px 20px", fontWeight: 700, color: icpColor(c.icp_fit) }}>{c.icp_fit}/5</td>
                     </tr>
                   ))}
                 </tbody>
