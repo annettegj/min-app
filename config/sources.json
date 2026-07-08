@@ -1,0 +1,36 @@
+{
+  "enrichment_model": "claude-sonnet-4-6",
+  "keyword_bank": [
+    "brain health", "cognitive performance", "nootropic", "memory support", "brain fog",
+    "longevity", "healthy aging", "healthspan", "neuroprotection", "neuro vitality",
+    "cognitive resilience", "brain regeneration", "prevent cognitive decline",
+    "precision nutrition", "premium supplementation", "wellness", "vitality",
+    "innovation", "lifespan", "peakspan",
+    "biohackers", "premium lifestyle"
+  ],
+  "keyword_bank_notes": "biohackers and premium lifestyle are especially relevant for social media sources — prioritize these when adding Instagram, TikTok, or LinkedIn sources later.",
+  "search_strings": [
+    "cognitive health supplement launch",
+    "longevity supplement launch Europe",
+    "brain health supplement Europe",
+    "nootropic launch"
+  ],
+  "sources": [
+    {
+      "name": "NutraIngredients Europe",
+      "url": "https://www.nutraingredients.com"
+    },
+    {
+      "name": "Nutrition Insight",
+      "url": "https://www.nutritioninsight.com"
+    },
+    {
+      "name": "Nutraceutical Business Review",
+      "url": "https://www.nutraceuticalbusinessreview.com"
+    },
+    {
+      "name": "Nutritional Outlook",
+      "url": "https://www.nutritionaloutlook.com"
+    }
+  ]
+}

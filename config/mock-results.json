@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Nutrigums",
+    "website_url": "https://www.nutrigums.co.uk/",
+    "description": "UK mass-market functional gummy brand positioned on taste and affordability (£8.99–£53.97), sold through Boots, Superdrug, ASDA and Amazon with no longevity, brain-health or omega-3 science narrative and no adjacent longevity ingredients. Excluded: purely budget positioning, no science story, no Lysoveta category fit.",
+    "priority_tier": "follower",
+    "icp_score": 1,
+    "geography": "UK",
+    "product_category": "Established CHC",
+    "avg_price_eur": 15
+  },
+  {
+    "name": "Jolt",
+    "website_url": "https://www.joltmyworld.com/",
+    "description": "UK founder-led longevity brand (Lindsey/Russell Kane) with a cellular-aging science narrative, DTC subscription model, and confirmed adjacent ingredients (NMN, trans-resveratrol, fisetin) at roughly £60/month. Strong early-mover fit on positioning, ingredients and price; single-SKU longevity focus makes it a natural krill-oil/LPC line-extension target.",
+    "priority_tier": "early_mover",
+    "icp_score": 5,
+    "geography": "UK",
+    "product_category": "Premium/science-driven brand",
+    "avg_price_eur": 70
+  },
+  {
+    "name": "Nourished",
+    "website_url": "https://get-nourished.com/",
+    "description": "UK founder-led personalised 3D-printed gummy brand, DTC subscription with menopause, sleep, mind and focus stacks, but priced at £35.99/month (confirmed <€60) and built on standard vitamins/minerals rather than premium longevity actives. Early-mover innovation profile pulls it in, but low unit price and gummy format limit the fit.",
+    "priority_tier": "early_mover",
+    "icp_score": 4,
+    "geography": "UK",
+    "product_category": "Premium/science-driven brand",
+    "avg_price_eur": 42
+  },
+  {
+    "name": "ESN",
+    "website_url": "https://www.esn.com/",
+    "description": "German mainstream sports-nutrition brand with mass distribution (Amazon, retail) and an omega-3 line carrying explicit EU brain/heart claims, fitting the follower profile. Budget omega-3 pricing (~€15–30, confirmed <€60) and performance-athlete positioning rather than premium longevity/science-led branding limit Lysoveta fit.",
+    "priority_tier": "follower",
+    "icp_score": 2,
+    "geography": "EU",
+    "product_category": "Established CHC",
+    "avg_price_eur": 25
+  },
+  {
+    "name": "Weider",
+    "website_url": "https://www.weider.com/",
+    "description": "Legacy global sports-nutrition brand (est. 1936, 120+ countries, EU operations via German base) with mainstream mass-market distribution and a commodity omega-3 line, fitting the follower profile. Bodybuilding/active-nutrition heritage, budget pricing (confirmed <€60) and no premium longevity/brain science narrative make it a low-priority Lysoveta target.",
+    "priority_tier": "follower",
+    "icp_score": 2,
+    "geography": "EU",
+    "product_category": "Established CHC",
+    "avg_price_eur": 25
+  }
+]
