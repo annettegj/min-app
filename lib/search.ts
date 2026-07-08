@@ -306,11 +306,12 @@ Instructions:
 
 Return ONLY a raw JSON array, no markdown. For each company include:
 - name, website_url, description, priority_tier, icp_score (as before)
-- geography: one of "EU", "US", "APAC", "Global" — based on european_markets and distribution. Use "EU" if they primarily sell in EU countries. Use "Global" if they sell across multiple regions.
-- product_category: one of "Dietary Supplements", "Consumer Health", "Pharmaceutical", "Food Ingredients", "Animal Nutrition", "Aquaculture Feed", "Pet Food" — pick the best fit based on product_focus and self_presentation.
-- max_price_eur: the highest single price in EUR found for any of their products (their price ceiling). Use null if price_found is false.
+- geography: one of "EU", "UK", "US", "APAC", "Global" — based on european_markets and distribution. Use "EU" if they primarily sell in EU countries. Use "Global" if they sell across multiple regions.
+- product_category: one of "Premium/science-driven brand", "Pharma Rx", "Established CHC", "Distributor/enabler" — pick the best fit based on product_focus and self_presentation.
+- max_price_eur: the highest single price found for any of their products (their price ceiling), as a NUMBER in the company's ORIGINAL currency — do NOT convert to EUR (the field name is legacy). Use null if price_found is false.
+- price_currency: the 3-letter currency code for that price (GBP, EUR, USD, etc.). Use null if price_found is false.
 
-[{"name":"Company Name","website_url":"https://example.com","description":"Why relevant for Lysoveta.","priority_tier":"early_mover","icp_score":4,"geography":"EU","product_category":"Dietary Supplements","max_price_eur":65}]`;
+[{"name":"Company Name","website_url":"https://example.com","description":"Why relevant for Lysoveta.","priority_tier":"early_mover","icp_score":4,"geography":"UK","product_category":"Premium/science-driven brand","max_price_eur":69,"price_currency":"GBP"}]`;
 }
 
 // ---- Main export ----
