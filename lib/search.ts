@@ -118,6 +118,8 @@ For each company or brand you find that is active in brain health, cognitive per
 - Extract the company or brand name
 - Record which source or publication mentioned them
 
+IMPORTANT — keep this efficient: Find AT MOST 10 companies. As soon as you have 10 good matches, STOP searching immediately and return them. Do not use all your available searches if you already have enough — prioritize speed and the most relevant companies over exhaustiveness.
+
 Important rules:
 - Extract COMPANY names, not product names. If an article says "Brand X launches new omega-3 supplement", extract "Brand X".
 - EXCLUDE Aker BioMarine, Lysoveta, and Superba — these are ingredient suppliers, not target customers.
@@ -151,10 +153,11 @@ async function enrichCompany(
   company: DiscoveredCompany,
   model: string
 ): Promise<EnrichedCompany | null> {
+  console.log(`[search] Step 2 [${company.name}] starter...`);
   const stream = await client.messages.stream({
     model,
     max_tokens: 1024,
-    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }],
+    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
     messages: [
       {
         role: "user",
@@ -170,6 +173,8 @@ async function enrichCompany(
 - european_markets: which European countries they sell in
 - distribution_channels: how they sell (pharmacy, online DTC, grocery retail, specialist retail, etc.)
 
+Be efficient — prioritize speed over exhaustiveness: Use as few web searches as possible (ideally 1-2). If a specific field is not easy to find, write "NOT_FOUND" (for price) or a brief best-effort answer and move on — do NOT keep searching repeatedly for the same detail. It is fine to return partial information; do not exhaust your search budget chasing minor fields.
+
 Return ONLY a raw JSON object, no markdown:
 {"website_url":"...","product_focus":"...","omega3_or_krill":"...","self_presentation":"...","price_tier":"...","price_found":true,"price_currency":"GBP","european_markets":"...","distribution_channels":"..."}`,
       },
@@ -177,8 +182,9 @@ Return ONLY a raw JSON object, no markdown:
   });
 
   const response = await stream.finalMessage();
+  const searchCount = response.usage.server_tool_use?.web_search_requests ?? "?";
   console.log(
-    `[search] Step 2 [${company.name}] tokens: ${response.usage.input_tokens} input, ${response.usage.output_tokens} output`
+    `[search] Step 2 [${company.name}] ferdig: ${searchCount} web-søk, ${response.usage.input_tokens}in/${response.usage.output_tokens}out tokens`
   );
   const data = parseJsonObject(response);
   if (!data) return null;
@@ -227,31 +233,35 @@ async function enrichAll(
 
   console.log(`[search] Step 2: ${hits.length} from cache, ${misses.length} need enrichment`);
 
-  // Enrich cache misses in batches
+  // Enrich cache misses in batches. Each company is saved to the DB the moment its
+  // enrichment completes — so a company that hangs can never take down the work of the
+  // others. On a later search the saved ones become cache hits (no re-enrichment).
+  const saveOne = async (c: DiscoveredCompany): Promise<EnrichedCompany | null> => {
+    const result = await enrichCompany(client, c, model);
+    if (result) {
+      const { error } = await supabase.from("companies").upsert(
+        {
+          name: result.name,
+          enriched_data: result,
+          enriched_at: new Date().toISOString(),
+          rejected: false,
+        },
+        { onConflict: "name" }
+      );
+      if (error) console.warn(`[search] Step 2 [${result.name}] lagring feilet:`, error.message);
+      else console.log(`[search] Step 2 [${result.name}] lagret i DB`);
+    }
+    return result;
+  };
+
   const freshlyEnriched: EnrichedCompany[] = [];
   for (let i = 0; i < misses.length; i += concurrency) {
     const batch = misses.slice(i, i + concurrency);
-    const batchResults = await Promise.all(
-      batch.map((c) => enrichCompany(client, c, model))
-    );
-    const valid = batchResults.filter((c): c is EnrichedCompany => c !== null);
-    freshlyEnriched.push(...valid);
+    const batchResults = await Promise.all(batch.map(saveOne));
+    freshlyEnriched.push(...batchResults.filter((c): c is EnrichedCompany => c !== null));
     console.log(
       `[search] Step 2: ${Math.min(i + concurrency, misses.length)}/${misses.length} freshly enriched`
     );
-  }
-
-  // Save newly enriched companies to cache
-  if (freshlyEnriched.length > 0) {
-    const rows = freshlyEnriched.map((c) => ({
-      name: c.name,
-      enriched_data: c,
-      enriched_at: new Date().toISOString(),
-      rejected: false,
-    }));
-    const { error } = await supabase.from("companies").upsert(rows, { onConflict: "name" });
-    if (error) console.warn("[search] Enrichment save failed:", error.message);
-    else console.log(`[search] Step 2: ${freshlyEnriched.length} companies saved to companies table`);
   }
 
   // Return cached + freshly enriched, preserving original order
