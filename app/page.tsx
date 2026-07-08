@@ -283,7 +283,7 @@ export default function Home() {
       product_category: c.product_category,
       revenue_meur: c.revenue_meur ? Number(c.revenue_meur) : null,
       max_price: c.max_price ? Number(c.max_price) : null,
-      price_currency: c.price_currency ?? null,
+      price_currency: c.price_currency || null,
       icp_fit: c.icp_fit,
       priority_tier: c.priority_tier ?? null,
       added: true,
@@ -539,7 +539,7 @@ export default function Home() {
                             </td>
                             <td style={{ padding: "16px 22px", color: "#4B5563", whiteSpace: "nowrap" }}>{c.geography}</td>
                             <td style={{ padding: "16px 22px", color: "#4B5563", whiteSpace: "nowrap" }}>{c.product_category}</td>
-                            <td style={{ padding: "16px 22px", color: "#4B5563", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : "€"}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
+                            <td style={{ padding: "16px 22px", color: "#4B5563", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : c.price_currency === "EUR" ? "€" : ""}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
                             <td style={{ padding: "16px 22px", whiteSpace: "nowrap" }}>
                               {c.priority_tier === "early_mover" && (
                                 <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Early Mover</span>
@@ -846,8 +846,16 @@ export default function Home() {
                       </div>
                       <div>
                         <label style={labelStyle}>Max. Price</label>
-                        <input type="number" placeholder="Optional" value={c.max_price}
-                          onChange={(e) => updatePending(i, "max_price", e.target.value)} style={inputStyle} />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <input type="number" placeholder="Optional" value={c.max_price}
+                            onChange={(e) => updatePending(i, "max_price", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                          <select value={c.price_currency ?? ""} onChange={(e) => updatePending(i, "price_currency", e.target.value)} style={{ ...inputStyle, width: 84 }}>
+                            <option value="">—</option>
+                            <option value="EUR">EUR</option>
+                            <option value="GBP">GBP</option>
+                            <option value="USD">USD</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                     <div style={{ marginTop: 12, display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
