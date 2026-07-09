@@ -348,7 +348,7 @@ Return ONLY a raw JSON array, no markdown. For each company include:
 
 // ---- Main export ----
 
-export async function searchForCompanies(): Promise<{
+export async function searchForCompanies(jobId: number | null = null): Promise<{
   enriched: EnrichedCompany[];
   step3Prompt: string;
   debug: SearchDebug;
@@ -365,6 +365,14 @@ export async function searchForCompanies(): Promise<{
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // Writes a human-readable progress line to the search_jobs row (if this run is a background job),
+  // so the browser can poll and show what's happening. No-op for direct/local calls (jobId null).
+  const reportProgress = async (message: string) => {
+    if (jobId == null) return;
+    await supabase.from("search_jobs").update({ message, updated_at: new Date().toISOString() }).eq("id", jobId);
+  };
+  await reportProgress("Starting search…");
 
   // Reset any companies stuck in "processing" for more than 10 minutes back to "pending".
   // Uses processing_started_at (not discovered_at) so recently-started jobs are never flagged.
@@ -507,6 +515,8 @@ export async function searchForCompanies(): Promise<{
     .from("discovery_queue")
     .update({ status: "processing", processing_started_at: new Date().toISOString() })
     .in("name", batchNames);
+
+  await reportProgress(`Enriching ${toEnrich.length} companies…`);
 
   let enriched: EnrichedCompany[] = [];
   try {

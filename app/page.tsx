@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import mockResultsData from "@/config/mock-results.json";
 import sourcesConfig from "@/config/sources.json";
@@ -110,6 +110,13 @@ export default function Home() {
   const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
 
+  // --- Background search job (start + poll) ---
+  const [searchProgress, setSearchProgress] = useState("");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopPolling = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+  // Clean up the polling timer if the component unmounts mid-search
+  useEffect(() => stopPolling, []);
+
   // Loads the active company database — always excludes rejected companies.
   // Single source of truth so the database view can never accidentally include rejected rows.
   async function loadCompanies() {
@@ -193,47 +200,66 @@ export default function Home() {
     }
 
     setAgentState("searching");
+    setSearchProgress("Starting search…");
     try {
-      const res = await fetch("/api/search", { method: "POST" });
+      // Start the search as a BACKGROUND job — returns immediately with a jobId.
+      // NEXT_PUBLIC_WORKER_URL points at the Render worker when the UI is hosted elsewhere
+      // (e.g. Vercel); empty means same origin (everything on one host / local dev).
+      const workerBase = process.env.NEXT_PUBLIC_WORKER_URL ?? "";
+      const res = await fetch(`${workerBase}/api/search/start`, { method: "POST" });
       const data = await res.json();
-      if (data.debug) console.table(data.debug);
 
       if (!res.ok) {
         setAgentError({
-          title: "Søket feilet",
-          detail: data.error ?? `Serverfeil (HTTP ${res.status}). Sjekk at ANTHROPIC_API_KEY er satt og at Supabase-tilkoblingen fungerer.`,
+          title: "Could not start the search",
+          detail: data.error ?? `Server error (HTTP ${res.status}). Check that the server and Supabase connection are working.`,
           canRetry: true,
         });
         setAgentState("error");
         return;
       }
 
-      if (data.noCompaniesFound) {
-        setAgentError({
-          title: "Ingen nye selskaper funnet",
-          detail: "Steg 1 fant ingen selskaper som ikke allerede er i databasen, avvist, eller i køen. Dette kan bety at kildene ikke har publisert noe nytt, eller at søkeordene treffer de samme selskapene hver gang. Vurder å justere kildene eller søkeordene i config/sources.json, eller prøv igjen senere.",
-          canRetry: false,
-        });
-        setAgentState("error");
-        return;
-      }
+      const jobId = data.jobId as number;
 
-      if (data.debug?.step2_failed > 0) {
-        console.warn(`[search] ${data.debug.step2_failed} selskaper feilet i Step 2 — de vil prøves igjen neste søk`);
-      }
+      // Poll the job row every 3 seconds until it finishes.
+      stopPolling();
+      pollRef.current = setInterval(async () => {
+        const { data: job } = await supabase.from("search_jobs").select("*").eq("id", jobId).single();
+        if (!job) return;
+        setSearchProgress(job.message ?? "");
 
-      const map: Record<string, string> = {};
-      for (const e of data.enriched ?? []) {
-        if (e.source_name) map[e.name] = e.source_name;
-      }
-      setSourceNameMap(map);
-      setStep3Prompt(data.step3Prompt ?? "");
-      setAgentState("step3");
+        if (job.status === "done") {
+          stopPolling();
+          const enriched = (job.enriched ?? []) as { name: string; source_name?: string }[];
+          const map: Record<string, string> = {};
+          for (const e of enriched) { if (e.source_name) map[e.name] = e.source_name; }
+          setSourceNameMap(map);
+          setStep3Prompt(job.step3_prompt ?? "");
+          setAgentState("step3");
+        } else if (job.status === "no_companies") {
+          stopPolling();
+          setAgentError({
+            title: "No new companies found",
+            detail: "The search found no companies that aren't already in the database, rejected, or in the queue. This may mean the sources haven't published anything new, or the search terms keep hitting the same companies. Consider adjusting the sources or search terms in config/sources.json, or try again later.",
+            canRetry: false,
+          });
+          setAgentState("error");
+        } else if (job.status === "error") {
+          stopPolling();
+          setAgentError({
+            title: "The search failed",
+            detail: job.error ?? "Unknown error during the search.",
+            canRetry: true,
+          });
+          setAgentState("error");
+        }
+      }, 3000);
     } catch (err) {
+      stopPolling();
       console.error("Agent search error:", err);
       setAgentError({
-        title: "Nettverksfeil",
-        detail: err instanceof Error ? err.message : "Kunne ikke nå serveren. Sjekk internettforbindelsen og prøv igjen.",
+        title: "Network error",
+        detail: err instanceof Error ? err.message : "Could not reach the server. Check your internet connection and try again.",
         canRetry: true,
       });
       setAgentState("error");
@@ -262,7 +288,7 @@ export default function Home() {
 
       setAgentState("done");
     } catch {
-      alert("Kunne ikke tolke svaret — sjekk at du kopierte riktig JSON-array.");
+      alert("Could not parse the response — check that you copied the correct JSON array.");
     }
   }
 
@@ -669,11 +695,11 @@ export default function Home() {
             {agentState === "stale_warning" && (
               <div style={{ background: "#FFFFFF", border: "1px solid #FCD34D" }}>
                 <div style={{ background: "#78350F", padding: "12px 20px" }}>
-                  <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Et tidligere søk ble ikke fullført</p>
+                  <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>A previous search didn’t finish</p>
                 </div>
                 <div style={{ padding: "24px" }}>
                   <p style={{ fontSize: 14, color: "#374151", lineHeight: 1.6, marginBottom: 16 }}>
-                    {staleCompanies.length} {staleCompanies.length === 1 ? "selskap" : "selskaper"} satt fast i forrige søk og er nå satt tilbake i køen. Søket ble stoppet automatisk så du kan undersøke hva som gikk galt.
+                    {staleCompanies.length} {staleCompanies.length === 1 ? "company" : "companies"} got stuck in the previous search and have now been put back in the queue. The search was stopped automatically so you can investigate what went wrong.
                   </p>
                   <div style={{ border: "1px solid #E4E7F2", marginBottom: 20 }}>
                     {staleCompanies.map((name) => (
@@ -681,28 +707,28 @@ export default function Home() {
                         <span style={{ fontSize: 13, color: "#374151" }}>{name}</span>
                         <button
                           onClick={() => deleteFromQueue(name)}
-                          title="Slett fra kø"
+                          title="Remove from queue"
                           style={{ background: "transparent", border: "1px solid #E4E7F2", color: "#9CA3AF", padding: "3px 10px", fontSize: 12, cursor: "pointer" }}
                           onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.color = "#dc2626"; e.currentTarget.style.borderColor = "#dc2626"; }}
                           onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.borderColor = "#E4E7F2"; }}>
-                          Slett fra kø ✕
+                          Remove from queue ✕
                         </button>
                       </div>
                     ))}
                   </div>
                   <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", padding: "12px 16px", marginBottom: 24 }}>
                     <p style={{ fontSize: 13, color: "#78350F" }}>
-                      Hvis et bestemt selskap gjentatte ganger henger seg, kan du slette det fra køen. Ellers er det trygt å starte et nytt søk — de vil bli forsøkt igjen.
+                      If a particular company repeatedly hangs, you can remove it from the queue. Otherwise it’s safe to start a new search — they will be retried.
                     </p>
                   </div>
                   <div style={{ display: "flex", gap: 12 }}>
                     <button onClick={() => { setAgentState("idle"); setStaleCompanies([]); }}
                       style={{ background: "#0C1C2E", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                      OK, forstått
+                      OK, got it
                     </button>
                     <button onClick={() => { setStaleCompanies([]); setAgentState("searching"); handleAgentSearch(); }}
                       style={{ background: "#0891B2", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                      Start nytt søk →
+                      Start new search →
                     </button>
                   </div>
                 </div>
@@ -713,7 +739,8 @@ export default function Home() {
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", padding: "64px 32px", textAlign: "center" }}>
                 <div style={{ display: "inline-block", width: 40, height: 40, border: "4px solid #E4E7F2", borderTop: "4px solid #0891B2", borderRadius: "50%", animation: "spin 0.9s linear infinite", marginBottom: 20 }} />
                 <p style={{ fontSize: 14, fontWeight: 600, color: "#1A2456", marginBottom: 4 }}>Searching the web…</p>
-                <p style={{ fontSize: 13, color: "#6B7280" }}>The AI agent is finding relevant companies. This may take a moment.</p>
+                <p style={{ fontSize: 13, color: "#6B7280" }}>{searchProgress || "The AI agent is finding relevant companies. This may take a few minutes."}</p>
+                <p style={{ fontSize: 12, color: "#A0AECF", marginTop: 10 }}>You can leave this page open — the search runs on the server and this view updates automatically.</p>
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               </div>
             )}
@@ -729,14 +756,14 @@ export default function Home() {
                     <p style={{ fontSize: 12, fontWeight: 700, color: "#991B1B", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Hva kan du gjøre?</p>
                     {agentError.canRetry ? (
                       <ul style={{ margin: 0, paddingLeft: 18 }}>
-                        <li style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>Prøv søket på nytt — selskaper som var midt i prosessering vil automatisk bli resatt</li>
-                        <li style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>Sjekk at API-nøklene (ANTHROPIC_API_KEY, Supabase) er riktig konfigurert</li>
-                        <li style={{ fontSize: 13, color: "#374151" }}>Se konsolloggen (F12) for tekniske detaljer om feilen</li>
+                        <li style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>Try the search again — companies that were mid-processing are reset automatically</li>
+                        <li style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>Check that the API keys (ANTHROPIC_API_KEY, Supabase) are configured correctly</li>
+                        <li style={{ fontSize: 13, color: "#374151" }}>See the console log (F12) for technical details about the error</li>
                       </ul>
                     ) : (
                       <ul style={{ margin: 0, paddingLeft: 18 }}>
-                        <li style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>Vent noen dager og prøv igjen — fagmediene publiserer nye artikler jevnlig</li>
-                        <li style={{ fontSize: 13, color: "#374151" }}>Vurder å legge til nye søkestrenger i <code style={{ background: "#FEE2E2", padding: "1px 4px", fontSize: 12 }}>config/sources.json</code></li>
+                        <li style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>Wait a few days and try again — trade media publish new articles regularly</li>
+                        <li style={{ fontSize: 13, color: "#374151" }}>Consider adding new search terms in <code style={{ background: "#FEE2E2", padding: "1px 4px", fontSize: 12 }}>config/sources.json</code></li>
                       </ul>
                     )}
                   </div>
@@ -744,12 +771,12 @@ export default function Home() {
                     {agentError.canRetry && (
                       <button onClick={() => handleAgentSearch()}
                         style={{ background: "#0891B2", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                        Prøv igjen →
+                        Try again →
                       </button>
                     )}
                     <button onClick={() => { setAgentState("idle"); setAgentError(null); }}
                       style={{ background: "transparent", color: "#6B7280", border: "1px solid #D0D5E8", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                      Avbryt
+                      Cancel
                     </button>
                   </div>
                 </div>
@@ -760,37 +787,37 @@ export default function Home() {
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
                 <div style={{ background: "#0C1C2E", padding: "12px 20px" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Step 3 — Manual Evaluation</p>
-                  <p style={{ color: "#A0BEFF", fontSize: 12, marginTop: 2 }}>Step 1 og 2 er ferdig. Kopier prompten nedenfor og lim den inn i Claude Chat for å evaluere selskapene.</p>
+                  <p style={{ color: "#A0BEFF", fontSize: 12, marginTop: 2 }}>Steps 1 and 2 are done. Copy the prompt below and paste it into Claude Chat to evaluate the companies.</p>
                 </div>
                 <div style={{ padding: "24px 24px 0" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#4A63D8", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>1. Kopier denne prompten og lim inn i Claude Chat</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#4A63D8", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>1. Copy this prompt and paste it into Claude Chat</p>
                   <div style={{ position: "relative" }}>
                     <textarea readOnly value={step3Prompt} rows={6}
                       style={{ width: "100%", fontSize: 12, fontFamily: "monospace", color: "#374151", background: "#F8F9FF", border: "1px solid #D0D5E8", padding: "12px", resize: "vertical", boxSizing: "border-box" }} />
                     <button
                       onClick={() => { navigator.clipboard.writeText(step3Prompt); setStep3CopyDone(true); }}
                       style={{ position: "absolute", top: 8, right: 8, background: step3CopyDone ? "#16a34a" : "#0891B2", color: "#fff", border: "none", padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                      {step3CopyDone ? "Kopiert ✓" : "Kopier"}
+                      {step3CopyDone ? "Copied ✓" : "Copy"}
                     </button>
                   </div>
                 </div>
                 <div style={{ padding: "20px 24px 24px" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#4A63D8", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>2. Lim inn svaret fra Claude Chat her</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#4A63D8", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>2. Paste the response from Claude Chat here</p>
                   <textarea
                     value={step3Paste}
                     onChange={e => setStep3Paste(e.target.value)}
-                    placeholder='Lim inn JSON-svaret her, f.eks. [{"name":"...","priority_tier":"early_mover","icp_score":4,"description":"...","website_url":"..."}]'
+                    placeholder='Paste the JSON response here, e.g. [{"name":"...","priority_tier":"early_mover","icp_score":4,"description":"...","website_url":"..."}]'
                     rows={6}
                     style={{ width: "100%", fontSize: 12, fontFamily: "monospace", color: "#374151", background: "#FAFBFF", border: "1px solid #D0D5E8", padding: "12px", resize: "vertical", boxSizing: "border-box" }}
                   />
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 12 }}>
                     <button onClick={() => { resetProcessingToQueue(); setAgentState("idle"); }}
                       style={{ background: "transparent", color: "#6B7280", border: "1px solid #D0D5E8", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                      Avbryt
+                      Cancel
                     </button>
                     <button onClick={handleStep3Submit} disabled={!step3Paste.trim()}
                       style={{ background: step3Paste.trim() ? "#0891B2" : "#C4CAE8", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: step3Paste.trim() ? "pointer" : "default" }}>
-                      Vis resultater →
+                      Show results →
                     </button>
                   </div>
                 </div>
@@ -852,7 +879,7 @@ export default function Home() {
                           });
                           setSearchResults(prev => prev.filter((_, idx) => idx !== i));
                         }}
-                        title="Avvis selskap"
+                        title="Reject company"
                         style={{ background: "transparent", border: "1px solid #E4E7F2", color: "#9CA3AF", padding: "4px 10px", fontSize: 12, cursor: "pointer", flexShrink: 0 }}
                         onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.color = "#dc2626"; e.currentTarget.style.borderColor = "#dc2626"; }}
                         onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.borderColor = "#E4E7F2"; }}>
