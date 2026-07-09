@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import mockResultsData from "@/config/mock-results.json";
+import sourcesConfig from "@/config/sources.json";
 
 // Set to true to skip the real search and use mock data for demos
 const DEMO_MODE = false;
@@ -12,6 +13,11 @@ const GEO_OPTIONS = ["EU", "UK", "US", "APAC", "Global"];
 const CATEGORIES = ["All", "Premium/science-driven brand", "Pharma Rx", "Established CHC", "Distributor/enabler"];
 const CAT_OPTIONS = CATEGORIES.slice(1);
 const TIERS = ["All", "Early Mover", "Follower", "Enabler"];
+
+// Search-configuration preview options — read directly from config/sources.json (one-way:
+// config → app), so the UI always mirrors the actual sources and search concepts the code uses.
+const SEARCH_TERM_OPTIONS = (sourcesConfig as { search_concepts?: string[] }).search_concepts ?? [];
+const SOURCE_OPTIONS = ((sourcesConfig as { sources?: { name: string }[] }).sources ?? []).map(s => s.name);
 
 type Company = {
   id: number;
@@ -94,6 +100,10 @@ export default function Home() {
   const [saveError, setSaveError] = useState("");
   const [sourceNameMap, setSourceNameMap] = useState<Record<string, string>>({});
   const [expandedCompanyId, setExpandedCompanyId] = useState<number | null>(null);
+
+  // --- Search configuration preview (placeholder — does not affect the real search yet) ---
+  const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
 
   // Loads the active company database — always excludes rejected companies.
   // Single source of truth so the database view can never accidentally include rejected rows.
@@ -586,14 +596,66 @@ export default function Home() {
         {tab === "search" && (
           <>
             {agentState === "idle" && addingState !== "saved" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", padding: "48px 32px", textAlign: "center" }}>
-                <p style={{ fontSize: 15, fontWeight: 600, color: "#1A2456", marginBottom: 8 }}>Search for new prospects</p>
-                <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 28 }}>An AI agent will search the web for companies that match Aker BioMarine's customer profile.</p>
-                <button onClick={() => handleAgentSearch()}
-                  style={{ background: "#0891B2", color: "#FFFFFF", border: "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                  Search for New Companies →
-                </button>
-              </div>
+              <>
+                {/* Search configuration — PLACEHOLDER, not wired to the real search yet */}
+                <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+                  <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
+                    <span style={{ color: "#A0BEFF", fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>Preview</span>
+                  </div>
+                  <div style={{ background: "#FFFBEB", borderBottom: "1px solid #FCD34D", padding: "10px 20px" }}>
+                    <p style={{ fontSize: 12, color: "#78350F" }}>Preview only — these selections don’t affect the search yet. The search currently uses the fixed sources and terms in config/sources.json.</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2" style={{ padding: "20px", gap: 32 }}>
+                    {/* Search terms */}
+                    <div>
+                      <label style={labelStyle}>Search terms (choose up to 3)</label>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 4 }}>
+                        {SEARCH_TERM_OPTIONS.map(t => {
+                          const checked = selectedTerms.includes(t);
+                          const atMax = selectedTerms.length >= 3;
+                          return (
+                            <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "#374151" : "#A0AECF", cursor: checked || !atMax ? "pointer" : "default" }}>
+                              <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                                onChange={() => setSelectedTerms(checked ? selectedTerms.filter(x => x !== t) : [...selectedTerms, t])}
+                                style={{ accentColor: "#0891B2", width: 15, height: 15 }} />
+                              {t}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {/* Sources */}
+                    <div>
+                      <label style={labelStyle}>Sources (choose up to 4)</label>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 4 }}>
+                        {SOURCE_OPTIONS.map(s => {
+                          const checked = selectedSources.includes(s);
+                          const atMax = selectedSources.length >= 4;
+                          return (
+                            <label key={s} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "#374151" : "#A0AECF", cursor: checked || !atMax ? "pointer" : "default" }}>
+                              <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                                onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s) : [...selectedSources, s])}
+                                style={{ accentColor: "#0891B2", width: 15, height: 15 }} />
+                              {s}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Search action */}
+                <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", padding: "48px 32px", textAlign: "center" }}>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: "#1A2456", marginBottom: 8 }}>Search for new prospects</p>
+                  <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 28 }}>An AI agent will search the web for companies that match Aker BioMarine's customer profile.</p>
+                  <button onClick={() => handleAgentSearch()}
+                    style={{ background: "#0891B2", color: "#FFFFFF", border: "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                    Search for New Companies →
+                  </button>
+                </div>
+              </>
             )}
 
             {agentState === "stale_warning" && (

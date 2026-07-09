@@ -10,7 +10,7 @@ import sourcesConfig from "@/config/sources.json";
 type Source = {
   name: string;
   url: string;
-  queries: string[];
+  search_prefix: string;
   note?: string;
 };
 
@@ -101,9 +101,11 @@ async function discoverCompanies(
   const sourceList = sources
     .map((s) => `- ${s.name} (${s.url})${s.note ? ` — NOTE: ${s.note}` : ""}`)
     .join("\n");
-  // Each source's queries are narrow (one concept each). Present them as an explicit,
-  // numbered list so the model runs them as separate searches rather than combining them.
-  const allQueries = sources.flatMap((s) => s.queries);
+  // Build the narrow queries from concepts × sources (single source of truth in sources.json:
+  // search_concepts + each source's search_prefix). One concept per query, presented as an
+  // explicit numbered list so the model runs them as separate searches rather than combining them.
+  const searchConcepts = (sourcesConfig as { search_concepts?: string[] }).search_concepts ?? [];
+  const allQueries = sources.flatMap((s) => searchConcepts.map((c) => `${s.search_prefix} ${c}`));
   const queryList = allQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n");
   const countInstruction =
     knownNames.length > 0
