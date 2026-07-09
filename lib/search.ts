@@ -10,6 +10,8 @@ import sourcesConfig from "@/config/sources.json";
 type Source = {
   name: string;
   url: string;
+  queries: string[];
+  note?: string;
 };
 
 type DiscoveredCompany = {
@@ -94,11 +96,15 @@ function parseJsonObject(response: Anthropic.Message): Record<string, unknown> |
 async function discoverCompanies(
   client: Anthropic,
   sources: Source[],
-  searchStrings: string[],
   knownNames: string[] = []
 ): Promise<DiscoveredCompany[]> {
-  const sourceList = sources.map((s) => `- ${s.name} (${s.url})`).join("\n");
-  const queryList = searchStrings.map((q) => `- "${q}"`).join("\n");
+  const sourceList = sources
+    .map((s) => `- ${s.name} (${s.url})${s.note ? ` — NOTE: ${s.note}` : ""}`)
+    .join("\n");
+  // Each source's queries are narrow (one concept each). Present them as an explicit,
+  // numbered list so the model runs them as separate searches rather than combining them.
+  const allQueries = sources.flatMap((s) => s.queries);
+  const queryList = allQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n");
   const countInstruction =
     knownNames.length > 0
       ? `IMPORTANT — count only NEW companies toward your target of 10:
@@ -113,16 +119,21 @@ ${knownNames.join(", ")}`
   const stream = await client.messages.stream({
     model: "claude-sonnet-5",
     max_tokens: 2048,
-    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 4 }],
+    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 12 }],
     messages: [
       {
         role: "user",
         content: `You are finding supplement companies that have recently launched or are active in the brain health, cognitive performance, or longevity supplement space in Europe.
 
-Search for companies using the queries below. Focus especially on content from these trade media sources:
+Focus on content from these trade media sources:
 ${sourceList}
 
-Search queries to use:
+Run the searches below. IMPORTANT search rules:
+- Run each query as a SEPARATE, narrow search — one query at a time. Do NOT combine several queries into one search (narrow single-concept searches return far better company round-ups than broad stacked ones).
+- Cover ALL of the sources — do not spend your whole search budget on a single source.
+- You have a budget of up to 12 searches. You may stop early once you have 10 new companies (see the counting rule below).
+
+Searches to run:
 ${queryList}
 
 For each company or brand you find that is active in brain health, cognitive performance, nootropics, memory support, longevity, or premium supplementation:
@@ -145,6 +156,14 @@ Return ONLY a raw JSON array, no markdown or explanation:
   });
 
   const response = await stream.finalMessage();
+
+  // --- DIAGNOSTIC: see exactly what the model returned before parsing ---
+  const rawBlock = response.content.findLast((b) => b.type === "text");
+  const rawText = rawBlock && rawBlock.type === "text" ? rawBlock.text : "(no text block)";
+  console.log(`[search] Step 1 stop_reason: ${response.stop_reason}`);
+  console.log(`[search] Step 1 RAW RESPONSE (${rawText.length} chars):\n${rawText.slice(0, 4000)}`);
+  // --- END DIAGNOSTIC ---
+
   const discovered = parseJsonArray<DiscoveredCompany>(response);
   console.log(
     `[search] Step 1: discovered ${discovered.length} companies from trade media search`
@@ -339,7 +358,6 @@ export async function searchForCompanies(): Promise<{
     (sourcesConfig as { enrichment_model?: string }).enrichment_model ??
     "claude-sonnet-5";
   const sources = sourcesConfig.sources as Source[];
-  const searchStrings = (sourcesConfig as { search_strings?: string[] }).search_strings ?? [];
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -398,7 +416,7 @@ export async function searchForCompanies(): Promise<{
       ])
     );
 
-    const discovered = await discoverCompanies(client, sources, searchStrings, knownNames);
+    const discovered = await discoverCompanies(client, sources, knownNames);
     step1Discovered = discovered.length;
 
     if (discovered.length > 0) {

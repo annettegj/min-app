@@ -1,5 +1,5 @@
 {
-  "enrichment_model": "claude-sonnet-4-6",
+  "enrichment_model": "claude-sonnet-5",
   "keyword_bank": [
     "brain health", "cognitive performance", "nootropic", "memory support", "brain fog",
     "longevity", "healthy aging", "healthspan", "neuroprotection", "neuro vitality",
@@ -9,28 +9,44 @@
     "biohackers", "premium lifestyle"
   ],
   "keyword_bank_notes": "biohackers and premium lifestyle are especially relevant for social media sources — prioritize these when adding Instagram, TikTok, or LinkedIn sources later.",
-  "search_strings": [
-    "cognitive health supplement launch",
-    "longevity supplement launch Europe",
-    "brain health supplement Europe",
-    "nootropic launch"
-  ],
   "sources": [
     {
       "name": "NutraIngredients Europe",
-      "url": "https://www.nutraingredients.com"
+      "url": "https://www.nutraingredients.com",
+      "note": "Serves the US edition by default — always keep \"Europe\" in the query and focus on European companies.",
+      "queries": [
+        "nutraingredients.com Europe longevity healthy aging",
+        "nutraingredients.com Europe cognitive brain health",
+        "nutraingredients.com Europe nootropic supplement brand"
+      ]
     },
     {
       "name": "Nutrition Insight",
-      "url": "https://www.nutritioninsight.com"
+      "url": "https://www.nutritioninsight.com",
+      "queries": [
+        "nutritioninsight.com longevity healthy aging",
+        "nutritioninsight.com cognitive brain health",
+        "nutritioninsight.com nootropic supplement brand"
+      ]
     },
     {
       "name": "Nutraceutical Business Review",
-      "url": "https://www.nutraceuticalbusinessreview.com"
+      "url": "https://www.nutraceuticalbusinessreview.com",
+      "note": "Many articles are paywalled — titles are visible in search, but full text may be blocked. Extract company names from titles/snippets when needed.",
+      "queries": [
+        "nutraceuticalbusinessreview.com longevity healthy aging",
+        "nutraceuticalbusinessreview.com cognitive brain health",
+        "nutraceuticalbusinessreview.com nootropic supplement brand"
+      ]
     },
     {
       "name": "Nutritional Outlook",
-      "url": "https://www.nutritionaloutlook.com"
+      "url": "https://www.nutritionaloutlook.com",
+      "queries": [
+        "nutritionaloutlook.com longevity healthy aging",
+        "nutritionaloutlook.com cognitive brain health",
+        "nutritionaloutlook.com nootropic supplement brand"
+      ]
     }
   ]
 }

@@ -28,7 +28,7 @@ export async function GET() {
   // TEST A — minimal call, NO tools. Confirms key + credits + connectivity.
   const testA = await timed(async () => {
     const msg = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       max_tokens: 20,
       messages: [{ role: "user", content: "Say the single word: hei" }],
     });
@@ -43,7 +43,7 @@ export async function GET() {
     try {
       const stream = client.messages.stream(
         {
-          model: "claude-sonnet-4-6",
+          model: "claude-sonnet-5",
           max_tokens: 256,
           tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 1 }],
           messages: [{ role: "user", content: "Search the web for the official website of the supplement brand Heights and return just the URL." }],

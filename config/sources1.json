@@ -1,0 +1,59 @@
+{
+  "enrichment_model": "claude-sonnet-5",
+
+"sources": [
+  {
+    "name": "NutraIngredients Europe",
+    "url": "https://www.nutraingredients.com",
+    "tested": true,
+    "site_filter_reliability": "low",
+    "region_lock_risk": true,
+    "access_notes": "Arkiv gir robots-blokk ved direkte fetch. site: lekker mot clinicaltrials/NCBI/USPTO på brede ord. Serverer NA-edition som standard; tving Europe.",
+    "hub_search_queries": [
+      "nutraingredients.com Europe longevity",
+      "nutraingredients.com Europe cognitive mind mood",
+      "nutraingredients.com Europe healthy ageing",
+      "nutraingredients.com Europe omega-3 launch"
+    ]
+  },
+  {
+    "name": "Nutrition Insight",
+    "url": "https://www.nutritioninsight.com",
+    "tested": true,
+    "site_filter_reliability": "medium",
+    "region_lock_risk": false,
+    "access_notes": "6/8 treff fra riktig domene på brede ord, best av de fire på site:-presisjon. Har /trend-analysis/ og /news/ hub-stier.",
+    "hub_search_queries": [
+      "nutritioninsight.com longevity brain health",
+      "nutritioninsight.com cognitive supplement",
+      "nutritioninsight.com healthy aging nootropic"
+    ]
+  },
+  {
+    "name": "Nutraceutical Business Review",
+    "url": "https://www.nutraceuticalbusinessreview.com",
+    "tested": true,
+    "site_filter_reliability": "medium",
+    "region_lock_risk": false,
+    "access_notes": "7/9 fra riktig domene. VIKTIG: mange artikler bak betalingsmur ('You need to be a subscriber') - søke-snapshot gir tittel+ingress, men full enrichment kan blokkeres. Har verdifulle /tag/-sider (f.eks. /tag/cognitive) som lister mange selskaper.",
+    "hub_search_queries": [
+      "nutraceuticalbusinessreview.com cognitive brain",
+      "nutraceuticalbusinessreview.com longevity healthy ageing",
+      "nutraceuticalbusinessreview.com nootropic memory"
+    ]
+  },
+  {
+    "name": "Nutritional Outlook",
+    "url": "https://www.nutritionaloutlook.com",
+    "tested": true,
+    "site_filter_reliability": "high",
+    "region_lock_risk": false,
+    "access_notes": "Best av de fire: 7/8 fra riktig domene, ingen bot-vegg eller betalingsmur observert. Rike roundup-artikler under /view/ som lister mange merkevarer samtidig. US-fokusert innhold.",
+    "hub_search_queries": [
+      "nutritionaloutlook.com cognitive mental health supplement",
+      "nutritionaloutlook.com longevity healthy aging",
+      "nutritionaloutlook.com brain health brand"
+    ]
+  }
+]
+}
