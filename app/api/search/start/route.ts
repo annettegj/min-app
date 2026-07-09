@@ -2,6 +2,19 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { searchForCompanies } from "@/lib/search";
 
+// Allow the UI (hosted on a different origin, e.g. Vercel) to call this worker endpoint.
+// ALLOWED_ORIGIN can pin it to the Vercel URL; defaults to "*" (fine for this internal tool).
+const corsHeaders = {
+  "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN ?? "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+// Browsers may send a preflight OPTIONS request before the POST — answer it with the CORS headers.
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 // Starts a search as a BACKGROUND job and returns immediately with a jobId.
 // The actual work (Step 1 + Step 2, several minutes) runs after the response is sent —
 // this only works on an always-on server (Render), not on serverless (Vercel), where the
@@ -21,7 +34,7 @@ export async function POST() {
 
   if (error || !job) {
     console.error("[api/search/start] Could not create job:", error?.message);
-    return NextResponse.json({ error: error?.message ?? "Kunne ikke opprette søkejobb." }, { status: 500 });
+    return NextResponse.json({ error: error?.message ?? "Could not create search job." }, { status: 500, headers: corsHeaders });
   }
 
   const jobId = job.id as number;
@@ -58,5 +71,5 @@ export async function POST() {
     });
 
   // 3. Respond immediately — the browser now polls search_jobs with this id.
-  return NextResponse.json({ jobId });
+  return NextResponse.json({ jobId }, { headers: corsHeaders });
 }
