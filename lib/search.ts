@@ -118,7 +118,7 @@ ${knownNames.join(", ")}`
 
   const stream = await client.messages.stream({
     model: "claude-sonnet-5",
-    max_tokens: 2048,
+    max_tokens: 32000,
     tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 12 }],
     messages: [
       {
@@ -186,7 +186,7 @@ async function enrichCompany(
   console.log(`[search] Step 2 [${company.name}] starter...`);
   const stream = await client.messages.stream({
     model,
-    max_tokens: 1024,
+    max_tokens: 8000,
     tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
     messages: [
       {

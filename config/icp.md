@@ -15,7 +15,7 @@ Primary target — 2026 conversion goal
 - Pharma Rx companies with portfolios in cognition, metabolism, cardiovascular, geriatrics, or women's health, seeking clinically documented supplement products that physicians are confident to recommend
 
 **Signals to look for:**
-- Premium or prestige pricing — minimum ~$60/€55 per product unit is a strong positive signal
+- Premium or prestige pricing — a max price of roughly 60 or more in the product's own currency (£60 / €60 / $60, no conversion needed) is a strong positive signal
 - Positioning around longevity, brain regeneration, neuroprotection, or preventive brain health (not just general wellness)
 - Science-driven self-presentation: "clinical evidence", "science storytelling", "differentiation", "innovation"
 - Sells primarily via DTC e-commerce, premium specialty retail, or online platforms
@@ -87,8 +87,8 @@ Calculate a raw score for each company based on the dimensions below. Sum the po
 | | Enabler | 0 |
 | **Category Match** | Brain/cognitive, Longevity/NAD+, Women's hormonal, Pharma Rx specialty | +2 |
 | **Competitor Ingredients** | Confirmed use of Citicoline, PS, Alpha-GPC, NR, NMN, PQQ, Urolithin A, or Spermidine | +1 |
-| **Max price >€60/unit** | Yes (max price confirmed above €60) | +1 |
-| | No (max price confirmed below €60) | −2 |
+| **Max price (own currency)** | Yes — confirmed at ~60 or above in its own currency (£60 / €60 / $60, no conversion) | +1 |
+| | No — confirmed below ~60 in its own currency | −2 |
 | | Not found | 0 (flag for manual review) |
 
 ### Star Conversion
@@ -102,8 +102,8 @@ Calculate a raw score for each company based on the dimensions below. Sum the po
 | 0–3 | ★☆☆☆☆ (1) | Weak fit — price too low, wrong pool, no category match |
 
 ### Price notes
-- If max price is confirmed above €60: add 1 point
-- If max price is confirmed below €60: deduct 2 points — this is a decisive weakness factor
+- If max price is confirmed at ~60 or above in the product's own currency (£60 / €60 / $60 — do NOT convert between currencies): add 1 point
+- If max price is confirmed below ~60 in its own currency: deduct 2 points — this is a decisive weakness factor
 - If `price_found` is false: do not deduct points. Explicitly flag this in the description with a recommendation for manual verification — especially if the company presents itself as premium or science-driven, as it may still qualify despite unconfirmed pricing
 
 ---
@@ -136,6 +136,6 @@ Company size, revenue history, number of products, and track record length are N
 ---
 
 ## Price Threshold
-- **Early Mover:** minimum ~$60/€55 per product unit is a strong positive signal. Prices below this level are a weakness — note it explicitly in the description, but do not exclude automatically.
+- **Early Mover:** a max price of roughly 60 or more in the product's own currency (£60 / €60 / $60, no conversion) is a strong positive signal. Prices below this level are a weakness — note it explicitly in the description, but do not exclude automatically.
 - **Follower and Enabler:** no specific price threshold.
 - If price was not found (price_found: false), note this in the description rather than assuming.
