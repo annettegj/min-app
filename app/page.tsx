@@ -8,6 +8,11 @@ import sourcesConfig from "@/config/sources.json";
 // Set to true to skip the real search and use mock data for demos
 const DEMO_MODE = false;
 
+// Disables the live "Search for New Companies" button in deployed environments
+// (the real search is too long-running for serverless). Set NEXT_PUBLIC_DISABLE_SEARCH=true
+// on Vercel; leave unset locally so the search works during development.
+const SEARCH_DISABLED = process.env.NEXT_PUBLIC_DISABLE_SEARCH === "true";
+
 const GEOGRAPHIES = ["All", "EU", "UK", "US", "APAC", "Global"];
 const GEO_OPTIONS = ["EU", "UK", "US", "APAC", "Global"];
 const CATEGORIES = ["All", "Premium/science-driven brand", "Pharma Rx", "Established CHC", "Distributor/enabler"];
@@ -650,10 +655,13 @@ export default function Home() {
                 <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", padding: "48px 32px", textAlign: "center" }}>
                   <p style={{ fontSize: 15, fontWeight: 600, color: "#1A2456", marginBottom: 8 }}>Search for new prospects</p>
                   <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 28 }}>An AI agent will search the web for companies that match Aker BioMarine's customer profile.</p>
-                  <button onClick={() => handleAgentSearch()}
-                    style={{ background: "#0891B2", color: "#FFFFFF", border: "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                    Search for New Companies →
+                  <button onClick={() => { if (!SEARCH_DISABLED) handleAgentSearch(); }} disabled={SEARCH_DISABLED}
+                    style={{ background: SEARCH_DISABLED ? "#E4E7F2" : "#0891B2", color: SEARCH_DISABLED ? "#9CA3AF" : "#FFFFFF", border: SEARCH_DISABLED ? "1px solid #D1D5DB" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer" }}>
+                    {SEARCH_DISABLED ? "Search Disabled (Demo)" : "Search for New Companies →"}
                   </button>
+                  {SEARCH_DISABLED && (
+                    <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 14 }}>Live search runs offline during the pilot — the database below is kept up to date.</p>
+                  )}
                 </div>
               </>
             )}
