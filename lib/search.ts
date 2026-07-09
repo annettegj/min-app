@@ -94,13 +94,24 @@ function parseJsonObject(response: Anthropic.Message): Record<string, unknown> |
 async function discoverCompanies(
   client: Anthropic,
   sources: Source[],
-  searchStrings: string[]
+  searchStrings: string[],
+  knownNames: string[] = []
 ): Promise<DiscoveredCompany[]> {
   const sourceList = sources.map((s) => `- ${s.name} (${s.url})`).join("\n");
   const queryList = searchStrings.map((q) => `- "${q}"`).join("\n");
+  const countInstruction =
+    knownNames.length > 0
+      ? `IMPORTANT — count only NEW companies toward your target of 10:
+- The list below shows companies we ALREADY have. Never return them; they count as ZERO.
+- Only companies NOT on the list count. Example: 3 known + 5 new = a count of 5, not 8.
+- Aim for up to 10 new companies. If fewer exist, return what you found — do not repeat searches to reach 10.
+
+Companies we already have (do NOT return these):
+${knownNames.join(", ")}`
+      : `IMPORTANT: Aim for up to 10 companies. If fewer exist, return what you found — do not repeat searches just to reach 10.`;
 
   const stream = await client.messages.stream({
-    model: "claude-sonnet-4-6",
+    model: "claude-sonnet-5",
     max_tokens: 2048,
     tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 4 }],
     messages: [
@@ -118,7 +129,7 @@ For each company or brand you find that is active in brain health, cognitive per
 - Extract the company or brand name
 - Record which source or publication mentioned them
 
-IMPORTANT — keep this efficient: Find AT MOST 10 companies. As soon as you have 10 good matches, STOP searching immediately and return them. Do not use all your available searches if you already have enough — prioritize speed and the most relevant companies over exhaustiveness.
+${countInstruction}
 
 Important rules:
 - Extract COMPANY names, not product names. If an article says "Brand X launches new omega-3 supplement", extract "Brand X".
@@ -326,7 +337,7 @@ export async function searchForCompanies(): Promise<{
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const enrichmentModel =
     (sourcesConfig as { enrichment_model?: string }).enrichment_model ??
-    "claude-sonnet-4-6";
+    "claude-sonnet-5";
   const sources = sourcesConfig.sources as Source[];
   const searchStrings = (sourcesConfig as { search_strings?: string[] }).search_strings ?? [];
 
@@ -373,7 +384,21 @@ export async function searchForCompanies(): Promise<{
   // Only run Step 1 if the queue has fewer than 5 pending companies
   if (pendingCount < 5) {
     console.log(`[search] Step 1: queue below threshold — running web search...`);
-    const discovered = await discoverCompanies(client, sources, searchStrings);
+
+    // Gather names we already know so Step 1 can skip them and spend its searches on NEW companies.
+    // NOTE: if this list grows very large (100+), cap it here (e.g. most recent N) to keep the prompt small.
+    const [{ data: knownCompanies }, { data: knownQueue }] = await Promise.all([
+      supabase.from("companies").select("name"),
+      supabase.from("discovery_queue").select("name"),
+    ]);
+    const knownNames = Array.from(
+      new Set([
+        ...(knownCompanies ?? []).map((r: { name: string }) => r.name),
+        ...(knownQueue ?? []).map((r: { name: string }) => r.name),
+      ])
+    );
+
+    const discovered = await discoverCompanies(client, sources, searchStrings, knownNames);
     step1Discovered = discovered.length;
 
     if (discovered.length > 0) {

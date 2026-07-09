@@ -196,7 +196,7 @@ export default function Home() {
       if (data.noCompaniesFound) {
         setAgentError({
           title: "Ingen nye selskaper funnet",
-          detail: "Steg 1 fant ingen selskaper som ikke allerede er i databasen, avvist, eller i køen. Dette kan skje hvis fagmediene ikke har publisert nye relevante artikler siden sist søk. Prøv igjen om noen dager.",
+          detail: "Steg 1 fant ingen selskaper som ikke allerede er i databasen, avvist, eller i køen. Dette kan bety at kildene ikke har publisert noe nytt, eller at søkeordene treffer de samme selskapene hver gang. Vurder å justere kildene eller søkeordene i config/sources.json, eller prøv igjen senere.",
           canRetry: false,
         });
         setAgentState("error");
