@@ -29,7 +29,6 @@ type Company = {
   name: string;
   geography: string;
   product_category: string;
-  revenue_meur: number | null;
   max_price: number | null;
   price_currency: string | null;
   icp_fit: number;
@@ -37,7 +36,6 @@ type Company = {
   source_name?: string;
   description?: string;
   priority_tier?: string | null;
-  pilot_source?: boolean;
   rejected?: boolean;
   added?: boolean;
 };
@@ -58,7 +56,6 @@ type SearchResult = {
 type PendingCompany = SearchResult & {
   geography: string;
   product_category: string;
-  revenue_meur: string;
   max_price: string;
   icp_fit: number;
 };
@@ -148,7 +145,6 @@ export default function Home() {
   const results = useMemo(() => {
     if (!searchParams) return [];
     return companies.filter((c) => {
-      if (DEMO_MODE && c.pilot_source) return false;
       if (searchParams.geography !== "All" && c.geography !== searchParams.geography) return false;
       if (searchParams.category && c.product_category !== searchParams.category) return false;
       if (searchParams.priceMin && (c.max_price ?? 0) < Number(searchParams.priceMin)) return false;
@@ -338,7 +334,6 @@ export default function Home() {
       ...r,
       geography: r.geography ?? "",
       product_category: r.product_category ?? "",
-      revenue_meur: "",
       max_price: r.max_price_eur != null ? String(r.max_price_eur) : "",
       icp_fit: r.icp_score ?? 3,
     })));
@@ -358,7 +353,6 @@ export default function Home() {
       description: c.description,
       geography: c.geography,
       product_category: c.product_category,
-      revenue_meur: c.revenue_meur ? Number(c.revenue_meur) : null,
       max_price: c.max_price ? Number(c.max_price) : null,
       price_currency: c.price_currency || null,
       icp_fit: c.icp_fit,
@@ -593,9 +587,6 @@ export default function Home() {
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <span style={{ fontSize: 10, color: "#A0AECF", marginRight: 2 }}>{expandedCompanyId === c.id ? "▾" : "▸"}</span>
                                 {c.name}
-                                {c.pilot_source && (
-                                  <span title="Added during pilot phase — source not verified by stakeholders" style={{ background: "#FEF3C7", color: "#92400E", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 3, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid #FDE68A" }}>Pilot</span>
-                                )}
                               </div>
                             </td>
                             <td style={{ padding: "16px 22px", whiteSpace: "nowrap" }}>
@@ -1004,11 +995,6 @@ export default function Home() {
                           <option value="">Select…</option>
                           {CAT_OPTIONS.map(cat => <option key={cat}>{cat}</option>)}
                         </select>
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Revenue (M EUR)</label>
-                        <input type="number" placeholder="Optional" value={c.revenue_meur}
-                          onChange={(e) => updatePending(i, "revenue_meur", e.target.value)} style={inputStyle} />
                       </div>
                       <div>
                         <label style={labelStyle}>Max. Price</label>
