@@ -52,9 +52,12 @@ export async function POST() {
       } else {
         await supabase.from("search_jobs").update({
           status: "done",
-          message: `Done — ${result.enriched.length} companies enriched.`,
+          message: result.timedOut
+            ? `Timed out — ${result.enriched.length} companies enriched before the limit.`
+            : `Done — ${result.enriched.length} companies enriched.`,
           step3_prompt: result.step3Prompt,
           enriched: result.enriched,
+          timed_out: result.timedOut ?? false,
           updated_at: new Date().toISOString(),
         }).eq("id", jobId);
       }

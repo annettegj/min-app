@@ -112,6 +112,7 @@ export default function Home() {
 
   // --- Background search job (start + poll) ---
   const [searchProgress, setSearchProgress] = useState("");
+  const [searchTimedOut, setSearchTimedOut] = useState(false);
   const [activeSearchJobId, setActiveSearchJobId] = useState<number | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [showLog, setShowLog] = useState(false);
@@ -188,6 +189,7 @@ export default function Home() {
     setStep3CopyDone(false);
     setAddingState("idle");
     setPendingCompanies([]);
+    setSearchTimedOut(false);
 
     if (DEMO_MODE) {
       setAgentState("searching");
@@ -268,6 +270,7 @@ export default function Home() {
           for (const e of enriched) { if (e.source_name) map[e.name] = e.source_name; }
           setSourceNameMap(map);
           setStep3Prompt(job.step3_prompt ?? "");
+          setSearchTimedOut(!!job.timed_out);
           setAgentState("step3");
         } else if (job.status === "no_companies") {
           stopPolling();
@@ -843,6 +846,14 @@ export default function Home() {
 
             {agentState === "step3" && (
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+                {searchTimedOut && (
+                  <div style={{ background: "#FFFBEB", borderBottom: "1px solid #FCD34D", padding: "14px 20px" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#78350F", marginBottom: 4 }}>⚠️ The search timed out after 20 minutes</p>
+                    <p style={{ fontSize: 12.5, color: "#78350F", lineHeight: 1.6 }}>
+                      Nothing was lost: companies found in Step 1 are saved in the queue, and companies that finished enrichment in Step 2 are in the company database. The next search will automatically pick up where this one left off. You can still evaluate the companies that were enriched below.
+                    </p>
+                  </div>
+                )}
                 <div style={{ background: "#0C1C2E", padding: "12px 20px" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Step 3 — Manual Evaluation</p>
                   <p style={{ color: "#A0BEFF", fontSize: 12, marginTop: 2 }}>Steps 1 and 2 are done. Copy the prompt below and paste it into Claude Chat to evaluate the companies.</p>

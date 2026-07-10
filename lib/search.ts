@@ -385,6 +385,7 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
   step3Prompt: string;
   debug: SearchDebug;
   noCompaniesFound?: boolean;
+  timedOut?: boolean;
 }> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const enrichmentModel =
@@ -608,5 +609,6 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
       step2_failed: failed,
       enrichment_model: enrichmentModel,
     },
+    timedOut: timeoutController.signal.aborted,
   };
 }
