@@ -28,11 +28,19 @@ export async function POST(request: Request) {
   // Step 3 mode is chosen by the UI toggle: "auto" runs ICP matching via the API in this worker,
   // "manual" builds the prompt for the user to paste into Claude Chat. Default to "auto".
   let step3Mode: "auto" | "manual" = "auto";
+  let searchConcepts: string[] | undefined;
   try {
     const body = await request.json();
     if (body?.step3Mode === "manual") step3Mode = "manual";
+    // Optional user-selected search terms. Empty/invalid → undefined, so the worker uses its defaults.
+    if (Array.isArray(body?.searchConcepts)) {
+      const terms = body.searchConcepts.filter(
+        (t: unknown): t is string => typeof t === "string" && t.trim().length > 0
+      );
+      if (terms.length > 0) searchConcepts = terms;
+    }
   } catch {
-    // No/invalid body — keep the default.
+    // No/invalid body — keep the defaults.
   }
 
   // 1. Create a job row so the browser has something to poll straight away.
@@ -51,7 +59,7 @@ export async function POST(request: Request) {
 
   // 2. Fire-and-forget: run the search without awaiting it. On a persistent server this keeps
   //    running after we respond. The .then/.catch write the final outcome to the job row.
-  searchForCompanies(jobId, step3Mode)
+  searchForCompanies(jobId, step3Mode, searchConcepts)
     .then(async (result) => {
       if (result.noCompaniesFound) {
         await supabase.from("search_jobs").update({

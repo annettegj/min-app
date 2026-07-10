@@ -135,7 +135,8 @@ function emit(msg: string) {
 async function discoverCompanies(
   client: Anthropic,
   sources: Source[],
-  knownNames: string[] = []
+  knownNames: string[] = [],
+  concepts?: string[]
 ): Promise<DiscoveredCompany[]> {
   const sourceList = sources
     .map((s) => `- ${s.name} (${s.url})${s.note ? ` — NOTE: ${s.note}` : ""}`)
@@ -143,7 +144,12 @@ async function discoverCompanies(
   // Build the narrow queries from concepts × sources (single source of truth in sources.json:
   // search_concepts + each source's search_prefix). One concept per query, presented as an
   // explicit numbered list so the model runs them as separate searches rather than combining them.
-  const searchConcepts = (sourcesConfig as { search_concepts?: string[] }).search_concepts ?? [];
+  // Use the caller-selected terms when provided; otherwise fall back to the configured concepts.
+  const searchConcepts =
+    concepts && concepts.length > 0
+      ? concepts
+      : (sourcesConfig as { search_concepts?: string[] }).search_concepts ?? [];
+  emit(`[search] Step 1: using ${searchConcepts.length} search terms: ${searchConcepts.join(", ")}`);
   const allQueries = sources.flatMap((s) => searchConcepts.map((c) => `${s.search_prefix} ${c}`));
   const queryList = allQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n");
   const countInstruction =
@@ -443,7 +449,8 @@ async function evaluateCompanies(
 
 export async function searchForCompanies(
   jobId: number | null = null,
-  step3Mode: "auto" | "manual" = "auto"
+  step3Mode: "auto" | "manual" = "auto",
+  searchConcepts?: string[]
 ): Promise<{
   enriched: EnrichedCompany[];
   step3Prompt: string;
@@ -537,7 +544,7 @@ export async function searchForCompanies(
       ])
     );
 
-    const discovered = await discoverCompanies(client, sources, knownNames);
+    const discovered = await discoverCompanies(client, sources, knownNames, searchConcepts);
     step1Discovered = discovered.length;
 
     if (discovered.length > 0) {

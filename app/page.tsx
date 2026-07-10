@@ -21,7 +21,11 @@ const TIERS = ["All", "Early Mover", "Follower", "Enabler"];
 
 // Search-configuration preview options — read directly from config/sources.json (one-way:
 // config → app), so the UI always mirrors the actual sources and search concepts the code uses.
-const SEARCH_TERM_OPTIONS = (sourcesConfig as { search_concepts?: string[] }).search_concepts ?? [];
+// Menu of selectable search terms: the curated concepts first, then the wider keyword bank (deduped).
+const SEARCH_TERM_OPTIONS = Array.from(new Set([
+  ...((sourcesConfig as { search_concepts?: string[] }).search_concepts ?? []),
+  ...((sourcesConfig as { keyword_bank?: string[] }).keyword_bank ?? []),
+]));
 const SOURCE_OPTIONS = ((sourcesConfig as { sources?: { name: string }[] }).sources ?? []).map(s => s.name);
 
 type Company = {
@@ -230,7 +234,7 @@ export default function Home() {
       const res = await fetch(`${workerBase}/api/search/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ step3Mode }),
+        body: JSON.stringify({ step3Mode, searchConcepts: selectedTerms }),
       });
       const data = await res.json();
 
@@ -702,9 +706,9 @@ export default function Home() {
                     <span style={{ color: "#A0BEFF", fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>Preview</span>
                   </div>
                   <div style={{ background: "#FFFBEB", borderBottom: "1px solid #FCD34D", padding: "10px 20px" }}>
-                    <p style={{ fontSize: 12, color: "#78350F" }}>Preview only — these selections don’t affect the search yet. The search currently uses the fixed sources and terms in config/sources.json.</p>
+                    <p style={{ fontSize: 12, color: "#78350F" }}>Search terms now affect the search — choose up to 3 (leave all unchecked to use the defaults). Sources are still fixed in config/sources.json and can’t be changed here yet.</p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2" style={{ padding: "20px", gap: 32, opacity: 0.5, pointerEvents: "none", filter: "grayscale(1)" }}>
+                  <div className="grid grid-cols-1 md:grid-cols-2" style={{ padding: "20px", gap: 32 }}>
                     {/* Search terms */}
                     <div>
                       <label style={labelStyle}>Search terms (choose up to 3)</label>
@@ -723,8 +727,8 @@ export default function Home() {
                         })}
                       </div>
                     </div>
-                    {/* Sources */}
-                    <div>
+                    {/* Sources — still a disabled placeholder (fixed in config/sources.json for now) */}
+                    <div style={{ opacity: 0.5, pointerEvents: "none", filter: "grayscale(1)" }}>
                       <label style={labelStyle}>Sources (choose up to 4)</label>
                       <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 4 }}>
                         {SOURCE_OPTIONS.map(s => {
