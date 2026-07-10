@@ -27,6 +27,20 @@ export type SearchResult = {
   icp_score: number | null;
 };
 
+// The full result of Step 3 ICP matching — matches the JSON schema in buildStep3Prompt and the
+// fields the UI reads when building the selectable results list (geography, product_category, price).
+export type EvaluatedCompany = {
+  name: string;
+  website_url: string;
+  description: string;
+  priority_tier: "early_mover" | "follower" | "enabler" | null;
+  icp_score: number | null;
+  geography: string;
+  product_category: string;
+  max_price_eur: number | null;
+  price_currency: string | null;
+};
+
 export type SearchDebug = {
   step1_discovered: number;
   step1_skipped: number;
@@ -98,7 +112,7 @@ function parseJsonObject(response: Anthropic.Message): Record<string, unknown> |
 // Overall safety cap: abort the whole search (all in-flight Anthropic calls) after this long,
 // so a stalled web_search can never hang the job indefinitely. Generous enough for normal
 // variance (a full run is ~15 min); only catches genuine hangs.
-const SEARCH_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
+const SEARCH_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes (covers steps 1+2+3)
 
 const rawConsoleLog = console.log.bind(console);
 let activeJobId: number | null = null;
@@ -378,11 +392,62 @@ Return ONLY a raw JSON array, no markdown. For each company include:
 [{"name":"Company Name","website_url":"https://example.com","description":"Why relevant for Lysoveta.","priority_tier":"early_mover","icp_score":4,"geography":"UK","product_category":"Premium/science-driven brand","max_price_eur":69,"price_currency":"GBP"}]`;
 }
 
+// ---- Step 3: automatic ICP matching ----
+// Runs the SAME evaluation as the manual flow, but via the Anthropic API instead of Claude Chat.
+// No web_search — this is pure reasoning over the already-enriched data, so it is cheap and fast.
+// Returns the passing companies, or null on any failure (API error, aborted, unparseable JSON) so
+// the caller can fall back to the manual paste flow and never lose a finished job.
+
+async function evaluateCompanies(
+  client: Anthropic,
+  companies: EnrichedCompany[]
+): Promise<EvaluatedCompany[] | null> {
+  emit(`[search] Step 3: evaluating ${companies.length} companies against the ICP...`);
+  try {
+    const stream = await client.messages.stream(
+      {
+        model: "claude-sonnet-5",
+        max_tokens: 16000,
+        messages: [{ role: "user", content: buildStep3Prompt(companies) }],
+      },
+      { signal: activeSignal ?? undefined }
+    );
+    const response = await stream.finalMessage();
+    emit(`[search] Step 3 stop_reason: ${response.stop_reason}`);
+    emit(
+      `[search] Step 3 tokens: ${response.usage.input_tokens} input, ${response.usage.output_tokens} output`
+    );
+
+    const textBlock = response.content.findLast((b) => b.type === "text");
+    const rawText = textBlock && textBlock.type === "text" ? textBlock.text : "";
+    const stripped = rawText.replace(/```(?:json)?\s*/g, "").replace(/```/g, "");
+    const match = stripped.match(/\[[\s\S]*\]/);
+    if (!match) {
+      emit(`[search] Step 3: no JSON array found in the response`);
+      return null;
+    }
+    const results = JSON.parse(match[0]) as EvaluatedCompany[];
+    emit(
+      `[search] Step 3: ${results.length} of ${companies.length} companies passed ICP matching`
+    );
+    return results;
+  } catch (err) {
+    emit(
+      `[search] Step 3 aborted/failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+    return null;
+  }
+}
+
 // ---- Main export ----
 
-export async function searchForCompanies(jobId: number | null = null): Promise<{
+export async function searchForCompanies(
+  jobId: number | null = null,
+  step3Mode: "auto" | "manual" = "auto"
+): Promise<{
   enriched: EnrichedCompany[];
   step3Prompt: string;
+  results?: EvaluatedCompany[];
   debug: SearchDebug;
   noCompaniesFound?: boolean;
   timedOut?: boolean;
@@ -590,16 +655,42 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
     throw err;
   }
 
-  clearTimeout(timeoutTimer);
   const failed = toEnrich.length - enriched.length;
-  emit(`[search] ===== DONE: ${enriched.length} enriched, ${failed} failed =====`);
+  emit(`[search] ===== Steps 1-2 done: ${enriched.length} enriched, ${failed} failed =====`);
 
-  // Step 3 is manual — build the prompt and return enriched data for the user to paste into Claude Chat
+  // Build the manual-paste prompt regardless — it doubles as the fallback if automatic Step 3
+  // evaluation fails, so a finished (expensive) job is never lost.
   const step3Prompt = buildStep3Prompt(enriched);
+
+  // Step 3: ICP matching. In "auto" mode we run it here via the Anthropic API. In "manual" mode we
+  // skip it and the user pastes the prompt into Claude Chat, exactly as before. Runs BEFORE
+  // clearTimeout so it is still covered by the overall abort budget.
+  let results: EvaluatedCompany[] | undefined;
+  if (step3Mode === "auto" && enriched.length > 0) {
+    await reportProgress(`Evaluating ${enriched.length} companies against the ICP…`);
+    const evaluated = await evaluateCompanies(client, enriched);
+    if (evaluated) {
+      results = evaluated;
+      // Companies enriched in Step 2 but NOT returned by Step 3 are rejected (this mirrors the
+      // manual flow's AI-rejection). Setting rejected=true preserves enriched_data.
+      const passed = new Set(evaluated.map((c) => c.name));
+      const aiRejected = enriched.filter((c) => !passed.has(c.name)).map((c) => c.name);
+      if (aiRejected.length > 0) {
+        await supabase.from("companies").update({ rejected: true }).in("name", aiRejected);
+        emit(`[search] Step 3: ${aiRejected.length} companies rejected by ICP matching`);
+      }
+    } else {
+      emit(`[search] Step 3: automatic evaluation failed — falling back to manual paste`);
+    }
+  }
+
+  clearTimeout(timeoutTimer);
+  emit(`[search] ===== DONE =====`);
 
   return {
     enriched,
     step3Prompt,
+    results,
     debug: {
       step1_discovered: step1Discovered,
       step1_skipped: step1Skipped,

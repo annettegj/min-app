@@ -96,6 +96,11 @@ export default function Home() {
   const [step3Prompt, setStep3Prompt] = useState("");
   const [step3Paste, setStep3Paste] = useState("");
   const [step3CopyDone, setStep3CopyDone] = useState(false);
+  // Step 3 mode: "auto" runs ICP matching via the Anthropic API in the worker; "manual" builds the
+  // prompt to paste into Claude Chat. Sent to the worker when the search starts. Currently LOCKED on
+  // "auto" — the UI switch is disabled. To re-enable it, restore the setter: `[step3Mode, setStep3Mode]`
+  // and wire the switch buttons' onClick/disabled back up.
+  const [step3Mode] = useState<"auto" | "manual">("auto");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pendingCompanies, setPendingCompanies] = useState<PendingCompany[]>([]);
   const [addingState, setAddingState] = useState<"idle" | "form" | "saving" | "saved">("idle");
@@ -124,9 +129,12 @@ export default function Home() {
   // Clean up the timers if the component unmounts mid-search
   useEffect(() => stopPolling, []);
 
-  // Which of the 3 steps are we on? (1 = discovery, 2 = enrichment, 3 = manual evaluation)
+  // Which of the 3 steps are we on? (1 = discovery, 2 = enrichment, 3 = ICP matching)
+  // While the job is still running, drive the indicator from the progress message: "evaluat…" →
+  // step 3 (automatic ICP matching), "enrich…" → step 2, otherwise step 1.
   const currentStep = agentState === "step3" || agentState === "done"
     ? 3
+    : searchProgress.toLowerCase().includes("evaluat") ? 3
     : searchProgress.toLowerCase().includes("enrich") ? 2 : 1;
   const elapsedLabel = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")}`;
 
@@ -219,7 +227,11 @@ export default function Home() {
       // NEXT_PUBLIC_WORKER_URL points at the Render worker when the UI is hosted elsewhere
       // (e.g. Vercel); empty means same origin (everything on one host / local dev).
       const workerBase = process.env.NEXT_PUBLIC_WORKER_URL ?? "";
-      const res = await fetch(`${workerBase}/api/search/start`, { method: "POST" });
+      const res = await fetch(`${workerBase}/api/search/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step3Mode }),
+      });
       const data = await res.json();
 
       if (!res.ok) {
@@ -236,16 +248,19 @@ export default function Home() {
       setActiveSearchJobId(jobId);
       setLogLines([]);
 
+      // Clear any timers left over from a previous run BEFORE starting new ones. stopPolling()
+      // clears both the poll AND the elapsed intervals, so it must run first — calling it after
+      // starting the elapsed timer (as before) killed the counter immediately, freezing it at 0:00.
+      stopPolling();
+
       // Start the elapsed-time counter (updates every second).
       startMsRef.current = Date.now();
       setElapsedSec(0);
-      if (elapsedRef.current) clearInterval(elapsedRef.current);
       elapsedRef.current = setInterval(() => {
         if (startMsRef.current) setElapsedSec(Math.floor((Date.now() - startMsRef.current) / 1000));
       }, 1000);
 
       // Poll the job row (and its log) every 3 seconds until it finishes.
-      stopPolling();
       pollRef.current = setInterval(async () => {
         // Fetch the live log lines for this job
         const { data: logs } = await supabase
@@ -267,7 +282,15 @@ export default function Home() {
           setSourceNameMap(map);
           setStep3Prompt(job.step3_prompt ?? "");
           setSearchTimedOut(!!job.timed_out);
-          setAgentState("step3");
+          // Automatic Step 3 succeeded → jump straight to the selectable results. Otherwise (manual
+          // mode, or automatic evaluation failed) fall back to the manual paste box.
+          const autoResults = (job.results ?? null) as SearchResult[] | null;
+          if (autoResults) {
+            setSearchResults(autoResults.map((r) => ({ ...r, selected: false })));
+            setAgentState("done");
+          } else {
+            setAgentState("step3");
+          }
         } else if (job.status === "no_companies") {
           stopPolling();
           setAgentError({
@@ -651,8 +674,9 @@ export default function Home() {
         )}
 
         {/* ── TAB 2: Find New Companies ── */}
+        {/* Narrower, centered column for this tab only — the top bar stays full-width. */}
         {tab === "search" && (
-          <>
+          <div style={{ maxWidth: 960, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
             {/* Live search log — mirrors the server log, so no need to open the Render dashboard */}
             {activeSearchJobId != null && logLines.length > 0 && (
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
@@ -721,9 +745,28 @@ export default function Home() {
                 </div>
 
                 {/* Search action */}
-                <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", padding: "48px 32px", textAlign: "center" }}>
+                <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", padding: "72px 32px 48px", textAlign: "center", position: "relative" }}>
+                  {/* Step 3 decision — segmented on/off switch in the top-right corner */}
+                  <div style={{ position: "absolute", top: 16, right: 20, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#6B7280" }}>Step 3 decision:</span>
+                    <div style={{ display: "inline-flex", border: "1px solid #C4CAE8" }} title="Locked on Automatic for now">
+                      {([
+                        { value: "auto", label: "Automatic" },
+                        { value: "manual", label: "Manual" },
+                      ] as const).map((opt) => {
+                        const active = step3Mode === opt.value;
+                        return (
+                          <button key={opt.value} type="button" disabled
+                            style={{ background: active ? "#0891B2" : "#FFFFFF", color: active ? "#FFFFFF" : "#B0B6CC", border: "none", padding: "6px 16px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", cursor: "not-allowed" }}>
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <p style={{ fontSize: 15, fontWeight: 600, color: "#1A2456", marginBottom: 8 }}>Search for new prospects</p>
-                  <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 28 }}>An AI agent will search the web for companies that match Aker BioMarine's customer profile.</p>
+                  <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 28 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
+
                   <button onClick={() => { if (!SEARCH_DISABLED) handleAgentSearch(); }} disabled={SEARCH_DISABLED}
                     style={{ background: SEARCH_DISABLED ? "#E4E7F2" : "#0891B2", color: SEARCH_DISABLED ? "#9CA3AF" : "#FFFFFF", border: SEARCH_DISABLED ? "1px solid #D1D5DB" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer" }}>
                     {SEARCH_DISABLED ? "Search Disabled (Demo)" : "Search for New Companies →"}
@@ -1064,7 +1107,7 @@ export default function Home() {
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
         {/* ── TAB 3: ICP Criteria ── */}
         {tab === "icp" && (

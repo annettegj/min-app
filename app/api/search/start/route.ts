@@ -19,11 +19,21 @@ export async function OPTIONS() {
 // The actual work (Step 1 + Step 2, several minutes) runs after the response is sent —
 // this only works on an always-on server (Render), not on serverless (Vercel), where the
 // function is killed once it responds. The browser polls the search_jobs row for progress.
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // Step 3 mode is chosen by the UI toggle: "auto" runs ICP matching via the API in this worker,
+  // "manual" builds the prompt for the user to paste into Claude Chat. Default to "auto".
+  let step3Mode: "auto" | "manual" = "auto";
+  try {
+    const body = await request.json();
+    if (body?.step3Mode === "manual") step3Mode = "manual";
+  } catch {
+    // No/invalid body — keep the default.
+  }
 
   // 1. Create a job row so the browser has something to poll straight away.
   const { data: job, error } = await supabase
@@ -41,7 +51,7 @@ export async function POST() {
 
   // 2. Fire-and-forget: run the search without awaiting it. On a persistent server this keeps
   //    running after we respond. The .then/.catch write the final outcome to the job row.
-  searchForCompanies(jobId)
+  searchForCompanies(jobId, step3Mode)
     .then(async (result) => {
       if (result.noCompaniesFound) {
         await supabase.from("search_jobs").update({
@@ -50,13 +60,19 @@ export async function POST() {
           updated_at: new Date().toISOString(),
         }).eq("id", jobId);
       } else {
+        // `results` is set only when automatic Step 3 succeeded — the UI then jumps straight to the
+        // selectable results. Otherwise `results` is null and the UI shows the manual paste box.
+        const passed = result.results?.length ?? 0;
         await supabase.from("search_jobs").update({
           status: "done",
           message: result.timedOut
             ? `Timed out — ${result.enriched.length} companies enriched before the limit.`
+            : result.results
+            ? `Done — ${passed} of ${result.enriched.length} companies passed ICP matching.`
             : `Done — ${result.enriched.length} companies enriched.`,
           step3_prompt: result.step3Prompt,
           enriched: result.enriched,
+          results: result.results ?? null,
           timed_out: result.timedOut ?? false,
           updated_at: new Date().toISOString(),
         }).eq("id", jobId);
