@@ -67,7 +67,7 @@ const inputStyle: React.CSSProperties = {
 };
 const labelStyle: React.CSSProperties = {
   display: "block", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em",
-  textTransform: "uppercase", color: "#4A63D8", marginBottom: 6,
+  textTransform: "uppercase", color: "#475569", marginBottom: 6,
 };
 
 export default function Home() {
@@ -433,7 +433,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col" style={{ background: "#F4F5FA", fontFamily: "Inter, sans-serif" }}>
 
       {/* Top bar */}
-      <div style={{ background: "#0C1C2E", borderBottom: "3px solid #4A63D8" }}>
+      <div style={{ background: "#0C1C2E", borderBottom: "3px solid #0891B2" }}>
         <div className="max-w-screen-2xl mx-auto px-8 py-6 flex items-center justify-between">
           <div className="flex flex-col gap-2" style={{ alignItems: "flex-start" }}>
             <img src="/AKBM logo.png" alt="Aker BioMarine" style={{ height: 52, width: "auto", objectFit: "contain", display: "block" }} />
@@ -548,14 +548,14 @@ export default function Home() {
 
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button onClick={handleSearch}
-                style={{ background: "#22B8D4", color: "#FFFFFF", border: "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#1EA8C2")}
-                onMouseLeave={e => (e.currentTarget.style.background = "#22B8D4")}>
+                style={{ background: "#0891B2", color: "#FFFFFF", border: "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#0670A0")}
+                onMouseLeave={e => (e.currentTarget.style.background = "#0891B2")}>
                 Find Companies →
               </button>
             </div>
 
-            {searchState === "loading" && <p style={{ color: "#4A63D8", fontSize: 13 }}>Fetching companies…</p>}
+            {searchState === "loading" && <p style={{ color: "#475569", fontSize: 13 }}>Fetching companies…</p>}
 
             {searchState === "done" && (
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
@@ -572,7 +572,7 @@ export default function Home() {
                     <thead>
                       <tr style={{ background: "#EEF0FA", borderBottom: "1px solid #D0D5E8" }}>
                         {["Company", "Website", "Source", "Geography", "Category", "Max. Price", "Priority", "ICP Fit Score"].map(h => (
-                          <th key={h} style={{ padding: "12px 22px", textAlign: "left", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#4A63D8" }}>{h}</th>
+                          <th key={h} style={{ padding: "12px 22px", textAlign: "left", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#475569" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -850,7 +850,7 @@ export default function Home() {
                   <p style={{ color: "#A0BEFF", fontSize: 12, marginTop: 2 }}>Steps 1 and 2 are done. Copy the prompt below and paste it into Claude Chat to evaluate the companies.</p>
                 </div>
                 <div style={{ padding: "24px 24px 0" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#4A63D8", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>1. Copy this prompt and paste it into Claude Chat</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>1. Copy this prompt and paste it into Claude Chat</p>
                   <div style={{ position: "relative" }}>
                     <textarea readOnly value={step3Prompt} rows={6}
                       style={{ width: "100%", fontSize: 12, fontFamily: "monospace", color: "#374151", background: "#F8F9FF", border: "1px solid #D0D5E8", padding: "12px", resize: "vertical", boxSizing: "border-box" }} />
@@ -862,7 +862,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div style={{ padding: "20px 24px 24px" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#4A63D8", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>2. Paste the response from Claude Chat here</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>2. Paste the response from Claude Chat here</p>
                   <textarea
                     value={step3Paste}
                     onChange={e => setStep3Paste(e.target.value)}
@@ -1068,7 +1068,7 @@ export default function Home() {
         )}
         {/* ── TAB 3: ICP Criteria ── */}
         {tab === "icp" && (
-          <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", maxWidth: 920, width: "100%", margin: "0 auto" }}>
             <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Lysoveta ICP Criteria</p>
               <button disabled style={{ background: "none", border: "1px solid rgba(255,255,255,0.3)", color: "rgba(255,255,255,0.5)", padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "not-allowed", borderRadius: 4, letterSpacing: "0.04em" }}>
