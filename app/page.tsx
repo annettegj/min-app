@@ -112,10 +112,25 @@ export default function Home() {
 
   // --- Background search job (start + poll) ---
   const [searchProgress, setSearchProgress] = useState("");
+  const [activeSearchJobId, setActiveSearchJobId] = useState<number | null>(null);
+  const [logLines, setLogLines] = useState<string[]>([]);
+  const [showLog, setShowLog] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const stopPolling = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
-  // Clean up the polling timer if the component unmounts mid-search
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startMsRef = useRef<number | null>(null);
+  const stopPolling = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (elapsedRef.current) { clearInterval(elapsedRef.current); elapsedRef.current = null; }
+  };
+  // Clean up the timers if the component unmounts mid-search
   useEffect(() => stopPolling, []);
+
+  // Which of the 3 steps are we on? (1 = discovery, 2 = enrichment, 3 = manual evaluation)
+  const currentStep = agentState === "step3" || agentState === "done"
+    ? 3
+    : searchProgress.toLowerCase().includes("enrich") ? 2 : 1;
+  const elapsedLabel = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")}`;
 
   // Loads the active company database — always excludes rejected companies.
   // Single source of truth so the database view can never accidentally include rejected rows.
@@ -220,10 +235,28 @@ export default function Home() {
       }
 
       const jobId = data.jobId as number;
+      setActiveSearchJobId(jobId);
+      setLogLines([]);
 
-      // Poll the job row every 3 seconds until it finishes.
+      // Start the elapsed-time counter (updates every second).
+      startMsRef.current = Date.now();
+      setElapsedSec(0);
+      if (elapsedRef.current) clearInterval(elapsedRef.current);
+      elapsedRef.current = setInterval(() => {
+        if (startMsRef.current) setElapsedSec(Math.floor((Date.now() - startMsRef.current) / 1000));
+      }, 1000);
+
+      // Poll the job row (and its log) every 3 seconds until it finishes.
       stopPolling();
       pollRef.current = setInterval(async () => {
+        // Fetch the live log lines for this job
+        const { data: logs } = await supabase
+          .from("search_logs")
+          .select("message")
+          .eq("job_id", jobId)
+          .order("created_at", { ascending: true });
+        if (logs) setLogLines(logs.map((l: { message: string }) => l.message));
+
         const { data: job } = await supabase.from("search_jobs").select("*").eq("id", jobId).single();
         if (!job) return;
         setSearchProgress(job.message ?? "");
@@ -626,6 +659,22 @@ export default function Home() {
         {/* ── TAB 2: Find New Companies ── */}
         {tab === "search" && (
           <>
+            {/* Live search log — mirrors the server log, so no need to open the Render dashboard */}
+            {activeSearchJobId != null && logLines.length > 0 && (
+              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+                <div onClick={() => setShowLog(!showLog)}
+                  style={{ background: "#0C1C2E", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+                  <p style={{ color: "#FFFFFF", fontSize: 13, fontWeight: 700 }}>Search Log</p>
+                  <span style={{ color: "#A0BEFF", fontSize: 12 }}>{showLog ? "Hide ▴" : "Show ▾"} ({logLines.length})</span>
+                </div>
+                {showLog && (
+                  <pre style={{ margin: 0, padding: "14px 20px", fontSize: 12, fontFamily: "monospace", color: "#374151", background: "#F8F9FF", maxHeight: 340, overflowY: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    {logLines.join("\n")}
+                  </pre>
+                )}
+              </div>
+            )}
+
             {agentState === "idle" && addingState !== "saved" && (
               <>
                 {/* Search configuration — PLACEHOLDER, not wired to the real search yet */}
@@ -637,7 +686,7 @@ export default function Home() {
                   <div style={{ background: "#FFFBEB", borderBottom: "1px solid #FCD34D", padding: "10px 20px" }}>
                     <p style={{ fontSize: 12, color: "#78350F" }}>Preview only — these selections don’t affect the search yet. The search currently uses the fixed sources and terms in config/sources.json.</p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2" style={{ padding: "20px", gap: 32 }}>
+                  <div className="grid grid-cols-1 md:grid-cols-2" style={{ padding: "20px", gap: 32, opacity: 0.5, pointerEvents: "none", filter: "grayscale(1)" }}>
                     {/* Search terms */}
                     <div>
                       <label style={labelStyle}>Search terms (choose up to 3)</label>
@@ -738,8 +787,17 @@ export default function Home() {
             {agentState === "searching" && (
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", padding: "64px 32px", textAlign: "center" }}>
                 <div style={{ display: "inline-block", width: 40, height: 40, border: "4px solid #E4E7F2", borderTop: "4px solid #0891B2", borderRadius: "50%", animation: "spin 0.9s linear infinite", marginBottom: 20 }} />
-                <p style={{ fontSize: 14, fontWeight: 600, color: "#1A2456", marginBottom: 4 }}>Searching the web…</p>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "#1A2456", marginBottom: 10 }}>
+                  Step {currentStep} of 3 — {currentStep === 1 ? "Finding companies" : currentStep === 2 ? "Enriching companies" : "Evaluating"}
+                </p>
+                {/* Step progress dots */}
+                <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
+                  {[1, 2, 3].map(s => (
+                    <div key={s} style={{ width: 36, height: 5, borderRadius: 3, background: s <= currentStep ? "#0891B2" : "#E4E7F2" }} />
+                  ))}
+                </div>
                 <p style={{ fontSize: 13, color: "#6B7280" }}>{searchProgress || "The AI agent is finding relevant companies. This may take a few minutes."}</p>
+                <p style={{ fontSize: 13, color: "#1A2456", fontWeight: 600, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>Elapsed: {elapsedLabel}</p>
                 <p style={{ fontSize: 12, color: "#A0AECF", marginTop: 10 }}>You can leave this page open — the search runs on the server and this view updates automatically.</p>
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               </div>

@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import path from "path";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import sourcesConfig from "@/config/sources.json";
 
 
@@ -90,6 +90,31 @@ function parseJsonObject(response: Anthropic.Message): Record<string, unknown> |
   }
 }
 
+// ---- Logging ----
+// Every meaningful line goes to the terminal AND (when a background job is active) to the
+// search_logs table, so the UI can show a live log identical to the server log. Assumes one
+// search at a time (true for this single-user tool); the active job/client are set at the
+// start of searchForCompanies.
+// Overall safety cap: abort the whole search (all in-flight Anthropic calls) after this long,
+// so a stalled web_search can never hang the job indefinitely. Generous enough for normal
+// variance (a full run is ~15 min); only catches genuine hangs.
+const SEARCH_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
+
+const rawConsoleLog = console.log.bind(console);
+let activeJobId: number | null = null;
+let activeSupabase: SupabaseClient | null = null;
+let activeSignal: AbortSignal | null = null;
+
+function emit(msg: string) {
+  rawConsoleLog(msg);
+  if (activeJobId != null && activeSupabase) {
+    activeSupabase
+      .from("search_logs")
+      .insert({ job_id: activeJobId, message: msg.replace(/^\[search\]\s*/, "") })
+      .then(() => {}, () => {});
+  }
+}
+
 // ---- Step 1: Discovery ----
 // Searches trade media sources using predefined search strings and extracts company names.
 
@@ -155,22 +180,22 @@ Return ONLY a raw JSON array, no markdown or explanation:
 [{"name":"Company Name","source_name":"NutraIngredients Europe"}]`,
       },
     ],
-  });
+  }, { signal: activeSignal ?? undefined });
 
   const response = await stream.finalMessage();
 
   // --- DIAGNOSTIC: see exactly what the model returned before parsing ---
   const rawBlock = response.content.findLast((b) => b.type === "text");
   const rawText = rawBlock && rawBlock.type === "text" ? rawBlock.text : "(no text block)";
-  console.log(`[search] Step 1 stop_reason: ${response.stop_reason}`);
-  console.log(`[search] Step 1 RAW RESPONSE (${rawText.length} chars):\n${rawText.slice(0, 4000)}`);
+  emit(`[search] Step 1 stop_reason: ${response.stop_reason}`);
+  emit(`[search] Step 1 RAW RESPONSE (${rawText.length} chars):\n${rawText.slice(0, 4000)}`);
   // --- END DIAGNOSTIC ---
 
   const discovered = parseJsonArray<DiscoveredCompany>(response);
-  console.log(
+  emit(
     `[search] Step 1: discovered ${discovered.length} companies from trade media search`
   );
-  console.log(
+  emit(
     `[search] Step 1 tokens: ${response.usage.input_tokens} input, ${response.usage.output_tokens} output`
   );
   return discovered;
@@ -185,7 +210,8 @@ async function enrichCompany(
   company: DiscoveredCompany,
   model: string
 ): Promise<EnrichedCompany | null> {
-  console.log(`[search] Step 2 [${company.name}] starter...`);
+  emit(`[search] Step 2 [${company.name}] starting...`);
+  try {
   const stream = await client.messages.stream({
     model,
     max_tokens: 8000,
@@ -211,12 +237,12 @@ Return ONLY a raw JSON object, no markdown:
 {"website_url":"...","product_focus":"...","omega3_or_krill":"...","self_presentation":"...","price_tier":"...","price_found":true,"price_currency":"GBP","european_markets":"...","distribution_channels":"..."}`,
       },
     ],
-  });
+  }, { signal: activeSignal ?? undefined });
 
   const response = await stream.finalMessage();
   const searchCount = response.usage.server_tool_use?.web_search_requests ?? "?";
-  console.log(
-    `[search] Step 2 [${company.name}] ferdig: ${searchCount} web-søk, ${response.usage.input_tokens}in/${response.usage.output_tokens}out tokens`
+  emit(
+    `[search] Step 2 [${company.name}] done: ${searchCount} web searches, ${response.usage.input_tokens}in/${response.usage.output_tokens}out tokens`
   );
   const data = parseJsonObject(response);
   if (!data) return null;
@@ -234,6 +260,12 @@ Return ONLY a raw JSON object, no markdown:
     european_markets: (data.european_markets as string) ?? "",
     distribution_channels: (data.distribution_channels as string) ?? "",
   };
+  } catch (err) {
+    // Aborted by the overall timeout, or any other failure — treat this company as failed
+    // (returns null). It stays pending and is retried on the next search.
+    emit(`[search] Step 2 [${company.name}] aborted/failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
 }
 
 async function enrichAll(
@@ -263,7 +295,7 @@ async function enrichAll(
   const hits = companies.filter((c) => cacheMap.has(c.name));
   const misses = companies.filter((c) => !cacheMap.has(c.name));
 
-  console.log(`[search] Step 2: ${hits.length} from cache, ${misses.length} need enrichment`);
+  emit(`[search] Step 2: ${hits.length} from cache, ${misses.length} need enrichment`);
 
   // Enrich cache misses in batches. Each company is saved to the DB the moment its
   // enrichment completes — so a company that hangs can never take down the work of the
@@ -280,8 +312,8 @@ async function enrichAll(
         },
         { onConflict: "name" }
       );
-      if (error) console.warn(`[search] Step 2 [${result.name}] lagring feilet:`, error.message);
-      else console.log(`[search] Step 2 [${result.name}] lagret i DB`);
+      if (error) emit(`[search] Step 2 [${result.name}] save failed: ${error.message}`);
+      else emit(`[search] Step 2 [${result.name}] saved to DB`);
     }
     return result;
   };
@@ -291,7 +323,7 @@ async function enrichAll(
     const batch = misses.slice(i, i + concurrency);
     const batchResults = await Promise.all(batch.map(saveOne));
     freshlyEnriched.push(...batchResults.filter((c): c is EnrichedCompany => c !== null));
-    console.log(
+    emit(
       `[search] Step 2: ${Math.min(i + concurrency, misses.length)}/${misses.length} freshly enriched`
     );
   }
@@ -354,7 +386,6 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
   debug: SearchDebug;
   noCompaniesFound?: boolean;
 }> {
-  console.log(`[search] ===== Søk startet =====`);
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const enrichmentModel =
     (sourcesConfig as { enrichment_model?: string }).enrichment_model ??
@@ -365,6 +396,20 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // Route all emit() log lines to this job's search_logs rows (and the terminal).
+  activeJobId = jobId;
+  activeSupabase = supabase;
+
+  // Overall timeout: after SEARCH_TIMEOUT_MS, abort all in-flight Anthropic calls.
+  const timeoutController = new AbortController();
+  activeSignal = timeoutController.signal;
+  const timeoutTimer = setTimeout(() => {
+    emit(`[search] ===== TIMEOUT after ${SEARCH_TIMEOUT_MS / 60000} min — aborting remaining work =====`);
+    timeoutController.abort();
+  }, SEARCH_TIMEOUT_MS);
+
+  emit(`[search] ===== Search started =====`);
 
   // Writes a human-readable progress line to the search_jobs row (if this run is a background job),
   // so the browser can poll and show what's happening. No-op for direct/local calls (jobId null).
@@ -389,7 +434,7 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
       .from("discovery_queue")
       .update({ status: "pending" })
       .in("name", staleNames);
-    console.log(`[search] Reset ${staleNames.length} stale "processing" companies back to "pending"`);
+    emit(`[search] Reset ${staleNames.length} stale "processing" companies back to "pending"`);
   }
 
   // Check how many companies are already pending in the discovery queue
@@ -399,11 +444,11 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
     .eq("status", "pending");
 
   if (queueCountError) {
-    console.warn("[search] Could not read discovery_queue:", queueCountError.message);
+    emit(`[search] Could not read discovery_queue: ${queueCountError.message}`);
   }
 
   const pendingCount = pendingRows?.length ?? 0;
-  console.log(`[search] discovery_queue: ${pendingCount} pending companies`);
+  emit(`[search] discovery_queue: ${pendingCount} pending companies`);
 
   let step1Discovered = 0;
   let step1Skipped = 0;
@@ -411,7 +456,7 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
 
   // Only run Step 1 if the queue has fewer than 5 pending companies
   if (pendingCount < 5) {
-    console.log(`[search] Step 1: queue below threshold — running web search...`);
+    emit(`[search] Step 1: queue below threshold — running web search...`);
 
     // Gather names we already know so Step 1 can skip them and spend its searches on NEW companies.
     // NOTE: if this list grows very large (100+), cap it here (e.g. most recent N) to keep the prompt small.
@@ -461,17 +506,17 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
           .upsert(queueRows, { onConflict: "name" });
 
         if (insertError) {
-          console.warn("[search] Failed to save to discovery_queue:", insertError.message);
+          emit(`[search] Failed to save to discovery_queue: ${insertError.message}`);
         } else {
           step1NewToQueue = fresh.length;
-          console.log(`[search] Step 1: ${fresh.length} new companies added to queue`);
+          emit(`[search] Step 1: ${fresh.length} new companies added to queue`);
         }
       } else {
-        console.log(`[search] Step 1: all ${discovered.length} companies already known — nothing new`);
+        emit(`[search] Step 1: all ${discovered.length} companies already known — nothing new`);
       }
     }
   } else {
-    console.log(`[search] Step 1: skipped — queue has ${pendingCount} pending companies`);
+    emit(`[search] Step 1: skipped — queue has ${pendingCount} pending companies`);
   }
 
   // Pick next 5 pending companies from the queue for Step 2
@@ -483,7 +528,7 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
     .limit(5);
 
   if (batchError) {
-    console.warn("[search] Failed to read from discovery_queue:", batchError.message);
+    emit(`[search] Failed to read from discovery_queue: ${batchError.message}`);
   }
 
   const toEnrich: DiscoveredCompany[] = (nextBatch ?? []).map((r) => ({
@@ -492,7 +537,8 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
   }));
 
   if (toEnrich.length === 0) {
-    console.warn("[search] ===== INGEN NYE SELSKAPER — køen er tom og steg 1 fant ingenting nytt =====");
+    clearTimeout(timeoutTimer);
+    emit("[search] ===== NO NEW COMPANIES — queue is empty and Step 1 found nothing new =====");
     return {
       enriched: [],
       step3Prompt: "",
@@ -520,7 +566,7 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
 
   let enriched: EnrichedCompany[] = [];
   try {
-    console.log(
+    emit(
       `[search] Step 2: Enriching ${toEnrich.length} companies (model: ${enrichmentModel}, in batches)...`
     );
     enriched = await enrichAll(client, toEnrich, enrichmentModel);
@@ -529,21 +575,23 @@ export async function searchForCompanies(jobId: number | null = null): Promise<{
     if (failedNames.length > 0) {
       // Reset individual enrichment failures back to "pending" immediately so they don't block the queue
       await supabase.from("discovery_queue").update({ status: "pending" }).in("name", failedNames);
-      console.warn(`[search] Step 2: ${failedNames.length} individual failures reset to pending:`, failedNames);
+      emit(`[search] Step 2: ${failedNames.length} individual failures reset to pending: ${JSON.stringify(failedNames)}`);
     }
-    console.log(`[search] Step 2 done: ${enriched.length} enriched, ${failedNames.length} failed`);
+    emit(`[search] Step 2 done: ${enriched.length} enriched, ${failedNames.length} failed`);
   } catch (err) {
     // If Step 2 crashes entirely, reset the batch back to "pending" so next search retries them
-    console.error("[search] ===== FEIL i steg 2 — batchen settes tilbake til pending:", err instanceof Error ? err.message : err);
+    emit(`[search] ===== ERROR in Step 2 — batch reset to pending: ${err instanceof Error ? err.message : String(err)}`);
     await supabase
       .from("discovery_queue")
       .update({ status: "pending" })
       .in("name", batchNames);
+    clearTimeout(timeoutTimer);
     throw err;
   }
 
+  clearTimeout(timeoutTimer);
   const failed = toEnrich.length - enriched.length;
-  console.log(`[search] ===== FERDIG: ${enriched.length} enrichet, ${failed} feilet =====`);
+  emit(`[search] ===== DONE: ${enriched.length} enriched, ${failed} failed =====`);
 
   // Step 3 is manual — build the prompt and return enriched data for the user to paste into Claude Chat
   const step3Prompt = buildStep3Prompt(enriched);
