@@ -17,6 +17,66 @@
   --success: #15803D;       /* positive / early-mover */
   --warning: #B45309;       /* caution */
   --danger: #DC2626;        /* destructive actions */
+
+  /* Extended tokens — the exact shades used across the UI, so every colour lives here. */
+  --white: #FFFFFF;
+  --navy: #1A2456;              /* strong headings / strong text */
+  --navy-mid: #2E3F80;         /* secondary navy buttons/borders */
+  --accent-disabled: #7FBFCF;  /* teal while saving/exporting */
+
+  /* Text */
+  --text: #374151;
+  --text-slate: #475569;
+  --text-body: #4B5563;
+  --text-muted: #6B7280;
+  --text-dim: #9CA3AF;
+  --text-faint: #A0AECF;
+  --text-disabled: #8A93B2;
+  --switch-off-text: #B0B6CC;
+  --on-dark: #A0BEFF;          /* muted light-blue text on the navy header */
+
+  /* Borders */
+  --border-card: #D0D5E8;
+  --border-light: #E4E7F2;
+  --border-input: #C4CAE8;
+  --border-grey: #D1D5DB;
+  --border-on-dark: #3A4A6B;
+  --border-danger: #FCA5A5;
+
+  /* Surfaces / tints */
+  --surface-input: #FAFBFF;
+  --surface-row-hover: #F0F4FF;
+  --surface-code: #F8F9FF;
+  --surface-tint: #F8F9FC;
+  --surface-tint2: #F0F3FA;
+  --surface-tint3: #E9ECF5;
+  --surface-table-head: #EEF0FA;
+  --surface-hover: #E2E8F0;
+  --surface-danger: #FEF2F2;
+  --surface-danger-hover: #FEE2E2;
+
+  /* Status extras */
+  --success-bright: #16a34a;
+  --warning-bright: #d97706;
+  --danger-text: #B91C1C;
+  --danger-muted: #9B3B3B;
+  --danger-dark: #7F1D1D;
+  --danger-strong: #991B1B;
+
+  /* Badges */
+  --badge-green-bg: #DCFCE7;
+  --badge-yellow-bg: #FEF9C3;
+  --badge-yellow-text: #854D0E;
+  --badge-purple-bg: #EDE9FE;
+  --badge-purple-text: #5B21B6;
+
+  /* Banners */
+  --banner-warn-bg: #FFFBEB;
+  --banner-warn-border: #FCD34D;
+  --banner-warn-text: #78350F;
+  --banner-info-bg: #EFF6FF;
+  --banner-info-border: #BFDBFE;
+  --banner-info-text: #1E40AF;
 }
 
 @theme inline {

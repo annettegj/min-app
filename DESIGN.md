@@ -35,11 +35,32 @@ The palette is defined once as **CSS variables** in `app/globals.css` (`:root`):
 neutrals for everything secondary, and the status colours only for status. Adding more accent
 colours makes it look busy.
 
-> **These variables are wired up:** the palette colours are referenced as `var(--name)` throughout
-> `page.tsx`, so **changing a variable's value in `globals.css` recolours the whole app** — one place,
-> no search-and-replace. A few one-off shades (some specific text greys, badge backgrounds, and a
-> couple of lowercase hex values) are still hard-coded; promote them into the palette if you find you
-> need to theme them too.
+> **Every colour is a variable now.** There are no hard-coded hex values left in `page.tsx` — every
+> colour is a `var(--name)` resolving to a definition in `globals.css`. So **changing a value in
+> `globals.css` recolours the whole app**, one place, no search-and-replace.
+
+### Extended tokens
+
+Beyond the core palette above, `globals.css` defines the exact shades the UI uses, grouped by role
+(the authoritative list lives in the `:root` block — check there for values):
+
+- **Base:** `--white`, `--navy` (strong headings), `--navy-mid`, `--accent-disabled`
+- **Text:** `--text`, `--text-slate`, `--text-body`, `--text-muted`, `--text-dim`, `--text-faint`,
+  `--text-disabled`, `--switch-off-text`, `--on-dark` (light text on the navy header)
+- **Borders:** `--border-card`, `--border-light`, `--border-input`, `--border-grey`,
+  `--border-on-dark`, `--border-danger`
+- **Surfaces / tints:** `--surface-input`, `--surface-row-hover`, `--surface-code`, `--surface-tint`,
+  `--surface-tint2`, `--surface-tint3`, `--surface-table-head`, `--surface-hover`, `--surface-danger`,
+  `--surface-danger-hover`
+- **Status extras:** `--success-bright`, `--warning-bright`, `--danger-text`, `--danger-muted`,
+  `--danger-dark`, `--danger-strong`
+- **Badges:** `--badge-green-bg`, `--badge-yellow-bg`, `--badge-yellow-text`, `--badge-purple-bg`,
+  `--badge-purple-text`
+- **Banners:** `--banner-warn-bg/border/text`, `--banner-info-bg/border/text`
+
+It's a large set because it preserves every exact shade with no visual change. If you ever want a
+tidier palette, several near-identical greys/tints could be consolidated into fewer tokens — but
+that would shift a few shades slightly, so it's left as a deliberate future cleanup.
 
 ## Buttons — the hierarchy
 

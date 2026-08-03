@@ -71,12 +71,12 @@ type EditDraft = {
 
 // --- Shared styles ---
 const inputStyle: React.CSSProperties = {
-  width: "100%", border: "1px solid #C4CAE8", padding: "8px 10px",
-  fontSize: 13, color: "#1A2456", background: "#FAFBFF", outline: "none", borderRadius: 4,
+  width: "100%", border: "1px solid var(--border-input)", padding: "8px 10px",
+  fontSize: 13, color: "var(--navy)", background: "var(--surface-input)", outline: "none", borderRadius: 4,
 };
 const labelStyle: React.CSSProperties = {
   display: "block", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em",
-  textTransform: "uppercase", color: "#475569", marginBottom: 6,
+  textTransform: "uppercase", color: "var(--text-slate)", marginBottom: 6,
 };
 
 // --- Button hierarchy (one teal accent = primary; neutral = secondary; red = destructive) ---
@@ -85,8 +85,8 @@ const btnBase: React.CSSProperties = {
   padding: "10px 24px", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em",
   textTransform: "uppercase", cursor: "pointer", borderRadius: 4,
 };
-const btnPrimary: React.CSSProperties = { ...btnBase, background: "var(--accent)", color: "#FFFFFF", border: "none" };
-const btnSecondary: React.CSSProperties = { ...btnBase, background: "#FFFFFF", color: "var(--ink)", border: "1px solid var(--border)" };
+const btnPrimary: React.CSSProperties = { ...btnBase, background: "var(--accent)", color: "var(--white)", border: "none" };
+const btnSecondary: React.CSSProperties = { ...btnBase, background: "var(--white)", color: "var(--ink)", border: "1px solid var(--border)" };
 
 export default function Home() {
   const [tab, setTab] = useState<"database" | "search" | "icp" | "prospectus">("database");
@@ -667,7 +667,7 @@ export default function Home() {
   }
 
   const icpColor = (score: number) =>
-    score >= 4 ? "#16a34a" : score === 3 ? "#d97706" : "#dc2626";
+    score >= 4 ? "var(--success-bright)" : score === 3 ? "var(--warning-bright)" : "var(--danger)";
 
   const selectedCount = searchResults.filter(r => r.selected).length;
 
@@ -679,7 +679,7 @@ export default function Home() {
         <div className="max-w-screen-2xl mx-auto px-8 py-6 flex items-center justify-between">
           <div className="flex flex-col gap-2" style={{ alignItems: "flex-start" }}>
             <img src="/AKBM logo.png" alt="Aker BioMarine" style={{ height: 52, width: "auto", objectFit: "contain", display: "block" }} />
-            <p style={{ color: "#FFFFFF", fontSize: 20, fontWeight: 700, letterSpacing: "0.01em", marginLeft: 10 }}>Lysoveta Customer Finder</p>
+            <p style={{ color: "var(--white)", fontSize: 20, fontWeight: 700, letterSpacing: "0.01em", marginLeft: 10 }}>Lysoveta Customer Finder</p>
           </div>
         </div>
 
@@ -698,7 +698,7 @@ export default function Home() {
                   padding: "10px 20px", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
                   borderRadius: 4,
                   background: tab === t.key ? "var(--page)" : "transparent",
-                  color: tab === t.key ? "#1A2456" : "#A0AECF",
+                  color: tab === t.key ? "var(--navy)" : "var(--text-faint)",
                   borderTop: tab === t.key ? "2px solid var(--accent)" : "2px solid transparent",
                 }}
               >
@@ -711,7 +711,7 @@ export default function Home() {
                 style={{
                   padding: "10px 20px", fontSize: 13, fontWeight: 600, border: "none", cursor: "default",
                   borderRadius: 4,
-                  background: "transparent", color: "#8A93B2",
+                  background: "transparent", color: "var(--text-disabled)",
                   borderTop: "2px solid transparent",
                 }}
               >
@@ -731,45 +731,45 @@ export default function Home() {
               <button onClick={() => guardUnsavedEdit(() => { setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" }); setSearchState("done"); })}
                 style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "var(--surface)")}
-                onMouseLeave={e => (e.currentTarget.style.background = "#FFFFFF")}>
+                onMouseLeave={e => (e.currentTarget.style.background = "var(--white)")}>
                 Show All Companies →
               </button>
             </div>
 
-            <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
               <div style={{ background: "var(--header)", padding: "12px 20px" }}>
-                <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Filter Companies</p>
+                <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Filter Companies</p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0" style={{ borderTop: "1px solid #E4E7F2" }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0" style={{ borderTop: "1px solid var(--border-light)" }}>
 
-                <div style={{ padding: "18px 20px", borderRight: "1px solid #E4E7F2", borderBottom: "1px solid #E4E7F2" }}>
+                <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
                   <label style={labelStyle}>Geography</label>
                   <select value={geography} onChange={(e) => setGeography(e.target.value)} style={inputStyle}>
                     {GEOGRAPHIES.map((g) => <option key={g}>{g}</option>)}
                   </select>
                 </div>
 
-                <div style={{ padding: "18px 20px", borderRight: "1px solid #E4E7F2", borderBottom: "1px solid #E4E7F2" }}>
+                <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
                   <label style={labelStyle}>Product Category</label>
                   <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
                     {CATEGORIES.map(c => <option key={c} value={c === "All" ? "" : c}>{c}</option>)}
                   </select>
                 </div>
 
-                <div style={{ padding: "18px 20px", borderRight: "1px solid #E4E7F2", borderBottom: "1px solid #E4E7F2" }}>
+                <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
                   <label style={labelStyle}>Min. ICP Fit Score</label>
                   <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button key={star} onClick={() => setIcpMin(icpMin === star ? 1 : star)}
-                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= icpMin ? (icpMin >= 4 ? "var(--success)" : icpMin === 3 ? "var(--warning)" : "var(--danger)") : "#D1D5DB" }}>
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= icpMin ? (icpMin >= 4 ? "var(--success)" : icpMin === 3 ? "var(--warning)" : "var(--danger)") : "var(--border-grey)" }}>
                         ★
                       </button>
                     ))}
                   </div>
-                  <p style={{ fontSize: 11, color: "#A0AECF", marginTop: 4 }}>Showing {icpMin}★ and above</p>
+                  <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 4 }}>Showing {icpMin}★ and above</p>
                 </div>
 
-                <div style={{ padding: "18px 20px", borderRight: "1px solid #E4E7F2", borderBottom: "1px solid #E4E7F2" }}>
+                <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
                   <label style={labelStyle}>Priority Tier</label>
                   <select value={tier} onChange={(e) => setTier(e.target.value)} style={inputStyle}>
                     {TIERS.map(t => <option key={t}>{t}</option>)}
@@ -778,7 +778,7 @@ export default function Home() {
 
 
 
-                <div style={{ padding: "18px 20px", borderRight: "1px solid #E4E7F2" }}>
+                <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)" }}>
                   <label style={labelStyle}>Price Range</label>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input type="number" placeholder="Min" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} style={inputStyle} />
@@ -805,40 +805,40 @@ export default function Home() {
               </button>
             </div>
 
-            {searchState === "loading" && <p style={{ color: "#475569", fontSize: 13 }}>Fetching companies…</p>}
+            {searchState === "loading" && <p style={{ color: "var(--text-slate)", fontSize: 13 }}>Fetching companies…</p>}
 
             {searchState === "done" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Results</p>
+                  <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Results</p>
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                    <p style={{ color: "#FFFFFF", fontSize: 12 }}>
+                    <p style={{ color: "var(--white)", fontSize: 12 }}>
                       {visibleResults.length} {visibleResults.length !== 1 ? "companies" : "company"}{hiddenIds.size > 0 ? ` · ${hiddenIds.size} hidden` : ""}
                     </p>
                     {hiddenIds.size > 0 && (
                       <button type="button" onClick={restoreHidden}
-                        style={{ background: "transparent", color: "#A0BEFF", border: "1px solid #3A4A6B", padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
+                        style={{ background: "transparent", color: "var(--on-dark)", border: "1px solid var(--border-on-dark)", padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
                         Restore hidden
                       </button>
                     )}
                     {results.length > 0 && (
                       <button type="button" onClick={toggleEditMode}
-                        style={{ background: editMode ? "#FFFFFF" : "var(--accent)", color: editMode ? "var(--header)" : "#FFFFFF", border: "none", padding: "6px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
+                        style={{ background: editMode ? "var(--white)" : "var(--accent)", color: editMode ? "var(--header)" : "var(--white)", border: "none", padding: "6px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
                         {editMode ? "Done editing" : "Edit list"}
                       </button>
                     )}
                   </div>
                 </div>
                 {results.length === 0 ? (
-                  <div style={{ padding: "48px 20px", textAlign: "center", color: "#A0AECF", fontSize: 13 }}>
+                  <div style={{ padding: "48px 20px", textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>
                     No companies match the selected filters.
                   </div>
                 ) : (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
                     <thead>
-                      <tr style={{ background: "#EEF0FA", borderBottom: "1px solid #D0D5E8" }}>
+                      <tr style={{ background: "var(--surface-table-head)", borderBottom: "1px solid var(--border-card)" }}>
                         {["Company", "Website", "Source", "Geography", "Category", "Max. Price", "Priority", "ICP Fit Score"].map(h => (
-                          <th key={h} style={{ padding: "12px 22px", textAlign: "left", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#475569" }}>{h}</th>
+                          <th key={h} style={{ padding: "12px 22px", textAlign: "left", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-slate)" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -846,17 +846,17 @@ export default function Home() {
                       {visibleResults.map((c, i) => (
                         <Fragment key={c.id}>
                           <tr onClick={() => setExpandedCompanyId(expandedCompanyId === c.id ? null : c.id)}
-                            style={{ borderBottom: expandedCompanyId === c.id ? "none" : "1px solid #E4E7F2", background: i % 2 === 0 ? "#FFFFFF" : "#FAFBFF", cursor: "pointer" }}
-                            onMouseEnter={e => (e.currentTarget.style.background = "#F0F4FF")}
-                            onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "#FFFFFF" : "#FAFBFF")}>
-                            <td style={{ padding: "16px 22px", fontWeight: 600, color: "#1A2456", whiteSpace: "nowrap" }}>
+                            style={{ borderBottom: expandedCompanyId === c.id ? "none" : "1px solid var(--border-light)", background: i % 2 === 0 ? "var(--white)" : "var(--surface-input)", cursor: "pointer" }}
+                            onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-row-hover)")}
+                            onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "var(--white)" : "var(--surface-input)")}>
+                            <td style={{ padding: "16px 22px", fontWeight: 600, color: "var(--navy)", whiteSpace: "nowrap" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                <span style={{ fontSize: 10, color: "#A0AECF" }}>{expandedCompanyId === c.id ? "▾" : "▸"}</span>
+                                <span style={{ fontSize: 10, color: "var(--text-faint)" }}>{expandedCompanyId === c.id ? "▾" : "▸"}</span>
                                 {editMode && (
                                   <span style={{ display: "flex", gap: 10 }}>
                                     <button type="button" title="Edit"
                                       onClick={(e) => { e.stopPropagation(); startEdit(c); }}
-                                      onMouseEnter={(e) => (e.currentTarget.style.background = "#E2E8F0")}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
                                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                                       style={{ background: "transparent", border: "none", borderRadius: 4, color: "var(--ink)", cursor: "pointer", padding: "4px 6px", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
                                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -865,9 +865,9 @@ export default function Home() {
                                     </button>
                                     <button type="button" title="Remove…"
                                       onClick={(e) => { e.stopPropagation(); setConfirmRemoveId(confirmRemoveId === c.id ? null : c.id); setEditError(""); }}
-                                      onMouseEnter={(e) => (e.currentTarget.style.background = "#FEE2E2")}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-danger-hover)")}
                                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                                      style={{ background: "transparent", border: "none", borderRadius: 4, color: "#B91C1C", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "4px 7px" }}>✕</button>
+                                      style={{ background: "transparent", border: "none", borderRadius: 4, color: "var(--danger-text)", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "4px 7px" }}>✕</button>
                                   </span>
                                 )}
                                 {c.name}
@@ -883,31 +883,31 @@ export default function Home() {
                                   {displayHostname(c.website_url)}
                                 </a>
                               ) : (
-                                <span style={{ color: "#A0AECF", fontSize: 12 }}>—</span>
+                                <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>
                               )}
                             </td>
-                            <td style={{ padding: "16px 22px", color: "#4B5563", fontSize: 12, whiteSpace: "nowrap" }}>
-                              {c.source_name ?? <span style={{ color: "#A0AECF" }}>—</span>}
+                            <td style={{ padding: "16px 22px", color: "var(--text-body)", fontSize: 12, whiteSpace: "nowrap" }}>
+                              {c.source_name ?? <span style={{ color: "var(--text-faint)" }}>—</span>}
                             </td>
-                            <td style={{ padding: "16px 22px", color: "#4B5563", whiteSpace: "nowrap" }}>{c.geography}</td>
-                            <td style={{ padding: "16px 22px", color: "#4B5563", whiteSpace: "nowrap" }}>{c.product_category}</td>
-                            <td style={{ padding: "16px 22px", color: "#4B5563", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : c.price_currency === "EUR" ? "€" : ""}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
+                            <td style={{ padding: "16px 22px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.geography}</td>
+                            <td style={{ padding: "16px 22px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.product_category}</td>
+                            <td style={{ padding: "16px 22px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : c.price_currency === "EUR" ? "€" : ""}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
                             <td style={{ padding: "16px 22px", whiteSpace: "nowrap" }}>
                               {c.priority_tier === "early_mover" && (
-                                <span style={{ background: "#DCFCE7", color: "var(--success)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Early Mover</span>
+                                <span style={{ background: "var(--badge-green-bg)", color: "var(--success)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Early Mover</span>
                               )}
                               {c.priority_tier === "follower" && (
-                                <span style={{ background: "#FEF9C3", color: "#854D0E", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Follower</span>
+                                <span style={{ background: "var(--badge-yellow-bg)", color: "var(--badge-yellow-text)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Follower</span>
                               )}
                               {c.priority_tier === "enabler" && (
-                                <span style={{ background: "#EDE9FE", color: "#5B21B6", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Enabler</span>
+                                <span style={{ background: "var(--badge-purple-bg)", color: "var(--badge-purple-text)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Enabler</span>
                               )}
-                              {!c.priority_tier && <span style={{ color: "#A0AECF", fontSize: 12 }}>—</span>}
+                              {!c.priority_tier && <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>}
                             </td>
                             <td style={{ padding: "16px 22px", fontSize: 13, letterSpacing: 1, color: icpColor(c.icp_fit), whiteSpace: "nowrap" }}>{"★".repeat(c.icp_fit)}{"☆".repeat(5 - c.icp_fit)}</td>
                           </tr>
                           {expandedCompanyId === c.id && (
-                            <tr style={{ borderBottom: "1px solid #E4E7F2", background: i % 2 === 0 ? "#FFFFFF" : "#FAFBFF" }}>
+                            <tr style={{ borderBottom: "1px solid var(--border-light)", background: i % 2 === 0 ? "var(--white)" : "var(--surface-input)" }}>
                               <td colSpan={8} style={{ padding: "0 20px 20px 48px" }}>
                                 {editingCompanyId === c.id && editDraft ? (
                                   <div style={{ maxWidth: 900 }}>
@@ -940,7 +940,7 @@ export default function Home() {
                                         <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
                                           {[1, 2, 3, 4, 5].map(star => (
                                             <button key={star} type="button" onClick={() => setEditDraft({ ...editDraft, icp_fit: star })}
-                                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= editDraft.icp_fit ? "var(--accent)" : "#D1D5DB" }}>★</button>
+                                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= editDraft.icp_fit ? "var(--accent)" : "var(--border-grey)" }}>★</button>
                                           ))}
                                         </div>
                                       </div>
@@ -965,7 +965,7 @@ export default function Home() {
                                     {editError && <p style={{ color: "var(--danger)", fontSize: 12, marginBottom: 10 }}>{editError}</p>}
                                     <div style={{ display: "flex", gap: 10 }}>
                                       <button type="button" onClick={() => saveEdit(c)} disabled={savingEdit}
-                                        style={{ ...btnPrimary, padding: "9px 22px", background: savingEdit ? "#7FBFCF" : "var(--accent)", cursor: savingEdit ? "default" : "pointer" }}>
+                                        style={{ ...btnPrimary, padding: "9px 22px", background: savingEdit ? "var(--accent-disabled)" : "var(--accent)", cursor: savingEdit ? "default" : "pointer" }}>
                                         {savingEdit ? "Saving…" : "Save"}
                                       </button>
                                       <button type="button" onClick={cancelEdit} disabled={savingEdit}
@@ -976,8 +976,8 @@ export default function Home() {
                                   </div>
                                 ) : (
                                   <div style={{ maxWidth: 900 }}>
-                                    <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.7, maxWidth: 860, marginBottom: 16 }}>
-                                      {c.description ?? <span style={{ color: "#A0AECF", fontStyle: "italic" }}>No description available.</span>}
+                                    <p style={{ fontSize: 14, color: "var(--text-body)", lineHeight: 1.7, maxWidth: 860, marginBottom: 16 }}>
+                                      {c.description ?? <span style={{ color: "var(--text-faint)", fontStyle: "italic" }}>No description available.</span>}
                                     </p>
                                   </div>
                                 )}
@@ -1010,14 +1010,14 @@ export default function Home() {
           <div style={{ maxWidth: 960, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
             {/* Live search log — mirrors the server log, so no need to open the Render dashboard */}
             {activeSearchJobId != null && logLines.length > 0 && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                 <div onClick={() => setShowLog(!showLog)}
                   style={{ background: "var(--header)", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
-                  <p style={{ color: "#FFFFFF", fontSize: 13, fontWeight: 700 }}>Search Log</p>
-                  <span style={{ color: "#A0BEFF", fontSize: 12 }}>{showLog ? "Hide ▴" : "Show ▾"} ({logLines.length})</span>
+                  <p style={{ color: "var(--white)", fontSize: 13, fontWeight: 700 }}>Search Log</p>
+                  <span style={{ color: "var(--on-dark)", fontSize: 12 }}>{showLog ? "Hide ▴" : "Show ▾"} ({logLines.length})</span>
                 </div>
                 {showLog && (
-                  <pre style={{ margin: 0, padding: "14px 20px", fontSize: 12, fontFamily: "monospace", color: "#374151", background: "#F8F9FF", maxHeight: 340, overflowY: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  <pre style={{ margin: 0, padding: "14px 20px", fontSize: 12, fontFamily: "monospace", color: "var(--text)", background: "var(--surface-code)", maxHeight: 340, overflowY: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                     {logLines.join("\n")}
                   </pre>
                 )}
@@ -1027,12 +1027,12 @@ export default function Home() {
             {agentState === "idle" && addingState !== "saved" && (
               <>
                 {/* Search configuration — PLACEHOLDER, not wired to the real search yet */}
-                <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                   <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
+                    <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
                   </div>
-                  <div style={{ background: "#FFFBEB", borderBottom: "1px solid #FCD34D", padding: "10px 20px" }}>
-                    <p style={{ fontSize: 12, color: "#78350F" }}>Search terms now affect the search — choose up to 3 (leave all unchecked to use the defaults). Sources are still fixed in config/sources.json and can’t be changed here yet.</p>
+                  <div style={{ background: "var(--banner-warn-bg)", borderBottom: "1px solid var(--banner-warn-border)", padding: "10px 20px" }}>
+                    <p style={{ fontSize: 12, color: "var(--banner-warn-text)" }}>Search terms now affect the search — choose up to 3 (leave all unchecked to use the defaults). Sources are still fixed in config/sources.json and can’t be changed here yet.</p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2" style={{ padding: "20px", gap: 32 }}>
                     {/* Search terms */}
@@ -1043,7 +1043,7 @@ export default function Home() {
                           const checked = selectedTerms.includes(t);
                           const atMax = selectedTerms.length >= 3;
                           return (
-                            <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "#374151" : "#A0AECF", cursor: checked || !atMax ? "pointer" : "default" }}>
+                            <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
                               <input type="checkbox" checked={checked} disabled={!checked && atMax}
                                 onChange={() => setSelectedTerms(checked ? selectedTerms.filter(x => x !== t) : [...selectedTerms, t])}
                                 style={{ accentColor: "var(--accent)", width: 15, height: 15 }} />
@@ -1061,7 +1061,7 @@ export default function Home() {
                           const checked = selectedSources.includes(s);
                           const atMax = selectedSources.length >= 4;
                           return (
-                            <label key={s} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "#374151" : "#A0AECF", cursor: checked || !atMax ? "pointer" : "default" }}>
+                            <label key={s} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
                               <input type="checkbox" checked={checked} disabled={!checked && atMax}
                                 onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s) : [...selectedSources, s])}
                                 style={{ accentColor: "var(--accent)", width: 15, height: 15 }} />
@@ -1075,10 +1075,10 @@ export default function Home() {
                 </div>
 
                 {/* Search action */}
-                <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", padding: "72px 32px 48px", textAlign: "center", position: "relative" }}>
+                <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", padding: "72px 32px 48px", textAlign: "center", position: "relative" }}>
                   {/* Step 3 decision — segmented on/off switch in the top-right corner */}
                   <div style={{ position: "absolute", top: 16, right: 20, display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#6B7280" }}>Step 3 decision:</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)" }}>Step 3 decision:</span>
                     <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }} title="Locked on Automatic for now">
                       {([
                         { value: "auto", label: "Automatic" },
@@ -1087,63 +1087,63 @@ export default function Home() {
                         const active = step3Mode === opt.value;
                         return (
                           <button key={opt.value} type="button" disabled
-                            style={{ background: active ? "var(--accent)" : "#FFFFFF", color: active ? "#FFFFFF" : "#B0B6CC", border: "none", borderRadius: 0, padding: "6px 16px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", cursor: "not-allowed" }}>
+                            style={{ background: active ? "var(--accent)" : "var(--white)", color: active ? "var(--white)" : "var(--switch-off-text)", border: "none", borderRadius: 0, padding: "6px 16px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", cursor: "not-allowed" }}>
                             {opt.label}
                           </button>
                         );
                       })}
                     </div>
                   </div>
-                  <p style={{ fontSize: 15, fontWeight: 600, color: "#1A2456", marginBottom: 8 }}>Search for new prospects</p>
-                  <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 28 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: "var(--navy)", marginBottom: 8 }}>Search for new prospects</p>
+                  <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 28 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
 
                   <button onClick={() => { if (!SEARCH_DISABLED) handleAgentSearch(); }} disabled={SEARCH_DISABLED}
-                    style={{ background: SEARCH_DISABLED ? "#E4E7F2" : "var(--accent)", color: SEARCH_DISABLED ? "#9CA3AF" : "#FFFFFF", border: SEARCH_DISABLED ? "1px solid #D1D5DB" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer", borderRadius: 4 }}>
+                    style={{ background: SEARCH_DISABLED ? "var(--border-light)" : "var(--accent)", color: SEARCH_DISABLED ? "var(--text-dim)" : "var(--white)", border: SEARCH_DISABLED ? "1px solid var(--border-grey)" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer", borderRadius: 4 }}>
                     {SEARCH_DISABLED ? "Search Disabled (Demo)" : "Search for New Companies →"}
                   </button>
                   {SEARCH_DISABLED && (
-                    <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 14 }}>Live search runs offline during the pilot — the database below is kept up to date.</p>
+                    <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 14 }}>Live search runs offline during the pilot — the database below is kept up to date.</p>
                   )}
                 </div>
               </>
             )}
 
             {agentState === "stale_warning" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #FCD34D" }}>
-                <div style={{ background: "#78350F", padding: "12px 20px" }}>
-                  <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>A previous search didn’t finish</p>
+              <div style={{ background: "var(--white)", border: "1px solid var(--banner-warn-border)" }}>
+                <div style={{ background: "var(--banner-warn-text)", padding: "12px 20px" }}>
+                  <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>A previous search didn’t finish</p>
                 </div>
                 <div style={{ padding: "24px" }}>
-                  <p style={{ fontSize: 14, color: "#374151", lineHeight: 1.6, marginBottom: 16 }}>
+                  <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.6, marginBottom: 16 }}>
                     {staleCompanies.length} {staleCompanies.length === 1 ? "company" : "companies"} got stuck in the previous search and have now been put back in the queue. The search was stopped automatically so you can investigate what went wrong.
                   </p>
-                  <div style={{ border: "1px solid #E4E7F2", marginBottom: 20 }}>
+                  <div style={{ border: "1px solid var(--border-light)", marginBottom: 20 }}>
                     {staleCompanies.map((name) => (
-                      <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid #E4E7F2" }}>
-                        <span style={{ fontSize: 13, color: "#374151" }}>{name}</span>
+                      <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid var(--border-light)" }}>
+                        <span style={{ fontSize: 13, color: "var(--text)" }}>{name}</span>
                         <button
                           onClick={() => deleteFromQueue(name)}
                           title="Remove from queue"
-                          style={{ background: "transparent", border: "1px solid #E4E7F2", color: "#9CA3AF", padding: "3px 10px", fontSize: 12, cursor: "pointer" }}
-                          onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.color = "#dc2626"; e.currentTarget.style.borderColor = "#dc2626"; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.borderColor = "#E4E7F2"; }}>
+                          style={{ background: "transparent", border: "1px solid var(--border-light)", color: "var(--text-dim)", padding: "3px 10px", fontSize: 12, cursor: "pointer" }}
+                          onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-danger)"; e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.borderColor = "var(--danger)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.borderColor = "var(--border-light)"; }}>
                           Remove from queue ✕
                         </button>
                       </div>
                     ))}
                   </div>
-                  <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", padding: "12px 16px", marginBottom: 24 }}>
-                    <p style={{ fontSize: 13, color: "#78350F" }}>
+                  <div style={{ background: "var(--banner-warn-bg)", border: "1px solid var(--banner-warn-border)", padding: "12px 16px", marginBottom: 24 }}>
+                    <p style={{ fontSize: 13, color: "var(--banner-warn-text)" }}>
                       If a particular company repeatedly hangs, you can remove it from the queue. Otherwise it’s safe to start a new search — they will be retried.
                     </p>
                   </div>
                   <div style={{ display: "flex", gap: 12 }}>
                     <button onClick={() => { setAgentState("idle"); setStaleCompanies([]); }}
-                      style={{ background: "var(--header)", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                      style={{ background: "var(--header)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                       OK, got it
                     </button>
                     <button onClick={() => { setStaleCompanies([]); setAgentState("searching"); handleAgentSearch(); }}
-                      style={{ background: "var(--accent)", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                      style={{ background: "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                       Start new search →
                     </button>
                   </div>
@@ -1152,55 +1152,55 @@ export default function Home() {
             )}
 
             {agentState === "searching" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", padding: "64px 32px", textAlign: "center" }}>
-                <div style={{ display: "inline-block", width: 40, height: 40, border: "4px solid #E4E7F2", borderTop: "4px solid var(--accent)", borderRadius: "50%", animation: "spin 0.9s linear infinite", marginBottom: 20 }} />
-                <p style={{ fontSize: 14, fontWeight: 600, color: "#1A2456", marginBottom: 10 }}>
+              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", padding: "64px 32px", textAlign: "center" }}>
+                <div style={{ display: "inline-block", width: 40, height: 40, border: "4px solid var(--border-light)", borderTop: "4px solid var(--accent)", borderRadius: "50%", animation: "spin 0.9s linear infinite", marginBottom: 20 }} />
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--navy)", marginBottom: 10 }}>
                   Step {currentStep} of 3 — {currentStep === 1 ? "Finding companies" : currentStep === 2 ? "Enriching companies" : "Evaluating"}
                 </p>
                 {/* Step progress dots */}
                 <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
                   {[1, 2, 3].map(s => (
-                    <div key={s} style={{ width: 36, height: 5, borderRadius: 3, background: s <= currentStep ? "var(--accent)" : "#E4E7F2" }} />
+                    <div key={s} style={{ width: 36, height: 5, borderRadius: 3, background: s <= currentStep ? "var(--accent)" : "var(--border-light)" }} />
                   ))}
                 </div>
-                <p style={{ fontSize: 13, color: "#6B7280" }}>{searchProgress || "The AI agent is finding relevant companies. This may take a few minutes."}</p>
-                <p style={{ fontSize: 13, color: "#1A2456", fontWeight: 600, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>Elapsed: {elapsedLabel}</p>
-                <p style={{ fontSize: 12, color: "#A0AECF", marginTop: 10 }}>You can leave this page open — the search runs on the server and this view updates automatically.</p>
+                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{searchProgress || "The AI agent is finding relevant companies. This may take a few minutes."}</p>
+                <p style={{ fontSize: 13, color: "var(--navy)", fontWeight: 600, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>Elapsed: {elapsedLabel}</p>
+                <p style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 10 }}>You can leave this page open — the search runs on the server and this view updates automatically.</p>
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               </div>
             )}
 
             {agentState === "error" && agentError && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #FCA5A5" }}>
-                <div style={{ background: "#7F1D1D", padding: "12px 20px" }}>
-                  <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>{agentError.title}</p>
+              <div style={{ background: "var(--white)", border: "1px solid var(--border-danger)" }}>
+                <div style={{ background: "var(--danger-dark)", padding: "12px 20px" }}>
+                  <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>{agentError.title}</p>
                 </div>
                 <div style={{ padding: "24px 24px 20px" }}>
-                  <p style={{ fontSize: 14, color: "#374151", lineHeight: 1.6, marginBottom: 20 }}>{agentError.detail}</p>
-                  <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", padding: "12px 16px", marginBottom: 20 }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: "#991B1B", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Hva kan du gjøre?</p>
+                  <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.6, marginBottom: 20 }}>{agentError.detail}</p>
+                  <div style={{ background: "var(--surface-danger)", border: "1px solid var(--border-danger)", padding: "12px 16px", marginBottom: 20 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-strong)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Hva kan du gjøre?</p>
                     {agentError.canRetry ? (
                       <ul style={{ margin: 0, paddingLeft: 18 }}>
-                        <li style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>Try the search again — companies that were mid-processing are reset automatically</li>
-                        <li style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>Check that the API keys (ANTHROPIC_API_KEY, Supabase) are configured correctly</li>
-                        <li style={{ fontSize: 13, color: "#374151" }}>See the console log (F12) for technical details about the error</li>
+                        <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Try the search again — companies that were mid-processing are reset automatically</li>
+                        <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Check that the API keys (ANTHROPIC_API_KEY, Supabase) are configured correctly</li>
+                        <li style={{ fontSize: 13, color: "var(--text)" }}>See the console log (F12) for technical details about the error</li>
                       </ul>
                     ) : (
                       <ul style={{ margin: 0, paddingLeft: 18 }}>
-                        <li style={{ fontSize: 13, color: "#374151", marginBottom: 4 }}>Wait a few days and try again — trade media publish new articles regularly</li>
-                        <li style={{ fontSize: 13, color: "#374151" }}>Consider adding new search terms in <code style={{ background: "#FEE2E2", padding: "1px 4px", fontSize: 12 }}>config/sources.json</code></li>
+                        <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Wait a few days and try again — trade media publish new articles regularly</li>
+                        <li style={{ fontSize: 13, color: "var(--text)" }}>Consider adding new search terms in <code style={{ background: "var(--surface-danger-hover)", padding: "1px 4px", fontSize: 12 }}>config/sources.json</code></li>
                       </ul>
                     )}
                   </div>
                   <div style={{ display: "flex", gap: 12 }}>
                     {agentError.canRetry && (
                       <button onClick={() => handleAgentSearch()}
-                        style={{ background: "var(--accent)", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                        style={{ background: "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                         Try again →
                       </button>
                     )}
                     <button onClick={() => { setAgentState("idle"); setAgentError(null); }}
-                      style={{ background: "transparent", color: "#6B7280", border: "1px solid #D0D5E8", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                      style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border-card)", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                       Cancel
                     </button>
                   </div>
@@ -1209,47 +1209,47 @@ export default function Home() {
             )}
 
             {agentState === "step3" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                 {searchTimedOut && (
-                  <div style={{ background: "#FFFBEB", borderBottom: "1px solid #FCD34D", padding: "14px 20px" }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "#78350F", marginBottom: 4 }}>⚠️ The search timed out after 30 minutes</p>
-                    <p style={{ fontSize: 12.5, color: "#78350F", lineHeight: 1.6 }}>
+                  <div style={{ background: "var(--banner-warn-bg)", borderBottom: "1px solid var(--banner-warn-border)", padding: "14px 20px" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "var(--banner-warn-text)", marginBottom: 4 }}>⚠️ The search timed out after 30 minutes</p>
+                    <p style={{ fontSize: 12.5, color: "var(--banner-warn-text)", lineHeight: 1.6 }}>
                       Nothing was lost: companies found in Step 1 are saved in the queue, and companies that finished enrichment in Step 2 are in the company database. The next search will automatically pick up where this one left off. You can still evaluate the companies that were enriched below.
                     </p>
                   </div>
                 )}
                 <div style={{ background: "var(--header)", padding: "12px 20px" }}>
-                  <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Step 3 — Manual Evaluation</p>
-                  <p style={{ color: "#A0BEFF", fontSize: 12, marginTop: 2 }}>Steps 1 and 2 are done. Copy the prompt below and paste it into Claude Chat to evaluate the companies.</p>
+                  <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Step 3 — Manual Evaluation</p>
+                  <p style={{ color: "var(--on-dark)", fontSize: 12, marginTop: 2 }}>Steps 1 and 2 are done. Copy the prompt below and paste it into Claude Chat to evaluate the companies.</p>
                 </div>
                 <div style={{ padding: "24px 24px 0" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>1. Copy this prompt and paste it into Claude Chat</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-slate)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>1. Copy this prompt and paste it into Claude Chat</p>
                   <div style={{ position: "relative" }}>
                     <textarea readOnly value={step3Prompt} rows={6}
-                      style={{ width: "100%", fontSize: 12, fontFamily: "monospace", color: "#374151", background: "#F8F9FF", border: "1px solid #D0D5E8", padding: "12px", resize: "vertical", boxSizing: "border-box" }} />
+                      style={{ width: "100%", fontSize: 12, fontFamily: "monospace", color: "var(--text)", background: "var(--surface-code)", border: "1px solid var(--border-card)", padding: "12px", resize: "vertical", boxSizing: "border-box" }} />
                     <button
                       onClick={() => { navigator.clipboard.writeText(step3Prompt); setStep3CopyDone(true); }}
-                      style={{ position: "absolute", top: 8, right: 8, background: step3CopyDone ? "#16a34a" : "var(--accent)", color: "#fff", border: "none", padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      style={{ position: "absolute", top: 8, right: 8, background: step3CopyDone ? "var(--success-bright)" : "var(--accent)", color: "var(--white)", border: "none", padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                       {step3CopyDone ? "Copied ✓" : "Copy"}
                     </button>
                   </div>
                 </div>
                 <div style={{ padding: "20px 24px 24px" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#475569", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>2. Paste the response from Claude Chat here</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-slate)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>2. Paste the response from Claude Chat here</p>
                   <textarea
                     value={step3Paste}
                     onChange={e => setStep3Paste(e.target.value)}
                     placeholder='Paste the JSON response here, e.g. [{"name":"...","priority_tier":"early_mover","icp_score":4,"description":"...","website_url":"..."}]'
                     rows={6}
-                    style={{ width: "100%", fontSize: 12, fontFamily: "monospace", color: "#374151", background: "#FAFBFF", border: "1px solid #D0D5E8", padding: "12px", resize: "vertical", boxSizing: "border-box" }}
+                    style={{ width: "100%", fontSize: 12, fontFamily: "monospace", color: "var(--text)", background: "var(--surface-input)", border: "1px solid var(--border-card)", padding: "12px", resize: "vertical", boxSizing: "border-box" }}
                   />
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 12 }}>
                     <button onClick={() => { resetProcessingToQueue(); setAgentState("idle"); }}
-                      style={{ background: "transparent", color: "#6B7280", border: "1px solid #D0D5E8", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                      style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border-card)", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                       Cancel
                     </button>
                     <button onClick={handleStep3Submit} disabled={!step3Paste.trim()}
-                      style={{ background: step3Paste.trim() ? "var(--accent)" : "#C4CAE8", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: step3Paste.trim() ? "pointer" : "default" }}>
+                      style={{ background: step3Paste.trim() ? "var(--accent)" : "var(--border-input)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: step3Paste.trim() ? "pointer" : "default" }}>
                       Show results →
                     </button>
                   </div>
@@ -1258,33 +1258,33 @@ export default function Home() {
             )}
 
             {agentState === "done" && addingState === "idle" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Search Results</p>
+                  <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Search Results</p>
                   <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                    <p style={{ color: "#A0BEFF", fontSize: 12 }}>{searchResults.length} companies found</p>
+                    <p style={{ color: "var(--on-dark)", fontSize: 12 }}>{searchResults.length} companies found</p>
                     <button onClick={() => { resetProcessingToQueue(); setAgentState("idle"); setSearchResults([]); }}
-                      style={{ background: "#FFFFFF", color: "#1A2456", border: "none", padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.04em" }}>
+                      style={{ background: "var(--white)", color: "var(--navy)", border: "none", padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.04em" }}>
                       ✕ Cancel
                     </button>
                   </div>
                 </div>
                 <div>
                   {searchResults.map((r, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "18px 20px", borderBottom: "1px solid #E4E7F2", background: r.selected ? "#F0F4FF" : i % 2 === 0 ? "#FFFFFF" : "#FAFBFF" }}>
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "18px 20px", borderBottom: "1px solid var(--border-light)", background: r.selected ? "var(--surface-row-hover)" : i % 2 === 0 ? "var(--white)" : "var(--surface-input)" }}>
                       <input type="checkbox" checked={r.selected} onChange={() => toggleResult(i)}
                         style={{ marginTop: 3, accentColor: "var(--accent)", width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                          <p style={{ fontWeight: 600, color: "#1A2456", fontSize: 14 }}>{r.name}</p>
+                          <p style={{ fontWeight: 600, color: "var(--navy)", fontSize: 14 }}>{r.name}</p>
                           {r.priority_tier === "early_mover" && (
-                            <span style={{ background: "#DCFCE7", color: "var(--success)", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Early Mover</span>
+                            <span style={{ background: "var(--badge-green-bg)", color: "var(--success)", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Early Mover</span>
                           )}
                           {r.priority_tier === "follower" && (
-                            <span style={{ background: "#FEF9C3", color: "#854D0E", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Follower</span>
+                            <span style={{ background: "var(--badge-yellow-bg)", color: "var(--badge-yellow-text)", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Follower</span>
                           )}
                           {r.priority_tier === "enabler" && (
-                            <span style={{ background: "#EDE9FE", color: "#5B21B6", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Enabler</span>
+                            <span style={{ background: "var(--badge-purple-bg)", color: "var(--badge-purple-text)", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Enabler</span>
                           )}
                           {r.icp_score != null && (
                             <span style={{ fontSize: 13, color: r.icp_score >= 4 ? "var(--success)" : r.icp_score === 3 ? "var(--warning)" : "var(--danger)", letterSpacing: 1 }}>
@@ -1296,9 +1296,9 @@ export default function Home() {
                           style={{ color: "var(--accent)", fontSize: 12, marginBottom: 6, display: "inline-block" }}>
                           {r.website_url}
                         </a>
-                        <p style={{ fontSize: 13, color: "#4B5563" }}>{r.description}</p>
+                        <p style={{ fontSize: 13, color: "var(--text-body)" }}>{r.description}</p>
                         {sourceNameMap[r.name] && (
-                          <p style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6 }}>
+                          <p style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 6 }}>
                             Source: {sourceNameMap[r.name]}
                           </p>
                         )}
@@ -1313,25 +1313,25 @@ export default function Home() {
                           setSearchResults(prev => prev.filter((_, idx) => idx !== i));
                         }}
                         title="Reject company"
-                        style={{ background: "transparent", border: "1px solid #E4E7F2", color: "#9CA3AF", padding: "4px 10px", fontSize: 12, cursor: "pointer", flexShrink: 0 }}
-                        onMouseEnter={e => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.color = "#dc2626"; e.currentTarget.style.borderColor = "#dc2626"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.borderColor = "#E4E7F2"; }}>
+                        style={{ background: "transparent", border: "1px solid var(--border-light)", color: "var(--text-dim)", padding: "4px 10px", fontSize: 12, cursor: "pointer", flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-danger)"; e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.borderColor = "var(--danger)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.borderColor = "var(--border-light)"; }}>
                         ✕
                       </button>
                     </div>
                   ))}
                 </div>
-                <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #E4E7F2" }}>
+                <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border-light)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <p style={{ fontSize: 13, color: "#6B7280" }}>{selectedCount} {selectedCount === 1 ? "company" : "companies"} selected</p>
+                    <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{selectedCount} {selectedCount === 1 ? "company" : "companies"} selected</p>
                     <button
                       onClick={() => setSearchResults(prev => prev.map(r => ({ ...r, selected: selectedCount < searchResults.length })))}
-                      style={{ background: "none", border: "1px solid #C4CAE8", color: "#2E3F80", padding: "4px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", borderRadius: 4 }}>
+                      style={{ background: "none", border: "1px solid var(--border-input)", color: "var(--navy-mid)", padding: "4px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", borderRadius: 4 }}>
                       {selectedCount === searchResults.length ? "Deselect all" : "Select all"}
                     </button>
                   </div>
                   <button onClick={handleAddSelected} disabled={selectedCount === 0}
-                    style={{ background: selectedCount > 0 ? "#2E3F80" : "#C4CAE8", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: selectedCount > 0 ? "pointer" : "default" }}>
+                    style={{ background: selectedCount > 0 ? "var(--navy-mid)" : "var(--border-input)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: selectedCount > 0 ? "pointer" : "default" }}>
                     Add to Database →
                   </button>
                 </div>
@@ -1339,20 +1339,20 @@ export default function Home() {
             )}
 
             {(addingState === "form" || addingState === "saving") && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ background: "var(--header)", padding: "12px 20px" }}>
-                  <p style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 700 }}>Fill in Details</p>
-                  <p style={{ color: "#A0BEFF", fontSize: 14, marginTop: 2 }}>Complete the information before adding to the database.</p>
+                  <p style={{ color: "var(--white)", fontSize: 18, fontWeight: 700 }}>Fill in Details</p>
+                  <p style={{ color: "var(--on-dark)", fontSize: 14, marginTop: 2 }}>Complete the information before adding to the database.</p>
                 </div>
-                <div style={{ background: "#EFF6FF", borderBottom: "1px solid #BFDBFE", padding: "12px 20px" }}>
-                  <p style={{ fontSize: 14, color: "#1E40AF" }}>All pre-filled fields are suggested by the AI agent based on search results — review and override if needed.</p>
+                <div style={{ background: "var(--banner-info-bg)", borderBottom: "1px solid var(--banner-info-border)", padding: "12px 20px" }}>
+                  <p style={{ fontSize: 14, color: "var(--banner-info-text)" }}>All pre-filled fields are suggested by the AI agent based on search results — review and override if needed.</p>
                 </div>
                 {pendingCompanies.map((c, i) => (
-                  <div key={i} style={{ padding: "20px", borderBottom: "1px solid #E4E7F2" }}>
-                    <p style={{ fontWeight: 700, color: "#1A2456", fontSize: 14, marginBottom: 4 }}>{c.name}</p>
+                  <div key={i} style={{ padding: "20px", borderBottom: "1px solid var(--border-light)" }}>
+                    <p style={{ fontWeight: 700, color: "var(--navy)", fontSize: 14, marginBottom: 4 }}>{c.name}</p>
                     <a href={safeHref(c.website_url)} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 12 }}>{c.website_url}</a>
                     {c.description && (
-                      <p style={{ fontSize: 13, color: "#4B5563", marginTop: 8, lineHeight: 1.6 }}>{c.description}</p>
+                      <p style={{ fontSize: 13, color: "var(--text-body)", marginTop: 8, lineHeight: 1.6 }}>{c.description}</p>
                     )}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginTop: 14 }}>
                       <div>
@@ -1389,7 +1389,7 @@ export default function Home() {
                         <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
                           {[1, 2, 3, 4, 5].map((star) => (
                             <button key={star} onClick={() => updatePending(i, "icp_fit", star)}
-                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, lineHeight: 1, padding: "0 1px", color: star <= c.icp_fit ? (c.icp_fit >= 4 ? "var(--success)" : c.icp_fit === 3 ? "var(--warning)" : "var(--danger)") : "#D1D5DB" }}>
+                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, lineHeight: 1, padding: "0 1px", color: star <= c.icp_fit ? (c.icp_fit >= 4 ? "var(--success)" : c.icp_fit === 3 ? "var(--warning)" : "var(--danger)") : "var(--border-grey)" }}>
                               ★
                             </button>
                           ))}
@@ -1407,14 +1407,14 @@ export default function Home() {
                     </div>
                   </div>
                 ))}
-                {saveError && <p style={{ padding: "12px 20px", color: "#dc2626", fontSize: 13 }}>{saveError}</p>}
+                {saveError && <p style={{ padding: "12px 20px", color: "var(--danger)", fontSize: 13 }}>{saveError}</p>}
                 <div style={{ padding: "16px 20px", display: "flex", justifyContent: "flex-end", gap: 12 }}>
                   <button onClick={() => setAddingState("idle")} disabled={addingState === "saving"}
-                    style={{ background: "transparent", color: "#6B7280", border: "1px solid #D0D5E8", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                    style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border-card)", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                     Cancel
                   </button>
                   <button onClick={handleSave} disabled={addingState === "saving"}
-                    style={{ background: addingState === "saving" ? "#A0AECF" : "var(--accent)", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: addingState === "saving" ? "default" : "pointer" }}>
+                    style={{ background: addingState === "saving" ? "var(--text-faint)" : "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: addingState === "saving" ? "default" : "pointer" }}>
                     {addingState === "saving" ? "Saving…" : "Confirm & Save →"}
                   </button>
                 </div>
@@ -1422,16 +1422,16 @@ export default function Home() {
             )}
 
             {addingState === "saved" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", padding: "48px 32px", textAlign: "center" }}>
-                <p style={{ fontSize: 15, fontWeight: 600, color: "#16a34a", marginBottom: 8 }}>Companies added to database</p>
-                <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 28 }}>You can find them under the Company Database tab.</p>
+              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", padding: "48px 32px", textAlign: "center" }}>
+                <p style={{ fontSize: 15, fontWeight: 600, color: "var(--success-bright)", marginBottom: 8 }}>Companies added to database</p>
+                <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 28 }}>You can find them under the Company Database tab.</p>
                 <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
                   <button onClick={() => { setAddingState("idle"); setAgentState("idle"); }}
-                    style={{ background: "transparent", color: "#2E3F80", border: "1px solid #2E3F80", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                    style={{ background: "transparent", color: "var(--navy-mid)", border: "1px solid var(--navy-mid)", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                     Search Again
                   </button>
                   <button onClick={() => { setAddingState("idle"); setAgentState("idle"); setTab("database"); }}
-                    style={{ background: "var(--header)", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                    style={{ background: "var(--header)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                     Go to Company Database →
                   </button>
                 </div>
@@ -1441,21 +1441,21 @@ export default function Home() {
         )}
         {/* ── TAB 3: ICP Criteria ── */}
         {tab === "icp" && (
-          <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", maxWidth: 920, width: "100%", margin: "0 auto" }}>
+          <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 920, width: "100%", margin: "0 auto" }}>
             <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Lysoveta ICP Criteria</p>
+              <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Lysoveta ICP Criteria</p>
               <button disabled style={{ background: "none", border: "1px solid rgba(255,255,255,0.3)", color: "rgba(255,255,255,0.5)", padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "not-allowed", borderRadius: 4, letterSpacing: "0.04em" }}>
                 ✎ Edit Criteria
               </button>
             </div>
-            <div style={{ padding: "20px 40px", borderBottom: "1px solid #E4E7F2", background: "#F8F9FC" }}>
-              <p style={{ color: "#4B5563", fontSize: 13, lineHeight: 1.6, fontStyle: "italic" }}>
+            <div style={{ padding: "20px 40px", borderBottom: "1px solid var(--border-light)", background: "var(--surface-tint)" }}>
+              <p style={{ color: "var(--text-body)", fontSize: 13, lineHeight: 1.6, fontStyle: "italic" }}>
                 This document defines the Ideal Customer Profile (ICP) for Lysoveta in Europe. It is used during Step 3 of the enrichment pipeline, where the AI agent evaluates each discovered company against these criteria to assign a priority tier (Early Mover, Follower, or Enabler) and an ICP fit score.
               </p>
             </div>
             <div style={{ padding: "32px 48px", maxWidth: 820 }}>
               {!icpContent ? (
-                <p style={{ color: "#A0AECF", fontSize: 14 }}>Laster…</p>
+                <p style={{ color: "var(--text-faint)", fontSize: 14 }}>Laster…</p>
               ) : (() => {
                 const toLabel = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
                 const stripBold = (s: string) => s.replace(/\*\*(.*?)\*\*/g, "$1");
@@ -1483,17 +1483,17 @@ export default function Home() {
                       <div key={`table-${i}`} style={{ overflowX: "auto", margin: "16px 0 24px 0" }}>
                         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                           <thead>
-                            <tr style={{ background: "#F0F3FA" }}>
+                            <tr style={{ background: "var(--surface-tint2)" }}>
                               {parseRow(header).map((cell, ci) => (
-                                <th key={ci} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 700, color: "#1A2456", borderBottom: "2px solid #D0D5E8", whiteSpace: "nowrap" }}>{stripBold(cell)}</th>
+                                <th key={ci} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 700, color: "var(--navy)", borderBottom: "2px solid var(--border-card)", whiteSpace: "nowrap" }}>{stripBold(cell)}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
                             {body.map((row, ri) => (
-                              <tr key={ri} style={{ borderBottom: "1px solid #E9ECF5", background: ri % 2 === 0 ? "#FFFFFF" : "#F8F9FC" }}>
+                              <tr key={ri} style={{ borderBottom: "1px solid var(--surface-tint3)", background: ri % 2 === 0 ? "var(--white)" : "var(--surface-tint)" }}>
                                 {parseRow(row).map((cell, ci) => (
-                                  <td key={ci} style={{ padding: "9px 14px", color: ci === 0 && cell ? "#1A2456" : "#374151", fontWeight: ci === 0 && cell ? 600 : 400 }}>{stripBold(cell)}</td>
+                                  <td key={ci} style={{ padding: "9px 14px", color: ci === 0 && cell ? "var(--navy)" : "var(--text)", fontWeight: ci === 0 && cell ? 600 : 400 }}>{stripBold(cell)}</td>
                                 ))}
                               </tr>
                             ))}
@@ -1504,20 +1504,20 @@ export default function Home() {
                     continue;
                   }
 
-                  if (line.startsWith("# ")) { elements.push(<h1 key={i} style={{ fontSize: 24, fontWeight: 700, color: "#1A2456", marginBottom: 4, marginTop: 0 }}>{line.slice(2)}</h1>); }
-                  else if (line.startsWith("## ")) { elements.push(<h2 key={i} style={{ fontSize: 18, fontWeight: 700, color: "#1A2456", marginTop: 32, marginBottom: 4 }}>{line.slice(3)}</h2>); }
-                  else if (line.startsWith("### ")) { elements.push(<h3 key={i} style={{ fontSize: 16, fontWeight: 700, color: "#2E3F80", marginTop: 22, marginBottom: 4 }}>{toLabel(line.slice(4))}</h3>); }
+                  if (line.startsWith("# ")) { elements.push(<h1 key={i} style={{ fontSize: 24, fontWeight: 700, color: "var(--navy)", marginBottom: 4, marginTop: 0 }}>{line.slice(2)}</h1>); }
+                  else if (line.startsWith("## ")) { elements.push(<h2 key={i} style={{ fontSize: 18, fontWeight: 700, color: "var(--navy)", marginTop: 32, marginBottom: 4 }}>{line.slice(3)}</h2>); }
+                  else if (line.startsWith("### ")) { elements.push(<h3 key={i} style={{ fontSize: 16, fontWeight: 700, color: "var(--navy-mid)", marginTop: 22, marginBottom: 4 }}>{toLabel(line.slice(4))}</h3>); }
                   else if (line.startsWith("---")) { elements.push(<div key={i} style={{ height: 4 }} />); }
                   else if (line.startsWith("- ")) {
                     elements.push(
-                      <p key={i} style={{ fontSize: 15, color: "#374151", margin: "4px 0", paddingLeft: 20, position: "relative", lineHeight: 1.7 }}>
-                        <span style={{ position: "absolute", left: 0, color: "#2E3F80", fontWeight: 700 }}>·</span>{stripBold(line.slice(2))}
+                      <p key={i} style={{ fontSize: 15, color: "var(--text)", margin: "4px 0", paddingLeft: 20, position: "relative", lineHeight: 1.7 }}>
+                        <span style={{ position: "absolute", left: 0, color: "var(--navy-mid)", fontWeight: 700 }}>·</span>{stripBold(line.slice(2))}
                       </p>
                     );
                   }
-                  else if (line.startsWith("**") && line.endsWith("**")) { elements.push(<p key={i} style={{ fontSize: 15, fontWeight: 700, color: "#1A2456", marginTop: 14, marginBottom: 2 }}>{line.slice(2, -2)}</p>); }
+                  else if (line.startsWith("**") && line.endsWith("**")) { elements.push(<p key={i} style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)", marginTop: 14, marginBottom: 2 }}>{line.slice(2, -2)}</p>); }
                   else if (line === "") { elements.push(<div key={i} style={{ height: 4 }} />); }
-                  else { elements.push(<p key={i} style={{ fontSize: 15, color: "#374151", lineHeight: 1.75, margin: "3px 0" }}>{stripBold(line)}</p>); }
+                  else { elements.push(<p key={i} style={{ fontSize: 15, color: "var(--text)", lineHeight: 1.75, margin: "3px 0" }}>{stripBold(line)}</p>); }
 
                   i++;
                 }
@@ -1529,8 +1529,8 @@ export default function Home() {
 
       </div>
 
-      <footer style={{ borderTop: "1px solid #D0D5E8", padding: "16px 32px", background: "#FFFFFF" }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#A0AECF" }}>Aker BioMarine — Internal Tool</p>
+      <footer style={{ borderTop: "1px solid var(--border-card)", padding: "16px 32px", background: "var(--white)" }}>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-faint)" }}>Aker BioMarine — Internal Tool</p>
       </footer>
 
       {/* Remove-company modal — opened by the ✕ on a row in edit mode */}
@@ -1539,24 +1539,24 @@ export default function Home() {
           onClick={() => { if (!removing) setConfirmRemoveId(null); }}
           style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", maxWidth: 660, width: "100%", padding: "26px 28px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <p style={{ fontSize: 17, fontWeight: 700, color: "#1A2456", marginBottom: 4 }}>Remove {removeTarget.name}?</p>
-            <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>Choose how you want to remove this company.</p>
+            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 660, width: "100%", padding: "26px 28px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <p style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>Remove {removeTarget.name}?</p>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Choose how you want to remove this company.</p>
             <div style={{ display: "flex", gap: 14 }}>
               <button type="button" onClick={() => { hideFromView(removeTarget.id); setConfirmRemoveId(null); }} disabled={removing}
-                style={{ flex: 1, textAlign: "left", background: "#FFFFFF", color: "#1A2456", border: "1px solid var(--border)", padding: "16px", cursor: removing ? "default" : "pointer" }}>
+                style={{ flex: 1, textAlign: "left", background: "var(--white)", color: "var(--navy)", border: "1px solid var(--border)", padding: "16px", cursor: removing ? "default" : "pointer" }}>
                 <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Remove from this view only</span>
-                <span style={{ display: "block", fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>Hides it from the current list and the Excel export. Not deleted — use “Restore hidden” to bring it back.</span>
+                <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>Hides it from the current list and the Excel export. Not deleted — use “Restore hidden” to bring it back.</span>
               </button>
               <button type="button" onClick={() => removeCompany(removeTarget)} disabled={removing}
-                style={{ flex: 1, textAlign: "left", background: "#FFFFFF", color: "#B91C1C", border: "1px solid #FCA5A5", padding: "16px", cursor: removing ? "default" : "pointer" }}>
+                style={{ flex: 1, textAlign: "left", background: "var(--white)", color: "var(--danger-text)", border: "1px solid var(--border-danger)", padding: "16px", cursor: removing ? "default" : "pointer" }}>
                 <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{removing ? "Deleting…" : "Delete from the company database"}</span>
-                <span style={{ display: "block", fontSize: 12, color: "#9B3B3B", lineHeight: 1.5 }}>Removes it from the database. Kept internally as rejected, so it can be restored later and won’t be re-discovered.</span>
+                <span style={{ display: "block", fontSize: 12, color: "var(--danger-muted)", lineHeight: 1.5 }}>Removes it from the database. Kept internally as rejected, so it can be restored later and won’t be re-discovered.</span>
               </button>
             </div>
             <div style={{ marginTop: 20 }}>
               <button type="button" onClick={() => setConfirmRemoveId(null)} disabled={removing}
-                style={{ background: "var(--surface)", color: "#475569", border: "1px solid var(--border)", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: removing ? "default" : "pointer" }}>
+                style={{ background: "var(--surface)", color: "var(--text-slate)", border: "1px solid var(--border)", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: removing ? "default" : "pointer" }}>
                 Cancel
               </button>
             </div>
@@ -1569,12 +1569,12 @@ export default function Home() {
         <div onClick={() => setPendingNav(null)}
           style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", maxWidth: 460, width: "100%", padding: "24px 26px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <p style={{ fontSize: 16, fontWeight: 700, color: "#1A2456", marginBottom: 6 }}>You have unsaved changes</p>
-            <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>Discard your edits to this company and continue?</p>
+            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 460, width: "100%", padding: "24px 26px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>You have unsaved changes</p>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Discard your edits to this company and continue?</p>
             <div style={{ display: "flex", gap: 10 }}>
               <button type="button" onClick={() => { const go = pendingNav; cancelEdit(); setPendingNav(null); if (go) go(); }}
-                style={{ ...btnSecondary, color: "#B91C1C", border: "1px solid #FCA5A5" }}>
+                style={{ ...btnSecondary, color: "var(--danger-text)", border: "1px solid var(--border-danger)" }}>
                 Discard changes
               </button>
               <button type="button" onClick={() => setPendingNav(null)} style={{ ...btnPrimary }}>
@@ -1590,9 +1590,9 @@ export default function Home() {
         <div onClick={() => setPendingExport(false)}
           style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", maxWidth: 460, width: "100%", padding: "24px 26px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <p style={{ fontSize: 16, fontWeight: 700, color: "#1A2456", marginBottom: 6 }}>You have unsaved changes</p>
-            <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>Your unsaved edits won’t be included in the Excel export. Export anyway?</p>
+            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 460, width: "100%", padding: "24px 26px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>You have unsaved changes</p>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Your unsaved edits won’t be included in the Excel export. Export anyway?</p>
             <div style={{ display: "flex", gap: 10 }}>
               <button type="button" onClick={() => { setPendingExport(false); handleExportExcel(); }}
                 style={{ ...btnSecondary }}>
