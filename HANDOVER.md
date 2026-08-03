@@ -81,6 +81,10 @@ on serverless functions.
 
 ## 5. Search pipeline (background job + polling)
 
+> For a detailed, step-by-step walkthrough (data shapes, caching, dedup, the auto/manual fallback,
+> config knobs), see **[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md)**. The summary below is enough to
+> orient yourself.
+
 Kicked off by `POST {NEXT_PUBLIC_WORKER_URL}/api/search/start`, which creates a `search_jobs` row,
 fires `searchForCompanies(jobId, step3Mode, searchConcepts)` fire-and-forget, and returns the
 `jobId` immediately. The browser then polls `search_jobs` + `search_logs` every 3s and shows

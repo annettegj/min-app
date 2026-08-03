@@ -12,6 +12,8 @@ and letting a user review, save, and export the matches.
 - **[USER_GUIDE.md](USER_GUIDE.md)** — how to use the app (for stakeholders / end users).
 - **[HANDOVER.md](HANDOVER.md)** — architecture, environment, pipeline, database, deployment,
   costs, security, and open to-dos (for whoever operates or takes ownership of the app).
+- **[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md)** — a detailed, step-by-step walkthrough of the
+  three-step search (discovery → enrichment → ICP matching).
 
 ## Tech stack
 
