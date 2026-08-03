@@ -1298,7 +1298,7 @@ export default function Home() {
                   <div style={{ display: "flex", gap: 12 }}>
                     <button onClick={() => { setAgentState("idle"); setStaleCompanies([]); }}
                       style={{ background: "var(--header)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                      OK, got it
+                      Back to search options
                     </button>
                     <button onClick={() => { setStaleCompanies([]); setAgentState("searching"); handleAgentSearch(); }}
                       style={{ background: "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>

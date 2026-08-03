@@ -86,8 +86,12 @@ Click **Done** to leave edit mode.
 
 > **These changes are shared and immediate.** They save straight to the database and affect every
 > search for everyone — there's no separate "save" step and no undo beyond re-adding. A yellow line
-> reminds you of this while editing. **Single-page sources** don't affect searches yet (that feature
-> is coming) — adding one is harmless but won't change results for now.
+> reminds you of this while editing.
+
+> **Single-page sources** are read during the search: the AI fetches that one URL and pulls the
+> companies from it. This is ideal for a fixed list (e.g. a "best brands 2026" round-up) — but note
+> it finds nothing *new* on a re-run, since the page doesn't change. If a site blocks automated
+> reading, that page is simply skipped.
 
 > Each search uses Sprint's Anthropic account, which has limited usage, so it's worth being a little
 > deliberate with test runs.

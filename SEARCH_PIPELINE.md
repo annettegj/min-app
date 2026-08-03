@@ -63,8 +63,23 @@ incrementally along the way are kept even if the run is aborted.
   from the database (`search_terms` / `sources` tables) and are chosen in the UI; if the user ticks
   none, the worker uses the default terms / all active sources. `config/sources.json` is the
   fallback if the DB read fails.
-- Only **"web site"** sources produce queries here. **"web page"** sources are fetched once via
-  `web_fetch` (a separate path) and do **not** consume the 12-search budget.
+- Only **"web site"** sources produce queries here. **"web page"** sources are read once via
+  `web_fetch` (`discoverViaFetch`, below) and do **not** consume the 12-search budget.
+
+### The page-fetch path (`discoverViaFetch`)
+
+For **"web page"** sources, `discoverCompanies` calls `discoverViaFetch` instead of building
+queries. It lists each page's URL in the prompt (required — `web_fetch` only retrieves URLs already
+in the conversation) and asks the model to fetch each one and extract company/brand names, returning
+the same `{ name, source_name }` shape as the search path. The two result sets are concatenated, so
+the dedup + `discovery_queue` upsert downstream treats them identically.
+
+- **Model:** `claude-sonnet-5`, `web_fetch` tool with `max_uses = pages + 2`, `max_tokens` **8000**.
+- **Robots/paywalls:** `web_fetch` respects `robots.txt`; a blocked page (e.g. Amazon) just returns
+  an error block and is skipped — the run continues with the other pages.
+- **Exhaustion:** a fixed page yields the same names every run, so after the first harvest the dedup
+  step drops them all as already-known. Deactivate or delete a page source once it's been mined.
+- If **only** page sources are selected for a run, the `web_search` path is skipped entirely.
 - **Avoids duplicates two ways:**
   1. Known company names (from `companies` + `discovery_queue`) are passed into the prompt so the
      model only returns companies we don't already have.
@@ -209,6 +224,6 @@ deliberate ceiling, not an arbitrary one — it comes straight from how Step 1 w
 
 Because 4 sources × 3 terms saturates the 12-search budget, the way to keep discovering NEW
 companies over time is **not** to search wider in one run, but to **change what's in the pool**:
-rotate/expand the terms, add new sources, or retire exhausted ones — all from the UI now. Reading
-source hub pages directly (`web_fetch` for "web page" sources) is the next lever. See the roadmap in
-[HANDOVER.md](HANDOVER.md).
+rotate/expand the terms, add new sources, or retire exhausted ones — all from the UI now. Adding
+**"web page"** sources (read directly via `web_fetch`) is another lever for one-off brand lists. See
+the roadmap in [HANDOVER.md](HANDOVER.md).

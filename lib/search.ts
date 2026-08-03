@@ -121,15 +121,60 @@ const rawConsoleLog = console.log.bind(console);
 let activeJobId: number | null = null;
 let activeSupabase: SupabaseClient | null = null;
 let activeSignal: AbortSignal | null = null;
+// Serializes log inserts so rows reach the DB in call order (monotonic created_at) — otherwise the
+// fire-and-forget inserts race and the UI log (ordered by created_at) shows lines out of sequence.
+let logChain: Promise<void> = Promise.resolve();
 
 function emit(msg: string) {
   rawConsoleLog(msg);
   if (activeJobId != null && activeSupabase) {
-    activeSupabase
-      .from("search_logs")
-      .insert({ job_id: activeJobId, message: msg.replace(/^\[search\]\s*/, "") })
-      .then(() => {}, () => {});
+    const jobId = activeJobId;
+    const supabase = activeSupabase;
+    const message = msg.replace(/^\[search\]\s*/, "");
+    // Queue behind the previous insert; stays fire-and-forget for the caller, and a failed insert
+    // never breaks the ones after it.
+    logChain = logChain.then(() =>
+      supabase.from("search_logs").insert({ job_id: jobId, message }).then(() => {}, () => {})
+    );
   }
+}
+
+// Logs, per page, whether web_fetch actually retrieved the URL or failed (and the error code).
+// Pairs each result to its requested URL via tool_use_id so failures still name the page.
+function logFetchOutcome(response: Anthropic.Message): void {
+  const urlById = new Map<string, string>();
+  for (const b of response.content) {
+    if (b.type === "server_tool_use" && b.name === "web_fetch") {
+      const url = (b.input as { url?: string })?.url;
+      if (url) urlById.set(b.id, url);
+    }
+  }
+  let ok = 0;
+  let failed = 0;
+  for (const b of response.content) {
+    if (b.type !== "web_fetch_tool_result") continue;
+    const url = urlById.get(b.tool_use_id) ?? "(unknown URL)";
+    if (b.content.type === "web_fetch_result") {
+      ok++;
+      emit(`[search] Step 1 (fetch)   ✓ retrieved ${url}`);
+    } else {
+      failed++;
+      emit(`[search] Step 1 (fetch)   ✗ FAILED ${url} — ${b.content.error_code}`);
+    }
+  }
+  emit(`[search] Step 1 (fetch): ${ok}/${ok + failed} page fetch(es) succeeded`);
+}
+
+// Logs how many web_search calls the model actually ran, and any that errored.
+function logSearchOutcome(response: Anthropic.Message): void {
+  let ran = 0;
+  let errored = 0;
+  for (const b of response.content) {
+    if (b.type !== "web_search_tool_result") continue;
+    ran++;
+    if (!Array.isArray(b.content)) errored++;
+  }
+  emit(`[search] Step 1 (web_search): ran ${ran} search(es)${errored ? `, ${errored} errored` : ""}`);
 }
 
 // ---- Step 1: Discovery ----
@@ -141,10 +186,15 @@ async function discoverCompanies(
   knownNames: string[] = [],
   concepts?: string[]
 ): Promise<DiscoveredCompany[]> {
-  // Step 1 currently handles only "web site" sources (searched via web_search). "web page"
-  // sources are fetched via web_fetch in a later step; skip them here so they don't produce
-  // broken queries (they have no search_prefix). Missing type defaults to "web site".
+  // "web site" sources are searched via web_search (below); "web page" sources are read once via
+  // web_fetch (discoverViaFetch). Missing type defaults to "web site".
   const siteSources = sources.filter((s) => (s.type ?? "web site") === "web site");
+  const pageSources = sources.filter((s) => (s.type ?? "web site") === "web page");
+  // If only page sources were selected, skip the web_search path entirely (no queries to run).
+  if (siteSources.length === 0) {
+    emit(`[search] Step 1: no website sources selected — using page fetch only`);
+    return pageSources.length > 0 ? await discoverViaFetch(client, pageSources, knownNames) : [];
+  }
   const sourceList = siteSources
     .map((s) => `- ${s.name} (${s.url})${s.note ? ` — NOTE: ${s.note}` : ""}`)
     .join("\n");
@@ -159,6 +209,8 @@ async function discoverCompanies(
   emit(`[search] Step 1: using ${searchConcepts.length} search terms: ${searchConcepts.join(", ")}`);
   const allQueries = siteSources.flatMap((s) => searchConcepts.map((c) => `${s.search_prefix} ${c}`));
   const queryList = allQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n");
+  emit(`[search] Step 1 technique: web_search — ${siteSources.length} website source(s) × ${searchConcepts.length} term(s) = ${allQueries.length} queries`);
+  emit(`[search] Step 1 queries:\n${queryList}`);
   const countInstruction =
     knownNames.length > 0
       ? `IMPORTANT — count only NEW companies toward your target of 10:
@@ -210,6 +262,7 @@ Return ONLY a raw JSON array, no markdown or explanation:
   }, { signal: activeSignal ?? undefined });
 
   const response = await stream.finalMessage();
+  logSearchOutcome(response);
 
   // --- DIAGNOSTIC: see exactly what the model returned before parsing ---
   const rawBlock = response.content.findLast((b) => b.type === "text");
@@ -225,6 +278,67 @@ Return ONLY a raw JSON array, no markdown or explanation:
   emit(
     `[search] Step 1 tokens: ${response.usage.input_tokens} input, ${response.usage.output_tokens} output`
   );
+  const pageDiscovered = pageSources.length > 0 ? await discoverViaFetch(client, pageSources, knownNames) : [];
+  return [...discovered, ...pageDiscovered];
+}
+
+// Step 1 (page path): read specific "web page" sources once via web_fetch and extract company
+// names. web_fetch only retrieves URLs already present in the conversation, so every page URL is
+// listed in the prompt. Best for a fixed brand list (e.g. a "best supplement brands 2026" round-up)
+// — re-running finds nothing new after the first harvest (dedup drops the repeats).
+async function discoverViaFetch(
+  client: Anthropic,
+  pageSources: Source[],
+  knownNames: string[] = []
+): Promise<DiscoveredCompany[]> {
+  const pageList = pageSources
+    .map((s) => `- Source name: "${s.name}"\n  URL: ${s.url}${s.note ? `\n  NOTE: ${s.note}` : ""}`)
+    .join("\n");
+  emit(`[search] Step 1 (fetch) technique: web_fetch on ${pageSources.length} page(s) — ${pageSources.map((s) => s.url).join(", ")}`);
+
+  const knownBlock =
+    knownNames.length > 0
+      ? `\n\nCompanies we ALREADY have (do NOT return these):\n${knownNames.join(", ")}`
+      : "";
+
+  const stream = await client.messages.stream({
+    model: "claude-sonnet-5",
+    max_tokens: 8000,
+    tools: [{ type: "web_fetch_20260209", name: "web_fetch", max_uses: pageSources.length + 2 }],
+    messages: [
+      {
+        role: "user",
+        content: `You are finding supplement companies active in brain health, cognitive performance, nootropics, memory support, longevity, or premium supplementation.
+
+Fetch EACH of the pages below (use the web_fetch tool on every URL) and extract the company or brand names listed or discussed on that page.
+
+Pages to read:
+${pageList}
+
+Important rules:
+- Extract COMPANY or BRAND names, not product names. If it says "Brand X's omega-3", extract "Brand X".
+- EXCLUDE Aker BioMarine, Lysoveta, and Superba — these are ingredient suppliers, not target customers.
+- Always use the shortest canonical company name — omit legal suffixes (GmbH, Ltd, AG, Inc, BV, etc.) and parenthetical additions.
+- Only include companies that actually sell finished supplement products under their own brand — not raw ingredient suppliers or pure distributors.
+- Set "source_name" to the exact Source name given for the page the company came from.
+- If a page cannot be fetched, skip it and continue with the others.${knownBlock}
+
+Return ONLY a raw JSON array, no markdown or explanation:
+[{"name":"Company Name","source_name":"${pageSources[0]?.name ?? "Source name"}"}]`,
+      },
+    ],
+  }, { signal: activeSignal ?? undefined });
+
+  const response = await stream.finalMessage();
+  logFetchOutcome(response);
+  const rawBlock = response.content.findLast((b) => b.type === "text");
+  const rawText = rawBlock && rawBlock.type === "text" ? rawBlock.text : "(no text block)";
+  emit(`[search] Step 1 (fetch) stop_reason: ${response.stop_reason}`);
+  emit(`[search] Step 1 (fetch) RAW RESPONSE (${rawText.length} chars):\n${rawText.slice(0, 2000)}`);
+
+  const discovered = parseJsonArray<DiscoveredCompany>(response);
+  emit(`[search] Step 1 (fetch): discovered ${discovered.length} companies from ${pageSources.length} page(s)`);
+  emit(`[search] Step 1 (fetch) tokens: ${response.usage.input_tokens} input, ${response.usage.output_tokens} output`);
   return discovered;
 }
 

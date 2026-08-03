@@ -201,13 +201,12 @@ Open http://localhost:3000. You need a `.env.local` with the Supabase vars + `AN
 
 ## 11. Roadmap / open to-dos
 
-1. **`web_fetch` for single-page sources** — "web page" sources (e.g. a Healthline brand round-up)
-   are addable in the UI but not yet read during a search. Wiring `web_fetch` is the next step.
-2. **US expansion** — add US companies/sources (vs. today's European focus).
-3. **Company Prospectus** — the disabled "Soon" tab.
-4. **Editable ICP tab** — the "Edit" button is a placeholder.
+1. **US expansion** — add US companies/sources (vs. today's European focus).
+2. **Company Prospectus** — the disabled "Soon" tab.
+3. **Editable ICP tab** — the "Edit" button is a placeholder.
    - ✅ *Done:* source & term selection wired to the search; editable sources/terms (DB-backed,
-     from the UI); editable company database (edit fields + soft/hard delete).
+     from the UI); editable company database (edit fields + soft/hard delete); `web_fetch` for
+     "web page" sources (`discoverViaFetch` — reads a fixed page and extracts companies).
 6. **ICP validation** — compare the tool's ICP scores against AKBM's Excel of ~100 companies.
 7. **Softer rejection** — un-reject / review rejected companies.
 8. **AKBM handover** — ownership of repo/hosting/API keys, security, data residency, auth.
