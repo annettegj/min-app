@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Aker BioMarine — Kundefinner",
-  description: "Finn relevante kunder for ditt produkt",
+  title: "Aker BioMarine - Customer Finder",
+  description: "Find relevant customers for your product",
 };
 
 export default function RootLayout({
@@ -15,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="no" className="h-full antialiased">
+    <html lang="en" className="h-full antialiased">
       <body className={`${inter.className} min-h-full flex flex-col`}>{children}</body>
     </html>
   );

@@ -169,6 +169,64 @@ export default function Home() {
     });
   }, [searchParams, companies]);
 
+  // Exports the currently filtered company list (`results`) to a real .xlsx file, generated
+  // client-side. exceljs is dynamically imported so it only loads when the user clicks Export.
+  const [exporting, setExporting] = useState(false);
+  async function handleExportExcel() {
+    if (results.length === 0 || exporting) return;
+    setExporting(true);
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Companies");
+      ws.columns = [
+        { header: "Name", key: "name", width: 28 },
+        { header: "Geography", key: "geography", width: 12 },
+        { header: "Product category", key: "product_category", width: 26 },
+        { header: "Max price", key: "max_price", width: 12 },
+        { header: "Currency", key: "price_currency", width: 10 },
+        { header: "ICP fit", key: "icp_fit", width: 9 },
+        { header: "Priority tier", key: "priority_tier", width: 14 },
+        { header: "Website", key: "website_url", width: 34 },
+        { header: "Source", key: "source_name", width: 22 },
+        { header: "Description", key: "description", width: 60 },
+      ];
+      ws.getRow(1).font = { bold: true };
+      for (const c of results) {
+        ws.addRow({
+          name: c.name,
+          geography: c.geography,
+          product_category: c.product_category,
+          max_price: c.max_price ?? "",
+          price_currency: c.price_currency ?? "",
+          icp_fit: c.icp_fit,
+          priority_tier: c.priority_tier ?? "",
+          website_url: c.website_url ?? "",
+          source_name: c.source_name ?? "",
+          description: c.description ?? "",
+        });
+      }
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const today = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `lysoveta-companies-${today}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[export] Excel export failed:", err);
+      alert("Could not generate the Excel file. See the console (F12) for details.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function handleSearch() {
     setSearchState("loading");
     setSearchParams(null);
@@ -668,9 +726,10 @@ export default function Home() {
             {searchState === "done" && results.length > 0 && (
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
                 <button
-                  disabled
-                  style={{ background: "#F3F4F6", color: "#9CA3AF", border: "1px solid #D1D5DB", padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "not-allowed", borderRadius: 4, display: "flex", alignItems: "center", gap: 8 }}>
-                  ↓ Export as Excel
+                  onClick={handleExportExcel}
+                  disabled={exporting}
+                  style={{ background: exporting ? "#7FBFCF" : "#0891B2", color: "#FFFFFF", border: "none", padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: exporting ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                  {exporting ? "Exporting…" : "↓ Export as Excel"}
                 </button>
               </div>
             )}
