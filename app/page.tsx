@@ -98,6 +98,12 @@ const hintStyle: React.CSSProperties = { fontSize: 11, color: "var(--text-muted)
 const reqStyle: React.CSSProperties = { color: "var(--danger-text)", fontWeight: 700, marginLeft: 3 };
 const optStyle: React.CSSProperties = { fontSize: 10, fontWeight: 400, color: "var(--text-dim)", textTransform: "none", letterSpacing: 0, marginLeft: 6 };
 
+// --- Search-configuration draft types (edit mode edits a local draft; Save commits the diff) ---
+type SourceFields = { name: string; type: "web site" | "web page"; url: string; search_prefix: string; note: string };
+type SourceRecord = SourceFields & { id: number };
+type DraftTerm = { key: string; id: number | null; term: string; is_default: boolean };
+type DraftSource = SourceFields & { key: string; id: number | null };
+
 export default function Home() {
   const [tab, setTab] = useState<"database" | "search" | "icp" | "prospectus">("database");
   const [icpContent, setIcpContent] = useState<string | null>(null);
@@ -157,11 +163,18 @@ export default function Home() {
   // defaults so there's something before the fetch resolves (and as a fallback).
   const [sourceOptions, setSourceOptions] = useState(SOURCE_OPTIONS);
   const [termOptions, setTermOptions] = useState(SEARCH_TERM_OPTIONS);
-  // Edit mode for adding/removing sources and terms (writes straight to the DB).
+  // Edit mode: a local DRAFT of the config. Nothing is written to the DB until "Save changes".
   const [configEditMode, setConfigEditMode] = useState(false);
-  const [newTerm, setNewTerm] = useState("");
-  const [showAddTerm, setShowAddTerm] = useState(false);
-  const [newSource, setNewSource] = useState<{ name: string; type: "web site" | "web page"; url: string; search_prefix: string; note: string }>({ name: "", type: "web site", url: "", search_prefix: "", note: "" });
+  // Full DB records (with ids) — the baseline the draft is diffed against on save.
+  const [termRecords, setTermRecords] = useState<{ id: number; term: string; is_default: boolean }[]>([]);
+  const [sourceRecords, setSourceRecords] = useState<SourceRecord[]>([]);
+  const [draftTerms, setDraftTerms] = useState<DraftTerm[]>([]);
+  const [draftSources, setDraftSources] = useState<DraftSource[]>([]);
+  const keyRef = useRef(0);
+  const nextKey = () => `k${keyRef.current++}`;
+  // Add/edit-source modal — edits the DRAFT, not the DB. editingSourceKey === null means "add new".
+  const [newSource, setNewSource] = useState<SourceFields>({ name: "", type: "web site", url: "", search_prefix: "", note: "" });
+  const [editingSourceKey, setEditingSourceKey] = useState<string | null>(null);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [sourceInfoOpen, setSourceInfoOpen] = useState(false);
   const [termsExpanded, setTermsExpanded] = useState(false);
@@ -203,58 +216,110 @@ export default function Home() {
     if (data) setCompanies(data.filter((c: Company) => c.added && !c.rejected) as Company[]);
   }
 
-  // Loads the editable search config (sources + terms) from the DB. Sets state to whatever the
-  // DB returns — empty included, so a delete shows immediately. On a read error it leaves the
-  // current state untouched, so a transient failure never wipes the list.
+  // Loads the search config (sources + terms) from the DB into the full records (with ids) and the
+  // derived selection lists. On a read error it leaves state untouched, so a transient failure never
+  // wipes the list. Stale selections (renamed/removed items) are pruned.
   async function loadSearchConfig() {
     const [{ data: srcs }, { data: terms }] = await Promise.all([
-      supabase.from("sources").select("name, type, url").eq("active", true).order("id"),
-      supabase.from("search_terms").select("term").eq("active", true).order("id"),
+      supabase.from("sources").select("id, name, type, url, search_prefix, note").eq("active", true).order("id"),
+      supabase.from("search_terms").select("id, term, is_default").eq("active", true).order("id"),
     ]);
-    if (srcs) setSourceOptions(srcs.map((s: { name: string; type: string | null; url: string | null }) => ({ name: s.name, type: s.type ?? "web site", url: s.url ?? "" })));
-    if (terms) setTermOptions(terms.map((t: { term: string }) => t.term));
+    if (srcs) {
+      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null }) => ({
+        id: s.id, name: s.name, type: (s.type ?? "web site") as "web site" | "web page",
+        url: s.url ?? "", search_prefix: s.search_prefix ?? "", note: s.note ?? "",
+      }));
+      setSourceRecords(recs);
+      setSourceOptions(recs.map(s => ({ name: s.name, type: s.type, url: s.url })));
+      setSelectedSources(prev => prev.filter(n => recs.some(r => r.name === n)));
+    }
+    if (terms) {
+      const recs = terms.map((t: { id: number; term: string; is_default: boolean }) => ({ id: t.id, term: t.term, is_default: t.is_default }));
+      setTermRecords(recs);
+      setTermOptions(recs.map(t => t.term));
+      setSelectedTerms(prev => prev.filter(x => recs.some(r => r.term === x)));
+    }
   }
 
-  async function addTerm() {
-    const term = newTerm.trim();
-    if (!term || configBusy) return;
-    setConfigBusy(true); setConfigError("");
-    const { error } = await supabase.from("search_terms").insert({ term, is_default: false });
-    if (error) setConfigError(`Could not add term: ${error.message}`);
-    else { setNewTerm(""); await loadSearchConfig(); }
-    setConfigBusy(false);
+  // --- Draft editing (local until "Save changes") ---
+  function enterConfigEdit() {
+    setDraftTerms(termRecords.map(t => ({ key: nextKey(), id: t.id, term: t.term, is_default: t.is_default })));
+    setDraftSources(sourceRecords.map(s => ({ key: nextKey(), id: s.id, name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note })));
+    setConfigError("");
+    setConfigEditMode(true);
   }
-  async function deleteTerm(term: string) {
-    if (configBusy) return;
-    setConfigBusy(true); setConfigError("");
-    const { error } = await supabase.from("search_terms").delete().eq("term", term);
-    if (error) setConfigError(`Could not remove term: ${error.message}`);
-    else { setSelectedTerms(prev => prev.filter(x => x !== term)); await loadSearchConfig(); }
-    setConfigBusy(false);
+  function cancelConfigEdit() {
+    setConfigEditMode(false);
+    setSourceModalOpen(false);
+    setConfigError("");
   }
-  async function addSource() {
+  const updateDraftTerm = (key: string, term: string) => setDraftTerms(prev => prev.map(t => t.key === key ? { ...t, term } : t));
+  const removeDraftTerm = (key: string) => setDraftTerms(prev => prev.filter(t => t.key !== key));
+  const addDraftTerm = () => setDraftTerms(prev => [...prev, { key: nextKey(), id: null, term: "", is_default: false }]);
+  const removeDraftSource = (key: string) => setDraftSources(prev => prev.filter(s => s.key !== key));
+  function openAddSource() {
+    setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "" });
+    setEditingSourceKey(null); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true);
+  }
+  function openEditSource(s: DraftSource) {
+    setNewSource({ name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note });
+    setEditingSourceKey(s.key); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true);
+  }
+  // Modal "Done" — validate the single source and write it into the draft (no DB call).
+  function applySource() {
     const name = newSource.name.trim();
-    if (!name || configBusy) return;
+    if (!name) { setConfigError("Name is required."); return; }
     if (newSource.type === "web site" && !newSource.search_prefix.trim()) { setConfigError("A website source needs a search prefix (e.g. nutraingredients.com)."); return; }
     if (newSource.type === "web page" && !newSource.url.trim()) { setConfigError("A single-page source needs a URL."); return; }
-    setConfigBusy(true); setConfigError("");
-    const { error } = await supabase.from("sources").insert({
-      type: newSource.type,
-      name,
-      url: newSource.url.trim() || null,
-      search_prefix: newSource.type === "web site" ? newSource.search_prefix.trim() : null,
-      note: newSource.note.trim() || null,
-    });
-    if (error) setConfigError(`Could not add source: ${error.message}`);
-    else { setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "" }); setSourceModalOpen(false); await loadSearchConfig(); }
-    setConfigBusy(false);
+    const fields: SourceFields = { name, type: newSource.type, url: newSource.url.trim(), search_prefix: newSource.type === "web site" ? newSource.search_prefix.trim() : "", note: newSource.note.trim() };
+    if (editingSourceKey) setDraftSources(prev => prev.map(s => s.key === editingSourceKey ? { ...s, ...fields } : s));
+    else setDraftSources(prev => [...prev, { key: nextKey(), id: null, ...fields }]);
+    setSourceModalOpen(false); setConfigError("");
   }
-  async function deleteSource(name: string) {
+
+  // Diff the draft against the loaded records and apply inserts/updates/deletes in one go.
+  async function saveConfig() {
     if (configBusy) return;
+    const terms = draftTerms.map(t => ({ ...t, term: t.term.trim() }));
+    if (terms.some(t => !t.term)) { setConfigError("Search terms can't be empty — remove the blank one or fill it in."); return; }
+    if (new Set(terms.map(t => t.term.toLowerCase())).size !== terms.length) { setConfigError("Two search terms are identical."); return; }
+    const srcs = draftSources;
+    if (srcs.some(s => !s.name.trim())) { setConfigError("Every source needs a name."); return; }
+    if (new Set(srcs.map(s => s.name.trim().toLowerCase())).size !== srcs.length) { setConfigError("Two sources have the same name."); return; }
+
     setConfigBusy(true); setConfigError("");
-    const { error } = await supabase.from("sources").delete().eq("name", name);
-    if (error) setConfigError(`Could not remove source: ${error.message}`);
-    else await loadSearchConfig();
+    try {
+      // TERMS diff
+      const draftTermIds = new Set(terms.filter(t => t.id != null).map(t => t.id));
+      const termDeletes = termRecords.filter(r => !draftTermIds.has(r.id)).map(r => r.id);
+      const termInserts = terms.filter(t => t.id == null).map(t => ({ term: t.term, is_default: t.is_default }));
+      const termUpdates = terms.filter(t => t.id != null).filter(t => { const o = termRecords.find(r => r.id === t.id); return o && o.term !== t.term; });
+      // SOURCES diff
+      const toRow = (s: SourceFields) => ({ type: s.type, name: s.name.trim(), url: s.url.trim() || null, search_prefix: s.type === "web site" ? (s.search_prefix.trim() || null) : null, note: s.note.trim() || null });
+      const draftSrcIds = new Set(srcs.filter(s => s.id != null).map(s => s.id));
+      const srcDeletes = sourceRecords.filter(r => !draftSrcIds.has(r.id)).map(r => r.id);
+      const srcInserts = srcs.filter(s => s.id == null).map(toRow);
+      const srcUpdates = srcs.filter(s => s.id != null).filter(s => {
+        const o = sourceRecords.find(r => r.id === s.id);
+        if (!o) return false;
+        return o.name !== s.name.trim() || o.type !== s.type || o.url !== s.url.trim()
+          || o.search_prefix !== (s.type === "web site" ? s.search_prefix.trim() : "") || o.note !== s.note.trim();
+      });
+
+      // Deletes first, so a rename/re-add can reuse a freed unique name.
+      if (termDeletes.length) { const { error } = await supabase.from("search_terms").delete().in("id", termDeletes); if (error) throw error; }
+      if (srcDeletes.length) { const { error } = await supabase.from("sources").delete().in("id", srcDeletes); if (error) throw error; }
+      if (termInserts.length) { const { error } = await supabase.from("search_terms").insert(termInserts); if (error) throw error; }
+      if (srcInserts.length) { const { error } = await supabase.from("sources").insert(srcInserts); if (error) throw error; }
+      for (const t of termUpdates) { const { error } = await supabase.from("search_terms").update({ term: t.term }).eq("id", t.id!); if (error) throw error; }
+      for (const s of srcUpdates) { const { error } = await supabase.from("sources").update(toRow(s)).eq("id", s.id!); if (error) throw error; }
+
+      await loadSearchConfig();
+      setConfigEditMode(false);
+      setSourceModalOpen(false);
+    } catch (e) {
+      setConfigError(`Could not save: ${(e as { message?: string })?.message ?? "unknown error"}`);
+    }
     setConfigBusy(false);
   }
 
@@ -1112,15 +1177,17 @@ export default function Home() {
                 <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                   <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
-                    <button type="button" onClick={() => { setConfigEditMode(v => !v); setConfigError(""); setNewTerm(""); setShowAddTerm(false); setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "" }); }}
-                      style={{ background: configEditMode ? "var(--white)" : "var(--accent)", color: configEditMode ? "var(--header)" : "var(--white)", border: "none", borderRadius: 4, padding: "6px 16px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
-                      {configEditMode ? "Done" : "Edit"}
-                    </button>
+                    {!configEditMode && (
+                      <button type="button" onClick={enterConfigEdit}
+                        style={{ background: "var(--accent)", color: "var(--white)", border: "none", borderRadius: 4, padding: "6px 16px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
+                        Edit
+                      </button>
+                    )}
                   </div>
                   {configEditMode && (
                     <div style={{ background: "var(--banner-warn-bg)", borderBottom: "1px solid var(--banner-warn-border)", padding: "10px 20px" }}>
                       <p style={{ fontSize: 12, color: "var(--banner-warn-text)" }}>
-                        Editing the shared configuration — changes save right away and affect every search, for everyone.
+                        Editing the shared configuration. Click a term or source to change its fields; nothing is saved until you press <strong>Save changes</strong>. Saved changes affect every search, for everyone.
                       </p>
                     </div>
                   )}
@@ -1128,47 +1195,47 @@ export default function Home() {
                     {/* Search terms */}
                     <div style={{ display: "flex", flexDirection: "column" }}>
                       <label style={labelStyle}>{configEditMode ? "Search terms" : "Search terms (choose up to 3)"}</label>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, maxHeight: termsExpanded ? "none" : 232, overflowY: termsExpanded ? "visible" : "auto", paddingRight: 6 }}>
-                        {termOptions.map(t => {
-                          const checked = selectedTerms.includes(t);
-                          const atMax = selectedTerms.length >= 3;
-                          return configEditMode ? (
-                            <div key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)" }}>
-                              <button type="button" title="Remove term" disabled={configBusy} onClick={() => deleteTerm(t)}
-                                style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>✕</button>
-                              {t}
-                            </div>
-                          ) : (
-                            <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
-                              <input type="checkbox" checked={checked} disabled={!checked && atMax}
-                                onChange={() => setSelectedTerms(checked ? selectedTerms.filter(x => x !== t) : [...selectedTerms, t])}
-                                style={{ accentColor: "var(--accent)", width: 15, height: 15 }} />
-                              {t}
-                            </label>
-                          );
-                        })}
-                      </div>
-                      {termOptions.length > 8 && (
-                        <button type="button" onClick={() => setTermsExpanded(v => !v)}
-                          style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 0", marginTop: 4, textAlign: "left" }}>
-                          {termsExpanded ? "Show fewer ▴" : `Show all ${termOptions.length} ▾`}
-                        </button>
-                      )}
-                      <div style={{ marginTop: "auto", paddingTop: 12 }}>
-                        {showAddTerm ? (
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <input type="text" autoFocus value={newTerm} onChange={e => setNewTerm(e.target.value)}
-                              onKeyDown={e => { if (e.key === "Enter") addTerm(); if (e.key === "Escape") { setShowAddTerm(false); setNewTerm(""); setConfigError(""); } }}
-                              placeholder="New search term" style={{ ...inputStyle, flex: 1 }} />
-                            <button type="button" onClick={addTerm} disabled={configBusy || !newTerm.trim()}
-                              style={{ ...btnSecondary, padding: "8px 16px" }}>Add</button>
-                            <button type="button" title="Close" onClick={() => { setShowAddTerm(false); setNewTerm(""); setConfigError(""); }}
-                              style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 4px" }}>✕</button>
+                      {configEditMode ? (
+                        <>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, maxHeight: 320, overflowY: "auto", paddingRight: 6 }}>
+                            {draftTerms.map(t => (
+                              <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <button type="button" title="Remove term" onClick={() => removeDraftTerm(t.key)}
+                                  style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>✕</button>
+                                <input type="text" value={t.term} onChange={e => updateDraftTerm(t.key, e.target.value)}
+                                  placeholder="Search term" style={{ ...inputStyle, flex: 1 }} />
+                              </div>
+                            ))}
+                            {draftTerms.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>No search terms yet — add one below.</p>}
                           </div>
-                        ) : (
-                          <button type="button" onClick={() => { setShowAddTerm(true); setConfigError(""); }} style={addBtnStyle}>+ Add new search term</button>
-                        )}
-                      </div>
+                          <div style={{ marginTop: "auto", paddingTop: 12 }}>
+                            <button type="button" onClick={addDraftTerm} style={addBtnStyle}>+ Add new search term</button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, maxHeight: termsExpanded ? "none" : 232, overflowY: termsExpanded ? "visible" : "auto", paddingRight: 6 }}>
+                            {termOptions.map(t => {
+                              const checked = selectedTerms.includes(t);
+                              const atMax = selectedTerms.length >= 3;
+                              return (
+                                <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
+                                  <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                                    onChange={() => setSelectedTerms(checked ? selectedTerms.filter(x => x !== t) : [...selectedTerms, t])}
+                                    style={{ accentColor: "var(--accent)", width: 15, height: 15 }} />
+                                  {t}
+                                </label>
+                              );
+                            })}
+                          </div>
+                          {termOptions.length > 8 && (
+                            <button type="button" onClick={() => setTermsExpanded(v => !v)}
+                              style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 0", marginTop: 4, textAlign: "left" }}>
+                              {termsExpanded ? "Show fewer ▴" : `Show all ${termOptions.length} ▾`}
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
                     {/* Sources */}
                     <div style={{ display: "flex", flexDirection: "column" }}>
@@ -1177,59 +1244,82 @@ export default function Home() {
                         <strong>Website</strong> = a whole site<br />
                         <strong>Single page</strong> = one specific URL
                       </p>
-                      <div style={{ maxHeight: sourcesExpanded ? "none" : 232, overflowY: sourcesExpanded ? "visible" : "auto", paddingRight: 6 }}>
-                      {[
-                        { heading: "Website", items: sourceOptions.filter(s => s.type !== "web page") },
-                        { heading: "Single page", items: sourceOptions.filter(s => s.type === "web page") },
-                      ].map(group => group.items.length === 0 ? null : (
-                        <div key={group.heading} style={{ marginTop: 10 }}>
-                          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 4 }}>{group.heading}</p>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            {group.items.map(s => {
-                              const isPage = s.type === "web page";
-                              const checked = selectedSources.includes(s.name);
-                              const atMax = selectedSources.length >= 4;
-                              const nameBlock = (
-                                <span>
-                                  {s.name}
-                                  {isPage && s.url && (
-                                    <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all" }}>
-                                      {s.url.replace(/^https?:\/\//, "")}
-                                    </span>
-                                  )}
-                                </span>
-                              );
-                              return configEditMode ? (
-                                <div key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "var(--text)" }}>
-                                  <button type="button" title="Remove source" disabled={configBusy} onClick={() => deleteSource(s.name)}
-                                    style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 6px", borderRadius: 4, marginTop: 1, flexShrink: 0 }}>✕</button>
-                                  {nameBlock}
-                                </div>
-                              ) : (
-                                <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
-                                  <input type="checkbox" checked={checked} disabled={!checked && atMax}
-                                    onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
-                                    style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
-                                  {nameBlock}
-                                </label>
-                              );
-                            })}
+                      {configEditMode ? (
+                        <>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto", paddingRight: 6 }}>
+                            {draftSources.map(s => (
+                              <div key={s.key} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                                <button type="button" title="Remove source" onClick={() => removeDraftSource(s.key)}
+                                  style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 6px", borderRadius: 4, marginTop: 7, flexShrink: 0 }}>✕</button>
+                                <button type="button" onClick={() => openEditSource(s)}
+                                  style={{ flex: 1, textAlign: "left", background: "var(--surface-input)", border: "1px solid var(--border-input)", borderRadius: 4, padding: "8px 10px", cursor: "pointer", color: "var(--navy)" }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600 }}>{s.name || "(unnamed source)"}</span>
+                                  <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 2, wordBreak: "break-all" }}>
+                                    {s.type === "web page" ? "Single page" : "Website"}
+                                    {s.type === "web page" && s.url ? ` · ${s.url.replace(/^https?:\/\//, "")}` : ""}
+                                    {s.type === "web site" && s.search_prefix ? ` · ${s.search_prefix}` : ""}
+                                    <span style={{ color: "var(--accent)", fontWeight: 700 }}> · Edit ✎</span>
+                                  </span>
+                                </button>
+                              </div>
+                            ))}
+                            {draftSources.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>No sources yet — add one below.</p>}
                           </div>
-                        </div>
-                      ))}
-                      </div>
-                      {sourceOptions.length > 6 && (
-                        <button type="button" onClick={() => setSourcesExpanded(v => !v)}
-                          style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 0", marginTop: 4, textAlign: "left" }}>
-                          {sourcesExpanded ? "Show fewer ▴" : `Show all ${sourceOptions.length} ▾`}
-                        </button>
+                          <div style={{ marginTop: "auto", paddingTop: 14 }}>
+                            <button type="button" onClick={openAddSource} style={addBtnStyle}>+ Add new source</button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ maxHeight: sourcesExpanded ? "none" : 232, overflowY: sourcesExpanded ? "visible" : "auto", paddingRight: 6 }}>
+                          {[
+                            { heading: "Website", items: sourceOptions.filter(s => s.type !== "web page") },
+                            { heading: "Single page", items: sourceOptions.filter(s => s.type === "web page") },
+                          ].map(group => group.items.length === 0 ? null : (
+                            <div key={group.heading} style={{ marginTop: 10 }}>
+                              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 4 }}>{group.heading}</p>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                {group.items.map(s => {
+                                  const isPage = s.type === "web page";
+                                  const checked = selectedSources.includes(s.name);
+                                  const atMax = selectedSources.length >= 4;
+                                  return (
+                                    <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
+                                      <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                                        onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
+                                        style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
+                                      <span>
+                                        {s.name}
+                                        {isPage && s.url && (
+                                          <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all" }}>
+                                            {s.url.replace(/^https?:\/\//, "")}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                          </div>
+                          {sourceOptions.length > 6 && (
+                            <button type="button" onClick={() => setSourcesExpanded(v => !v)}
+                              style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 0", marginTop: 4, textAlign: "left" }}>
+                              {sourcesExpanded ? "Show fewer ▴" : `Show all ${sourceOptions.length} ▾`}
+                            </button>
+                          )}
+                        </>
                       )}
-                      <div style={{ marginTop: "auto", paddingTop: 14 }}>
-                        <button type="button" onClick={() => { setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "" }); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true); }} style={addBtnStyle}>+ Add new source</button>
-                      </div>
                     </div>
                   </div>
                   {configError && <p style={{ padding: "0 20px 16px", fontSize: 12, color: "var(--danger-text)" }}>{configError}</p>}
+                  {configEditMode && (
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "0 20px 18px" }}>
+                      <button type="button" onClick={cancelConfigEdit} disabled={configBusy} style={{ ...btnSecondary, padding: "9px 20px" }}>Cancel</button>
+                      <button type="button" onClick={saveConfig} disabled={configBusy} style={{ ...btnPrimary, padding: "9px 24px", opacity: configBusy ? 0.6 : 1 }}>{configBusy ? "Saving…" : "Save changes"}</button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Search action */}
@@ -1771,12 +1861,12 @@ export default function Home() {
           <div onClick={(e) => e.stopPropagation()}
             style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 520, width: "100%", padding: "26px 28px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)", maxHeight: "90vh", overflowY: "auto" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
-              <p style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>Add a source</p>
+              <p style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>{editingSourceKey ? "Edit source" : "Add a source"}</p>
               <button type="button" title="What do these fields mean?" aria-label="Help" onClick={() => setSourceInfoOpen(v => !v)}
                 style={{ flexShrink: 0, width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--border)", background: sourceInfoOpen ? "var(--accent)" : "var(--white)", color: sourceInfoOpen ? "var(--white)" : "var(--text-muted)", fontSize: 13, fontWeight: 700, fontStyle: "italic", cursor: "pointer", lineHeight: 1, fontFamily: "Georgia, serif" }}>i</button>
             </div>
             <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
-              Saved to the shared database and used in every search. <span style={reqStyle}>*</span>
+              Applied to the draft — nothing is saved until you press <strong>Save changes</strong> in the panel. <span style={reqStyle}>*</span>
               <span style={{ marginLeft: 4 }}>marks a required field.</span>
             </p>
             {sourceInfoOpen && (
@@ -1832,11 +1922,11 @@ export default function Home() {
             </div>
             {configError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 14 }}>{configError}</p>}
             <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-              <button type="button" onClick={addSource} disabled={configBusy || !newSource.name.trim()}
-                style={{ ...btnPrimary, opacity: configBusy || !newSource.name.trim() ? 0.6 : 1 }}>
-                {configBusy ? "Saving…" : "Add source"}
+              <button type="button" onClick={applySource} disabled={!newSource.name.trim()}
+                style={{ ...btnPrimary, opacity: !newSource.name.trim() ? 0.6 : 1 }}>
+                {editingSourceKey ? "Update source" : "Add source"}
               </button>
-              <button type="button" onClick={() => { setSourceModalOpen(false); setConfigError(""); }} disabled={configBusy} style={{ ...btnSecondary }}>Cancel</button>
+              <button type="button" onClick={() => { setSourceModalOpen(false); setConfigError(""); }} style={{ ...btnSecondary }}>Cancel</button>
             </div>
           </div>
         </div>
