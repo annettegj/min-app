@@ -3,6 +3,20 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* --- App colour palette (dark navy + teal). Use via var(--name) in styles. --- */
+  --header: #0C1C2E;        /* top bar / darkest navy */
+  --accent: #0891B2;        /* teal — primary buttons, links */
+  --accent-hover: #0670A0;  /* deeper teal for hover/active */
+  --accent-light: #38BDF8;  /* lighter cyan for highlights */
+  --ink: #334155;           /* strong body text */
+  --muted: #64748B;         /* secondary/dimmed text */
+  --border: #CBD5E1;        /* borders, dividers */
+  --surface: #F1F5F9;       /* light raised surfaces */
+  --page: #F4F5FA;          /* page background */
+  --success: #15803D;       /* positive / early-mover */
+  --warning: #B45309;       /* caution */
+  --danger: #DC2626;        /* destructive actions */
 }
 
 @theme inline {
@@ -23,4 +37,18 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Uniform hover feedback for every button across the app. Inline styles can't express :hover,
+   so this one rule covers all current and future buttons. brightness() darkens whatever the
+   button's own colour is (teal, white, red, grey…), giving a consistent reaction on hover.
+   Disabled buttons are excluded so locked/placeholder controls don't react. */
+button {
+  border-radius: 4px;
+}
+button:not(:disabled) {
+  transition: filter 0.12s ease, background-color 0.12s ease;
+}
+button:not(:disabled):hover {
+  filter: brightness(0.87);
 }

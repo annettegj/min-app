@@ -67,12 +67,21 @@ type PendingCompany = SearchResult & {
 // --- Shared styles ---
 const inputStyle: React.CSSProperties = {
   width: "100%", border: "1px solid #C4CAE8", padding: "8px 10px",
-  fontSize: 13, color: "#1A2456", background: "#FAFBFF", outline: "none",
+  fontSize: 13, color: "#1A2456", background: "#FAFBFF", outline: "none", borderRadius: 4,
 };
 const labelStyle: React.CSSProperties = {
   display: "block", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em",
   textTransform: "uppercase", color: "#475569", marginBottom: 6,
 };
+
+// --- Button hierarchy (one teal accent = primary; neutral = secondary; red = destructive) ---
+// Spread these and override padding/size per call site, e.g. style={{ ...btnPrimary, padding: "12px 36px" }}.
+const btnBase: React.CSSProperties = {
+  padding: "10px 24px", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em",
+  textTransform: "uppercase", cursor: "pointer", borderRadius: 4,
+};
+const btnPrimary: React.CSSProperties = { ...btnBase, background: "#0891B2", color: "#FFFFFF", border: "none" };
+const btnSecondary: React.CSSProperties = { ...btnBase, background: "#FFFFFF", color: "#334155", border: "1px solid #CBD5E1" };
 
 export default function Home() {
   const [tab, setTab] = useState<"database" | "search" | "icp" | "prospectus">("database");
@@ -92,6 +101,20 @@ export default function Home() {
     priceMin: string; priceMax: string;
     icpMin: number; tier: string;
   }>(null);
+  // Inline company editing / removal (Company Database tab)
+  const [editingCompanyId, setEditingCompanyId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<null | {
+    geography: string; product_category: string; max_price: string; price_currency: string;
+    icp_fit: number; priority_tier: string; website_url: string; description: string;
+  }>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
+  const [removing, setRemoving] = useState(false);
+  // List-level edit mode (unlocks per-row edit/remove) + session-only "hidden from view" rows
+  // (a client-side curation, e.g. to tailor an Excel export; not persisted to the database).
+  const [editMode, setEditMode] = useState(false);
+  const [hiddenIds, setHiddenIds] = useState<Set<number>>(new Set());
 
   // --- Search tab state ---
   const [agentState, setAgentState] = useState<"idle" | "stale_warning" | "searching" | "step3" | "done" | "error">("idle")
@@ -169,11 +192,20 @@ export default function Home() {
     });
   }, [searchParams, companies]);
 
+  // Rows actually shown in the table = filtered results minus any hidden-from-view rows. This is a
+  // session-only curation (not persisted); it also drives what the Excel export includes.
+  const visibleResults = useMemo(
+    () => results.filter((c) => !hiddenIds.has(c.id)),
+    [results, hiddenIds]
+  );
+  // The company targeted by the remove modal (null when the modal is closed).
+  const removeTarget = confirmRemoveId != null ? companies.find((c) => c.id === confirmRemoveId) ?? null : null;
+
   // Exports the currently filtered company list (`results`) to a real .xlsx file, generated
   // client-side. exceljs is dynamically imported so it only loads when the user clicks Export.
   const [exporting, setExporting] = useState(false);
   async function handleExportExcel() {
-    if (results.length === 0 || exporting) return;
+    if (visibleResults.length === 0 || exporting) return;
     setExporting(true);
     try {
       const ExcelJS = (await import("exceljs")).default;
@@ -192,7 +224,7 @@ export default function Home() {
         { header: "Description", key: "description", width: 60 },
       ];
       ws.getRow(1).font = { bold: true };
-      for (const c of results) {
+      for (const c of visibleResults) {
         ws.addRow({
           name: c.name,
           geography: c.geography,
@@ -225,6 +257,99 @@ export default function Home() {
     } finally {
       setExporting(false);
     }
+  }
+
+  // --- Company Database: inline edit + soft-delete ---
+  function startEdit(c: Company) {
+    setExpandedCompanyId(c.id);
+    setEditingCompanyId(c.id);
+    setConfirmRemoveId(null);
+    setEditError("");
+    setEditDraft({
+      geography: c.geography ?? "",
+      product_category: c.product_category ?? "",
+      max_price: c.max_price != null ? String(c.max_price) : "",
+      price_currency: c.price_currency ?? "",
+      icp_fit: c.icp_fit ?? 3,
+      priority_tier: c.priority_tier ?? "",
+      website_url: c.website_url ?? "",
+      description: c.description ?? "",
+    });
+  }
+
+  function cancelEdit() {
+    setEditingCompanyId(null);
+    setEditDraft(null);
+    setEditError("");
+  }
+
+  async function saveEdit(c: Company) {
+    if (!editDraft) return;
+    setSavingEdit(true);
+    setEditError("");
+    const { error } = await supabase
+      .from("companies")
+      .update({
+        geography: editDraft.geography,
+        product_category: editDraft.product_category,
+        max_price: editDraft.max_price ? Number(editDraft.max_price) : null,
+        price_currency: editDraft.price_currency || null,
+        icp_fit: editDraft.icp_fit,
+        priority_tier: editDraft.priority_tier || null,
+        website_url: editDraft.website_url || null,
+        description: editDraft.description || null,
+      })
+      .eq("id", c.id);
+    if (error) {
+      setEditError(`Could not save: ${error.message}`);
+      setSavingEdit(false);
+      return;
+    }
+    await loadCompanies();
+    setSavingEdit(false);
+    setEditingCompanyId(null);
+    setEditDraft(null);
+  }
+
+  // Soft delete: mark rejected (reversible, preserves enriched_data) so it drops out of the view,
+  // and remove it from the discovery queue so it isn't re-processed.
+  async function removeCompany(c: Company) {
+    setRemoving(true);
+    setEditError("");
+    const { error } = await supabase.from("companies").update({ rejected: true }).eq("id", c.id);
+    if (error) {
+      setEditError(`Could not remove: ${error.message}`);
+      setRemoving(false);
+      return;
+    }
+    await supabase.from("discovery_queue").delete().eq("name", c.name);
+    await loadCompanies();
+    setRemoving(false);
+    setConfirmRemoveId(null);
+    setExpandedCompanyId(null);
+  }
+
+  function toggleEditMode() {
+    if (editMode) {
+      // Leaving edit mode — abandon any in-progress edit or remove-confirmation.
+      cancelEdit();
+      setConfirmRemoveId(null);
+    }
+    setEditMode((v) => !v);
+  }
+
+  // Hide a row from the current view only (session-only, reversible via "Restore hidden").
+  function hideFromView(id: number) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    if (expandedCompanyId === id) setExpandedCompanyId(null);
+  }
+
+  function restoreHidden() {
+    setHiddenIds(new Set());
   }
 
   function handleSearch() {
@@ -539,6 +664,7 @@ export default function Home() {
                 onClick={() => setTab(t.key as "database" | "search" | "icp" | "prospectus")}
                 style={{
                   padding: "10px 20px", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
+                  borderRadius: 4,
                   background: tab === t.key ? "#F4F5FA" : "transparent",
                   color: tab === t.key ? "#1A2456" : "#A0AECF",
                   borderTop: tab === t.key ? "2px solid #0891B2" : "2px solid transparent",
@@ -552,6 +678,7 @@ export default function Home() {
                 disabled
                 style={{
                   padding: "10px 20px", fontSize: 13, fontWeight: 600, border: "none", cursor: "default",
+                  borderRadius: 4,
                   background: "transparent", color: "#8A93B2",
                   borderTop: "2px solid transparent",
                 }}
@@ -570,14 +697,14 @@ export default function Home() {
           <>
             <div>
               <button onClick={() => { setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" }); setSearchState("done"); }}
-                style={{ background: "#0891B2", color: "#FFFFFF", border: "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#0670A0")}
-                onMouseLeave={e => (e.currentTarget.style.background = "#0891B2")}>
+                style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#F1F5F9")}
+                onMouseLeave={e => (e.currentTarget.style.background = "#FFFFFF")}>
                 Show All Companies →
               </button>
             </div>
 
-            <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
               <div style={{ background: "#0C1C2E", padding: "12px 20px" }}>
                 <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Filter Companies</p>
               </div>
@@ -633,7 +760,7 @@ export default function Home() {
 
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button onClick={handleSearch}
-                style={{ background: "#0891B2", color: "#FFFFFF", border: "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}
+                style={{ ...btnPrimary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "#0670A0")}
                 onMouseLeave={e => (e.currentTarget.style.background = "#0891B2")}>
                 Find Companies →
@@ -643,10 +770,26 @@ export default function Home() {
             {searchState === "loading" && <p style={{ color: "#475569", fontSize: 13 }}>Fetching companies…</p>}
 
             {searchState === "done" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Results</p>
-                  <p style={{ color: "#FFFFFF", fontSize: 12 }}>{results.length} {results.length !== 1 ? "companies" : "company"} found</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <p style={{ color: "#FFFFFF", fontSize: 12 }}>
+                      {visibleResults.length} {visibleResults.length !== 1 ? "companies" : "company"}{hiddenIds.size > 0 ? ` · ${hiddenIds.size} hidden` : ""}
+                    </p>
+                    {hiddenIds.size > 0 && (
+                      <button type="button" onClick={restoreHidden}
+                        style={{ background: "transparent", color: "#A0BEFF", border: "1px solid #3A4A6B", padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
+                        Restore hidden
+                      </button>
+                    )}
+                    {results.length > 0 && (
+                      <button type="button" onClick={toggleEditMode}
+                        style={{ background: editMode ? "#FFFFFF" : "#0891B2", color: editMode ? "#0C1C2E" : "#FFFFFF", border: "none", padding: "6px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
+                        {editMode ? "Done editing" : "Edit list"}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {results.length === 0 ? (
                   <div style={{ padding: "48px 20px", textAlign: "center", color: "#A0AECF", fontSize: 13 }}>
@@ -662,15 +805,33 @@ export default function Home() {
                       </tr>
                     </thead>
                     <tbody>
-                      {results.map((c, i) => (
+                      {visibleResults.map((c, i) => (
                         <Fragment key={c.id}>
                           <tr onClick={() => setExpandedCompanyId(expandedCompanyId === c.id ? null : c.id)}
                             style={{ borderBottom: expandedCompanyId === c.id ? "none" : "1px solid #E4E7F2", background: i % 2 === 0 ? "#FFFFFF" : "#FAFBFF", cursor: "pointer" }}
                             onMouseEnter={e => (e.currentTarget.style.background = "#F0F4FF")}
                             onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "#FFFFFF" : "#FAFBFF")}>
                             <td style={{ padding: "16px 22px", fontWeight: 600, color: "#1A2456", whiteSpace: "nowrap" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: 10, color: "#A0AECF", marginRight: 2 }}>{expandedCompanyId === c.id ? "▾" : "▸"}</span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                <span style={{ fontSize: 10, color: "#A0AECF" }}>{expandedCompanyId === c.id ? "▾" : "▸"}</span>
+                                {editMode && (
+                                  <span style={{ display: "flex", gap: 10 }}>
+                                    <button type="button" title="Edit"
+                                      onClick={(e) => { e.stopPropagation(); startEdit(c); }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "#E2E8F0")}
+                                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                      style={{ background: "transparent", border: "none", borderRadius: 4, color: "#334155", cursor: "pointer", padding: "4px 6px", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                                      </svg>
+                                    </button>
+                                    <button type="button" title="Remove…"
+                                      onClick={(e) => { e.stopPropagation(); setConfirmRemoveId(confirmRemoveId === c.id ? null : c.id); setEditError(""); }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "#FEE2E2")}
+                                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                      style={{ background: "transparent", border: "none", borderRadius: 4, color: "#B91C1C", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "4px 7px" }}>✕</button>
+                                  </span>
+                                )}
                                 {c.name}
                               </div>
                             </td>
@@ -710,9 +871,78 @@ export default function Home() {
                           {expandedCompanyId === c.id && (
                             <tr style={{ borderBottom: "1px solid #E4E7F2", background: i % 2 === 0 ? "#FFFFFF" : "#FAFBFF" }}>
                               <td colSpan={8} style={{ padding: "0 20px 20px 48px" }}>
-                                <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.7, maxWidth: 860 }}>
-                                  {c.description ?? <span style={{ color: "#A0AECF", fontStyle: "italic" }}>No description available.</span>}
-                                </p>
+                                {editingCompanyId === c.id && editDraft ? (
+                                  <div style={{ maxWidth: 900 }}>
+                                    <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16, marginBottom: 16 }}>
+                                      <div>
+                                        <label style={labelStyle}>Geography</label>
+                                        <select value={editDraft.geography} onChange={e => setEditDraft({ ...editDraft, geography: e.target.value })} style={inputStyle}>
+                                          {GEO_OPTIONS.map(g => <option key={g}>{g}</option>)}
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label style={labelStyle}>Product category</label>
+                                        <select value={editDraft.product_category} onChange={e => setEditDraft({ ...editDraft, product_category: e.target.value })} style={inputStyle}>
+                                          {CAT_OPTIONS.map(cat => <option key={cat}>{cat}</option>)}
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label style={labelStyle}>Max price</label>
+                                        <input type="number" value={editDraft.max_price} onChange={e => setEditDraft({ ...editDraft, max_price: e.target.value })} style={inputStyle} />
+                                      </div>
+                                      <div>
+                                        <label style={labelStyle}>Currency</label>
+                                        <select value={editDraft.price_currency} onChange={e => setEditDraft({ ...editDraft, price_currency: e.target.value })} style={inputStyle}>
+                                          <option value="">—</option>
+                                          {["EUR", "GBP", "USD", "NOK", "SEK", "DKK", "CHF"].map(cur => <option key={cur}>{cur}</option>)}
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label style={labelStyle}>ICP fit</label>
+                                        <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
+                                          {[1, 2, 3, 4, 5].map(star => (
+                                            <button key={star} type="button" onClick={() => setEditDraft({ ...editDraft, icp_fit: star })}
+                                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= editDraft.icp_fit ? "#0891B2" : "#D1D5DB" }}>★</button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label style={labelStyle}>Priority tier</label>
+                                        <select value={editDraft.priority_tier} onChange={e => setEditDraft({ ...editDraft, priority_tier: e.target.value })} style={inputStyle}>
+                                          <option value="">—</option>
+                                          <option value="early_mover">Early Mover</option>
+                                          <option value="follower">Follower</option>
+                                          <option value="enabler">Enabler</option>
+                                        </select>
+                                      </div>
+                                      <div style={{ gridColumn: "1 / -1" }}>
+                                        <label style={labelStyle}>Website</label>
+                                        <input type="text" value={editDraft.website_url} onChange={e => setEditDraft({ ...editDraft, website_url: e.target.value })} style={inputStyle} />
+                                      </div>
+                                      <div style={{ gridColumn: "1 / -1" }}>
+                                        <label style={labelStyle}>Description</label>
+                                        <textarea value={editDraft.description} onChange={e => setEditDraft({ ...editDraft, description: e.target.value })} rows={3} style={{ ...inputStyle, resize: "vertical" }} />
+                                      </div>
+                                    </div>
+                                    {editError && <p style={{ color: "#DC2626", fontSize: 12, marginBottom: 10 }}>{editError}</p>}
+                                    <div style={{ display: "flex", gap: 10 }}>
+                                      <button type="button" onClick={() => saveEdit(c)} disabled={savingEdit}
+                                        style={{ ...btnPrimary, padding: "9px 22px", background: savingEdit ? "#7FBFCF" : "#0891B2", cursor: savingEdit ? "default" : "pointer" }}>
+                                        {savingEdit ? "Saving…" : "Save"}
+                                      </button>
+                                      <button type="button" onClick={cancelEdit} disabled={savingEdit}
+                                        style={{ ...btnSecondary, padding: "9px 22px" }}>
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div style={{ maxWidth: 900 }}>
+                                    <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.7, maxWidth: 860, marginBottom: 16 }}>
+                                      {c.description ?? <span style={{ color: "#A0AECF", fontStyle: "italic" }}>No description available.</span>}
+                                    </p>
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           )}
@@ -728,7 +958,7 @@ export default function Home() {
                 <button
                   onClick={handleExportExcel}
                   disabled={exporting}
-                  style={{ background: exporting ? "#7FBFCF" : "#0891B2", color: "#FFFFFF", border: "none", padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: exporting ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                  style={{ ...btnSecondary, padding: "9px 20px", borderRadius: 4, opacity: exporting ? 0.6 : 1, cursor: exporting ? "default" : "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                   {exporting ? "Exporting…" : "↓ Export as Excel"}
                 </button>
               </div>
@@ -742,7 +972,7 @@ export default function Home() {
           <div style={{ maxWidth: 960, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
             {/* Live search log — mirrors the server log, so no need to open the Render dashboard */}
             {activeSearchJobId != null && logLines.length > 0 && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
                 <div onClick={() => setShowLog(!showLog)}
                   style={{ background: "#0C1C2E", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 13, fontWeight: 700 }}>Search Log</p>
@@ -759,7 +989,7 @@ export default function Home() {
             {agentState === "idle" && addingState !== "saved" && (
               <>
                 {/* Search configuration — PLACEHOLDER, not wired to the real search yet */}
-                <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+                <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
                   <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
                     <span style={{ color: "#A0BEFF", fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>Preview</span>
@@ -808,7 +1038,7 @@ export default function Home() {
                 </div>
 
                 {/* Search action */}
-                <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", padding: "72px 32px 48px", textAlign: "center", position: "relative" }}>
+                <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", padding: "72px 32px 48px", textAlign: "center", position: "relative" }}>
                   {/* Step 3 decision — segmented on/off switch in the top-right corner */}
                   <div style={{ position: "absolute", top: 16, right: 20, display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#6B7280" }}>Step 3 decision:</span>
@@ -831,7 +1061,7 @@ export default function Home() {
                   <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 28 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
 
                   <button onClick={() => { if (!SEARCH_DISABLED) handleAgentSearch(); }} disabled={SEARCH_DISABLED}
-                    style={{ background: SEARCH_DISABLED ? "#E4E7F2" : "#0891B2", color: SEARCH_DISABLED ? "#9CA3AF" : "#FFFFFF", border: SEARCH_DISABLED ? "1px solid #D1D5DB" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer" }}>
+                    style={{ background: SEARCH_DISABLED ? "#E4E7F2" : "#0891B2", color: SEARCH_DISABLED ? "#9CA3AF" : "#FFFFFF", border: SEARCH_DISABLED ? "1px solid #D1D5DB" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer", borderRadius: 4 }}>
                     {SEARCH_DISABLED ? "Search Disabled (Demo)" : "Search for New Companies →"}
                   </button>
                   {SEARCH_DISABLED && (
@@ -885,7 +1115,7 @@ export default function Home() {
             )}
 
             {agentState === "searching" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", padding: "64px 32px", textAlign: "center" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", padding: "64px 32px", textAlign: "center" }}>
                 <div style={{ display: "inline-block", width: 40, height: 40, border: "4px solid #E4E7F2", borderTop: "4px solid #0891B2", borderRadius: "50%", animation: "spin 0.9s linear infinite", marginBottom: 20 }} />
                 <p style={{ fontSize: 14, fontWeight: 600, color: "#1A2456", marginBottom: 10 }}>
                   Step {currentStep} of 3 — {currentStep === 1 ? "Finding companies" : currentStep === 2 ? "Enriching companies" : "Evaluating"}
@@ -942,10 +1172,10 @@ export default function Home() {
             )}
 
             {agentState === "step3" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
                 {searchTimedOut && (
                   <div style={{ background: "#FFFBEB", borderBottom: "1px solid #FCD34D", padding: "14px 20px" }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "#78350F", marginBottom: 4 }}>⚠️ The search timed out after 20 minutes</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#78350F", marginBottom: 4 }}>⚠️ The search timed out after 30 minutes</p>
                     <p style={{ fontSize: 12.5, color: "#78350F", lineHeight: 1.6 }}>
                       Nothing was lost: companies found in Step 1 are saved in the queue, and companies that finished enrichment in Step 2 are in the company database. The next search will automatically pick up where this one left off. You can still evaluate the companies that were enriched below.
                     </p>
@@ -991,7 +1221,7 @@ export default function Home() {
             )}
 
             {agentState === "done" && addingState === "idle" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Search Results</p>
                   <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -1072,7 +1302,7 @@ export default function Home() {
             )}
 
             {(addingState === "form" || addingState === "saving") && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ background: "#0C1C2E", padding: "12px 20px" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 700 }}>Fill in Details</p>
                   <p style={{ color: "#A0BEFF", fontSize: 14, marginTop: 2 }}>Complete the information before adding to the database.</p>
@@ -1155,7 +1385,7 @@ export default function Home() {
             )}
 
             {addingState === "saved" && (
-              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", padding: "48px 32px", textAlign: "center" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", padding: "48px 32px", textAlign: "center" }}>
                 <p style={{ fontSize: 15, fontWeight: 600, color: "#16a34a", marginBottom: 8 }}>Companies added to database</p>
                 <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 28 }}>You can find them under the Company Database tab.</p>
                 <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
@@ -1174,7 +1404,7 @@ export default function Home() {
         )}
         {/* ── TAB 3: ICP Criteria ── */}
         {tab === "icp" && (
-          <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", maxWidth: 920, width: "100%", margin: "0 auto" }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", maxWidth: 920, width: "100%", margin: "0 auto" }}>
             <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Lysoveta ICP Criteria</p>
               <button disabled style={{ background: "none", border: "1px solid rgba(255,255,255,0.3)", color: "rgba(255,255,255,0.5)", padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "not-allowed", borderRadius: 4, letterSpacing: "0.04em" }}>
@@ -1265,6 +1495,37 @@ export default function Home() {
       <footer style={{ borderTop: "1px solid #D0D5E8", padding: "16px 32px", background: "#FFFFFF" }}>
         <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#A0AECF" }}>Aker BioMarine — Internal Tool</p>
       </footer>
+
+      {/* Remove-company modal — opened by the ✕ on a row in edit mode */}
+      {removeTarget && (
+        <div
+          onClick={() => { if (!removing) setConfirmRemoveId(null); }}
+          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", maxWidth: 660, width: "100%", padding: "26px 28px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <p style={{ fontSize: 17, fontWeight: 700, color: "#1A2456", marginBottom: 4 }}>Remove {removeTarget.name}?</p>
+            <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>Choose how you want to remove this company.</p>
+            <div style={{ display: "flex", gap: 14 }}>
+              <button type="button" onClick={() => { hideFromView(removeTarget.id); setConfirmRemoveId(null); }} disabled={removing}
+                style={{ flex: 1, textAlign: "left", background: "#FFFFFF", color: "#1A2456", border: "1px solid #CBD5E1", padding: "16px", cursor: removing ? "default" : "pointer" }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Remove from this view only</span>
+                <span style={{ display: "block", fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>Hides it from the current list and the Excel export. Not deleted — use “Restore hidden” to bring it back.</span>
+              </button>
+              <button type="button" onClick={() => removeCompany(removeTarget)} disabled={removing}
+                style={{ flex: 1, textAlign: "left", background: "#FFFFFF", color: "#B91C1C", border: "1px solid #FCA5A5", padding: "16px", cursor: removing ? "default" : "pointer" }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{removing ? "Deleting…" : "Delete from the company database"}</span>
+                <span style={{ display: "block", fontSize: 12, color: "#9B3B3B", lineHeight: 1.5 }}>Removes it from the database. Kept internally as rejected, so it can be restored later and won’t be re-discovered.</span>
+              </button>
+            </div>
+            <div style={{ marginTop: 20 }}>
+              <button type="button" onClick={() => setConfirmRemoveId(null)} disabled={removing}
+                style={{ background: "#F1F5F9", color: "#475569", border: "1px solid #CBD5E1", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: removing ? "default" : "pointer" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
