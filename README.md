@@ -45,7 +45,7 @@ Push to `main` — Vercel (UI) and Render (worker) both auto-deploy from `main`.
 - `app/layout.tsx` — page metadata
 - `lib/search.ts` — the three-step search pipeline
 - `app/api/search/start/route.ts` — starts the background search job
-- `config/sources.json` — sources, search terms, and model config
+- `sources` / `search_terms` DB tables — sources & search terms (UI-editable); `config/sources.json` is the fallback + `enrichment_model`
 - `config/icp.md` — the ICP definition
 
 A more complete file-by-file map is in [HANDOVER.md](HANDOVER.md).

@@ -145,14 +145,17 @@ switch buttons back up (there's a comment in the code explaining exactly how).
   `evaluateCompanies`, `buildStep3Prompt`, `searchForCompanies`. `emit()` logs to terminal +
   `search_logs`.
 - `lib/supabase.ts` — the Supabase client.
-- `app/api/search/start/route.ts` — starts the background job (+ CORS). Reads `step3Mode` and
-  `searchConcepts` from the request body.
+- `app/api/search/start/route.ts` — starts the background job (+ CORS). Reads `step3Mode`,
+  `searchConcepts`, and `sourceNames` (the user's selected terms/sources) from the request body.
 - `app/api/reject/route.ts` — marks companies rejected (preserves `enriched_data`).
 - `app/api/icp/route.ts` — serves `config/icp.md`.
 - `app/api/test-claude/route.ts` — diagnostic (checks key/credits + a web_search test).
 - `app/api/search/route.ts` — OLD synchronous route, unused by the client (safe to delete).
-- `config/sources.json` — `enrichment_model`, `search_concepts`, `keyword_bank`, `sources`
-  (name, url, `search_prefix`, optional note).
+- **`sources` / `search_terms` DB tables** — the authoritative, UI-editable search configuration
+  (see [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md#where-the-configuration-lives-database-not-the-file-anymore)).
+- `config/sources.json` — now a **fallback** for the two tables (used if the DB read fails), plus
+  `enrichment_model` (still read from here). `keyword_bank` was the old term pool, superseded by the
+  `search_terms` table.
 - `config/icp.md` — the ICP definition (price threshold is currency-agnostic: ~60 in own currency).
 - `config/mock-results.json` — demo data (only used if `DEMO_MODE = true` in `page.tsx`).
 
@@ -179,27 +182,32 @@ Open http://localhost:3000. You need a `.env.local` with the Supabase vars + `AN
 - `max_tokens` truncation was a historic bug: server-tool `web_search` sums output across rounds, so
   too-low `max_tokens` truncated the final JSON and parsing failed silently. Current limits
   (32000 / 8000 / 16000) are tuned around this — don't lower them casually.
-- **Discovery volume ceiling:** 4 sources × 3 terms saturates the 12-search budget. To keep finding
-  NEW companies: add sources, rotate/expand terms in `config/sources.json`, or (bigger effort) read
-  source hub pages directly.
+- **Discovery volume ceiling:** 4 sources × 3 terms saturates the 12-search budget (full reasoning:
+  [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md#why-the-caps-up-to-3-terms--4-sources)). To keep finding
+  NEW companies: add sources / rotate terms **from the UI** (they persist to the DB, no redeploy),
+  or (bigger effort) read source hub pages directly via `web_fetch`.
 
 ## 10. Security & known gaps
 
 - **No authentication** — anyone with the URL can use the app and trigger (paid) searches. Only
   share the production URL with trusted stakeholders; do not post it publicly. Auth is an open
   handover item.
-- The **Supabase anon key is public** (it's a `NEXT_PUBLIC_` var, by design). Make sure Row Level
-  Security is configured appropriately so the anon key can't be abused.
+- The **Supabase anon key is public** (it's a `NEXT_PUBLIC_` var, by design). All tables
+  (`companies`, `sources`, `search_terms`, …) are currently open to the anon key — RLS is either off
+  or fully permissive, so anyone with the URL can read/write the shared config and data. This is the
+  prototype's deliberate posture; **tightening it requires real auth**, which is the proper fix at
+  handover (RLS without auth adds nothing here).
 - The Anthropic key lives **only on Render**, not in the browser bundle. Keep it that way.
 
 ## 11. Roadmap / open to-dos
 
-1. **Source selection** — the Sources checkboxes are a disabled placeholder; still researching which
-   sources/formats work. (Search-term selection IS wired.)
+1. **`web_fetch` for single-page sources** — "web page" sources (e.g. a Healthline brand round-up)
+   are addable in the UI but not yet read during a search. Wiring `web_fetch` is the next step.
 2. **US expansion** — add US companies/sources (vs. today's European focus).
 3. **Company Prospectus** — the disabled "Soon" tab.
-4. **Editable company database** — let users edit fields and delete companies.
-5. **Editable ICP tab** — the "Edit" button is a placeholder.
+4. **Editable ICP tab** — the "Edit" button is a placeholder.
+   - ✅ *Done:* source & term selection wired to the search; editable sources/terms (DB-backed,
+     from the UI); editable company database (edit fields + soft/hard delete).
 6. **ICP validation** — compare the tool's ICP scores against AKBM's Excel of ~100 companies.
 7. **Softer rejection** — un-reject / review rejected companies.
 8. **AKBM handover** — ownership of repo/hosting/API keys, security, data residency, auth.

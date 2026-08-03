@@ -29,6 +29,7 @@ export async function POST(request: Request) {
   // "manual" builds the prompt for the user to paste into Claude Chat. Default to "auto".
   let step3Mode: "auto" | "manual" = "auto";
   let searchConcepts: string[] | undefined;
+  let sourceNames: string[] | undefined;
   try {
     const body = await request.json();
     if (body?.step3Mode === "manual") step3Mode = "manual";
@@ -38,6 +39,13 @@ export async function POST(request: Request) {
         (t: unknown): t is string => typeof t === "string" && t.trim().length > 0
       );
       if (terms.length > 0) searchConcepts = terms;
+    }
+    // Optional user-selected sources (by name). Empty/invalid → undefined, so the worker uses all active sources.
+    if (Array.isArray(body?.sourceNames)) {
+      const names = body.sourceNames.filter(
+        (n: unknown): n is string => typeof n === "string" && n.trim().length > 0
+      );
+      if (names.length > 0) sourceNames = names;
     }
   } catch {
     // No/invalid body — keep the defaults.
@@ -59,7 +67,7 @@ export async function POST(request: Request) {
 
   // 2. Fire-and-forget: run the search without awaiting it. On a persistent server this keeps
   //    running after we respond. The .then/.catch write the final outcome to the job row.
-  searchForCompanies(jobId, step3Mode, searchConcepts)
+  searchForCompanies(jobId, step3Mode, searchConcepts, sourceNames)
     .then(async (result) => {
       if (result.noCompaniesFound) {
         await supabase.from("search_jobs").update({

@@ -46,9 +46,12 @@ Click **Done editing** to leave edit mode.
 
 This is where you run a search.
 
-1. **Search terms** — tick up to **3** terms you want to search for (from a preset list). Leave them
-   all unticked to use the default terms. *Note: the Sources list next to it is not selectable yet —
-   the sources are fixed for now.*
+1. **Search terms** — tick up to **3** terms, and **Sources** — tick up to **4** — for this search.
+   Leave a list all unticked to use the defaults (the default terms / all sources). Each list shows
+   a few items with a scrollbar; **Show all** expands it fully and **Show fewer** collapses it back.
+   *(Why the 3-and-4 limit? A search runs `terms × sources` web searches with a hard budget of 12,
+   and 3 × 4 = 12 fills it exactly — picking more can't run and just slows things down. Full
+   reasoning in [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md#why-the-caps-up-to-3-terms--4-sources).)*
 2. **Step 3 — ICP matching** is set to **Automatic**: the app scores companies against the ICP for
    you. (The manual option is disabled for now.)
 3. Click **Search for New Companies**. A search takes roughly **15 minutes** and will time out after
@@ -61,6 +64,30 @@ This is where you run a search.
 
 > The first search after a quiet period can take ~30 seconds just to start up — the server "wakes
 > up" after being idle. That's normal.
+
+#### Managing search terms & sources
+
+The lists aren't fixed — you can change what's available to everyone. In the **Search Configuration**
+panel, click **Edit** (top-right):
+
+- **Remove** — a **✕** appears next to each term and source; click it to delete that item.
+- **Add a search term** — click **+ Add new search term**, type it, and press **Add** (or Enter).
+- **Add a source** — click **+ Add new source** to open a form:
+  - **Name** — how it's shown in the list.
+  - **Type** — **Website** (searched repeatedly) or **Single page** (one URL, read once).
+  - **Search prefix** *(website, required)* — what's put in front of each term to target the site,
+    e.g. `nutraingredients.com Europe`.
+  - **Homepage URL** *(website, optional)* / **Page URL** *(single page, required)*.
+  - **Note to the AI** *(optional)* — a plain-language instruction for that source, e.g.
+    *"Serves the US edition by default — always keep 'Europe' in the query"* or
+    *"Paywalled — read company names from the titles."* This is passed to the AI during the search.
+
+Click **Done** to leave edit mode.
+
+> **These changes are shared and immediate.** They save straight to the database and affect every
+> search for everyone — there's no separate "save" step and no undo beyond re-adding. A yellow line
+> reminds you of this while editing. **Single-page sources** don't affect searches yet (that feature
+> is coming) — adding one is harmless but won't change results for now.
 
 > Each search uses Sprint's Anthropic account, which has limited usage, so it's worth being a little
 > deliberate with test runs.

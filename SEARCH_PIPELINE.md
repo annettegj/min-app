@@ -23,8 +23,9 @@ flowchart TD
 The search is **long-running (~15 min)**, so it does NOT run inside the HTTP request. Instead:
 
 1. `POST {NEXT_PUBLIC_WORKER_URL}/api/search/start` creates a `search_jobs` row and fires
-   `searchForCompanies(jobId, step3Mode, searchConcepts)` **fire-and-forget**, then returns the
-   `jobId` immediately.
+   `searchForCompanies(jobId, step3Mode, searchConcepts, sourceNames)` **fire-and-forget**, then
+   returns the `jobId` immediately. `searchConcepts` and `sourceNames` are the terms and sources the
+   user ticked in the UI (empty → the worker uses the defaults / all active sources).
 2. The work continues on the server after the response is sent — this only works on an **always-on
    server** (Render, or `next dev` locally), never on serverless (Vercel), which kills the function
    once it responds.
@@ -56,10 +57,14 @@ incrementally along the way are kept even if the run is aborted.
 - **Runs only if the queue has < 5 pending companies.** If there's already plenty to enrich, Step 1
   is skipped to save cost and avoid over-filling the queue.
 - **Model:** `claude-sonnet-5`, `web_search` tool with **max 12 uses**, `max_tokens` **32000**.
-- **Queries** = **selected search terms × each source's `search_prefix`**. With the default 3 terms
-  and 4 sources that's 3 × 4 = **12 queries = the search budget**. The terms come from the UI
-  (`searchConcepts`), falling back to `config/sources.json` → `search_concepts` when none are
-  selected. Sources come from `config/sources.json` → `sources`.
+- **Queries** = **selected search terms × each selected _website_ source's `search_prefix`**. With
+  the default 3 terms and 4 sources that's 3 × 4 = **12 queries = the search budget** (see
+  [Why the caps](#why-the-caps-up-to-3-terms--4-sources) below). Terms and sources are both read
+  from the database (`search_terms` / `sources` tables) and are chosen in the UI; if the user ticks
+  none, the worker uses the default terms / all active sources. `config/sources.json` is the
+  fallback if the DB read fails.
+- Only **"web site"** sources produce queries here. **"web page"** sources are fetched once via
+  `web_fetch` (a separate path) and do **not** consume the 12-search budget.
 - **Avoids duplicates two ways:**
   1. Known company names (from `companies` + `discovery_queue`) are passed into the prompt so the
      model only returns companies we don't already have.
@@ -142,15 +147,68 @@ incrementally along the way are kept even if the run is aborted.
 | 3 ICP matching | enriched companies + `icp.md` | `EvaluatedCompany` (score, tier, geo, price…) | `search_jobs.results` |
 | Save (UI) | user-selected results | — | `companies` (added=true) |
 
-## Config knobs (`config/sources.json`)
+## Where the configuration lives (database, not the file anymore)
 
-- `search_concepts` — the default search terms (used when the user selects none).
-- `keyword_bank` — the wider pool of terms the UI lets the user choose from.
-- `sources` — each with `name`, `url`, `search_prefix`, optional `note`.
-- `enrichment_model` — the model used for Step 2 (defaults to `claude-sonnet-5`).
+The search terms and sources are stored in the **database** and edited from the app (no redeploy):
+
+- **`search_terms`** table — `term`, `is_default` (used when the user selects none), `active`.
+- **`sources`** table — `type` (`web site` | `web page`), `name`, `url`, `search_prefix`
+  (required for `web site`), `note` (free-text instruction handed to the model for that source),
+  `active`.
+- **`enrichment_model`** for Step 2 still comes from `config/sources.json` (defaults to
+  `claude-sonnet-5`).
+
+`config/sources.json` is kept **only as a fallback** — if the DB read fails, the worker
+(`getSearchConfig`) and the UI both fall back to the values in that file. The DB was seeded from it
+(see [`db/migrations/001_sources_search_terms.sql`](db/migrations/001_sources_search_terms.sql)).
+
+How each source field is used in the search:
+
+| Field | Used for |
+|---|---|
+| `search_prefix` (website) | Builds the actual query, literally `"<prefix> <term>"` (e.g. `nutraingredients.com Europe longevity`). |
+| `url` | Shown to the model as context (website), or the exact page to read (single page). |
+| `note` | Injected into the Step 1 prompt as a per-source instruction (paywall tips, region focus, etc.). |
+
+> **How to change it:** end users add/remove terms and sources from the **Search Configuration**
+> panel on the *Find New Companies* tab — see [USER_GUIDE.md](USER_GUIDE.md#managing-search-terms--sources).
+> There is no code change or redeploy involved.
+
+## Why the caps (up to 3 terms / 4 sources)
+
+The UI lets a user pick **up to 3 terms and up to 4 sources for a single search**. That is a
+deliberate ceiling, not an arbitrary one — it comes straight from how Step 1 works:
+
+1. **The search budget is exactly 12.** `web_search` is declared with `max_uses: 12`, and the
+   number of queries is `terms × website-sources`. **3 × 4 = 12** fills the budget precisely.
+2. **Going higher doesn't buy coverage — it wastes it.** If the matrix exceeds 12 (say 4 terms × 4
+   sources = 16), the tool still stops at 12, so 4 of the combinations simply never run. You've
+   widened the grid without searching it evenly — some sources/terms get skipped unpredictably.
+3. **The target is only ~10 new companies.** Step 1 is told to stop once it has 10 new names, so
+   extra breadth usually finds nothing new — it just spends time and tokens.
+4. **Everything found in Step 1 costs money downstream.** Each discovered company is enriched in
+   Step 2 (a `web_search` call per company) and scored in Step 3. A broader Step 1 inflates Step 2/3
+   cost and run-time even for candidates that later get filtered out.
+5. **There's a 30-minute wall.** The whole job (steps 1+2+3) shares one 30-min abort budget. A
+   bloated Step 1 risks eating the budget before Step 2/3 finish.
+
+### Trade-offs we accepted
+
+- **3 × 4 = 12 is the sweet spot** between coverage and a bounded, affordable run (~$3–5, well under
+  the timeout). We chose to pin the caps here rather than let searches grow open-ended.
+- **The caps are a UI convention, not a hard DB/pipeline limit.** The pipeline would technically
+  accept more, but then the guarantees above (full, even coverage within budget) break — so the cap
+  lives in the UI to protect run-time and cost.
+- **Leaving a list unchecked = the tuned default** (all active sources / the `is_default` terms),
+  which also lands at ~12. This is the recommended baseline; explicit selection is for narrowing a
+  run, not widening it.
+- **Single-page sources are "free" against the budget** (fetched, not searched), so they don't
+  count toward the 4 in spirit — though the UI still counts them for simplicity.
 
 ## Volume ceiling
 
-4 sources × 3 terms saturates the 12-search budget. To keep discovering NEW companies over time:
-add sources, rotate/expand terms, or (bigger effort) read source hub pages directly. See the
-roadmap in [HANDOVER.md](HANDOVER.md).
+Because 4 sources × 3 terms saturates the 12-search budget, the way to keep discovering NEW
+companies over time is **not** to search wider in one run, but to **change what's in the pool**:
+rotate/expand the terms, add new sources, or retire exhausted ones — all from the UI now. Reading
+source hub pages directly (`web_fetch` for "web page" sources) is the next lever. See the roadmap in
+[HANDOVER.md](HANDOVER.md).

@@ -452,12 +452,44 @@ async function evaluateCompanies(
   }
 }
 
+// ---- Search config (sources + default terms) ----
+// Reads the editable configuration from Supabase. Falls back to config/sources.json if the DB
+// read fails or returns nothing, so a search is never blocked by a config/DB hiccup.
+
+async function getSearchConfig(
+  supabase: SupabaseClient
+): Promise<{ sources: Source[]; defaultConcepts: string[] }> {
+  try {
+    const [{ data: sourceRows, error: srcErr }, { data: termRows, error: termErr }] =
+      await Promise.all([
+        supabase.from("sources").select("type, name, url, search_prefix, note").eq("active", true).order("id"),
+        supabase.from("search_terms").select("term, is_default").eq("active", true).order("id"),
+      ]);
+    if (srcErr) throw srcErr;
+    if (termErr) throw termErr;
+    const sources = (sourceRows ?? []) as Source[];
+    if (sources.length === 0) throw new Error("no active sources in DB");
+    const defaultConcepts = (termRows ?? [])
+      .filter((t: { is_default: boolean }) => t.is_default)
+      .map((t: { term: string }) => t.term);
+    emit(`[search] Config: ${sources.length} sources, ${defaultConcepts.length} default terms (from DB)`);
+    return { sources, defaultConcepts };
+  } catch (err) {
+    emit(`[search] Config: DB read failed — falling back to sources.json (${err instanceof Error ? err.message : String(err)})`);
+    return {
+      sources: sourcesConfig.sources as Source[],
+      defaultConcepts: (sourcesConfig as { search_concepts?: string[] }).search_concepts ?? [],
+    };
+  }
+}
+
 // ---- Main export ----
 
 export async function searchForCompanies(
   jobId: number | null = null,
   step3Mode: "auto" | "manual" = "auto",
-  searchConcepts?: string[]
+  searchConcepts?: string[],
+  sourceNames?: string[]
 ): Promise<{
   enriched: EnrichedCompany[];
   step3Prompt: string;
@@ -470,7 +502,6 @@ export async function searchForCompanies(
   const enrichmentModel =
     (sourcesConfig as { enrichment_model?: string }).enrichment_model ??
     "claude-sonnet-5";
-  const sources = sourcesConfig.sources as Source[];
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -490,6 +521,9 @@ export async function searchForCompanies(
   }, SEARCH_TIMEOUT_MS);
 
   emit(`[search] ===== Search started =====`);
+
+  // Read the editable search config (sources + default terms) from Supabase (falls back to sources.json).
+  const { sources, defaultConcepts } = await getSearchConfig(supabase);
 
   // Writes a human-readable progress line to the search_jobs row (if this run is a background job),
   // so the browser can poll and show what's happening. No-op for direct/local calls (jobId null).
@@ -551,7 +585,12 @@ export async function searchForCompanies(
       ])
     );
 
-    const discovered = await discoverCompanies(client, sources, knownNames, searchConcepts);
+    // User-selected terms take precedence; otherwise use the DB default terms.
+    const conceptsForRun = searchConcepts && searchConcepts.length > 0 ? searchConcepts : defaultConcepts;
+    // User-selected sources take precedence; otherwise search every active source.
+    const sourcesForRun = sourceNames && sourceNames.length > 0 ? sources.filter((s) => sourceNames.includes(s.name)) : sources;
+    emit(`[search] Step 1: using ${sourcesForRun.length} of ${sources.length} sources`);
+    const discovered = await discoverCompanies(client, sourcesForRun, knownNames, conceptsForRun);
     step1Discovered = discovered.length;
 
     if (discovered.length > 0) {

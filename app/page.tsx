@@ -88,6 +88,15 @@ const btnBase: React.CSSProperties = {
 };
 const btnPrimary: React.CSSProperties = { ...btnBase, background: "var(--accent)", color: "var(--white)", border: "none" };
 const btnSecondary: React.CSSProperties = { ...btnBase, background: "var(--white)", color: "var(--ink)", border: "1px solid var(--border)" };
+// Full-width dashed "create" affordance for the config lists (add source / add search term).
+const addBtnStyle: React.CSSProperties = {
+  background: "transparent", border: "1px dashed var(--border)", color: "var(--accent)",
+  padding: "8px 14px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em",
+  textTransform: "uppercase", cursor: "pointer", borderRadius: 4, width: "100%",
+};
+const hintStyle: React.CSSProperties = { fontSize: 11, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 };
+const reqStyle: React.CSSProperties = { color: "var(--danger-text)", fontWeight: 700, marginLeft: 3 };
+const optStyle: React.CSSProperties = { fontSize: 10, fontWeight: 400, color: "var(--text-dim)", textTransform: "none", letterSpacing: 0, marginLeft: 6 };
 
 export default function Home() {
   const [tab, setTab] = useState<"database" | "search" | "icp" | "prospectus">("database");
@@ -141,9 +150,24 @@ export default function Home() {
   const [sourceNameMap, setSourceNameMap] = useState<Record<string, string>>({});
   const [expandedCompanyId, setExpandedCompanyId] = useState<number | null>(null);
 
-  // --- Search configuration preview (placeholder — does not affect the real search yet) ---
+  // --- Search configuration (read from the DB, editable in the app) ---
   const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  // Search config read from the DB on mount; initialised from the sources.json-derived
+  // defaults so there's something before the fetch resolves (and as a fallback).
+  const [sourceOptions, setSourceOptions] = useState(SOURCE_OPTIONS);
+  const [termOptions, setTermOptions] = useState(SEARCH_TERM_OPTIONS);
+  // Edit mode for adding/removing sources and terms (writes straight to the DB).
+  const [configEditMode, setConfigEditMode] = useState(false);
+  const [newTerm, setNewTerm] = useState("");
+  const [showAddTerm, setShowAddTerm] = useState(false);
+  const [newSource, setNewSource] = useState<{ name: string; type: "web site" | "web page"; url: string; search_prefix: string; note: string }>({ name: "", type: "web site", url: "", search_prefix: "", note: "" });
+  const [sourceModalOpen, setSourceModalOpen] = useState(false);
+  const [sourceInfoOpen, setSourceInfoOpen] = useState(false);
+  const [termsExpanded, setTermsExpanded] = useState(false);
+  const [sourcesExpanded, setSourcesExpanded] = useState(false);
+  const [configBusy, setConfigBusy] = useState(false);
+  const [configError, setConfigError] = useState("");
 
   // --- Background search job (start + poll) ---
   const [searchProgress, setSearchProgress] = useState("");
@@ -171,6 +195,7 @@ export default function Home() {
     : searchProgress.toLowerCase().includes("enrich") ? 2 : 1;
   const elapsedLabel = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")}`;
 
+
   // Loads the active company database — always excludes rejected companies.
   // Single source of truth so the database view can never accidentally include rejected rows.
   async function loadCompanies() {
@@ -178,9 +203,65 @@ export default function Home() {
     if (data) setCompanies(data.filter((c: Company) => c.added && !c.rejected) as Company[]);
   }
 
+  // Loads the editable search config (sources + terms) from the DB. Sets state to whatever the
+  // DB returns — empty included, so a delete shows immediately. On a read error it leaves the
+  // current state untouched, so a transient failure never wipes the list.
+  async function loadSearchConfig() {
+    const [{ data: srcs }, { data: terms }] = await Promise.all([
+      supabase.from("sources").select("name, type, url").eq("active", true).order("id"),
+      supabase.from("search_terms").select("term").eq("active", true).order("id"),
+    ]);
+    if (srcs) setSourceOptions(srcs.map((s: { name: string; type: string | null; url: string | null }) => ({ name: s.name, type: s.type ?? "web site", url: s.url ?? "" })));
+    if (terms) setTermOptions(terms.map((t: { term: string }) => t.term));
+  }
+
+  async function addTerm() {
+    const term = newTerm.trim();
+    if (!term || configBusy) return;
+    setConfigBusy(true); setConfigError("");
+    const { error } = await supabase.from("search_terms").insert({ term, is_default: false });
+    if (error) setConfigError(`Could not add term: ${error.message}`);
+    else { setNewTerm(""); await loadSearchConfig(); }
+    setConfigBusy(false);
+  }
+  async function deleteTerm(term: string) {
+    if (configBusy) return;
+    setConfigBusy(true); setConfigError("");
+    const { error } = await supabase.from("search_terms").delete().eq("term", term);
+    if (error) setConfigError(`Could not remove term: ${error.message}`);
+    else { setSelectedTerms(prev => prev.filter(x => x !== term)); await loadSearchConfig(); }
+    setConfigBusy(false);
+  }
+  async function addSource() {
+    const name = newSource.name.trim();
+    if (!name || configBusy) return;
+    if (newSource.type === "web site" && !newSource.search_prefix.trim()) { setConfigError("A website source needs a search prefix (e.g. nutraingredients.com)."); return; }
+    if (newSource.type === "web page" && !newSource.url.trim()) { setConfigError("A single-page source needs a URL."); return; }
+    setConfigBusy(true); setConfigError("");
+    const { error } = await supabase.from("sources").insert({
+      type: newSource.type,
+      name,
+      url: newSource.url.trim() || null,
+      search_prefix: newSource.type === "web site" ? newSource.search_prefix.trim() : null,
+      note: newSource.note.trim() || null,
+    });
+    if (error) setConfigError(`Could not add source: ${error.message}`);
+    else { setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "" }); setSourceModalOpen(false); await loadSearchConfig(); }
+    setConfigBusy(false);
+  }
+  async function deleteSource(name: string) {
+    if (configBusy) return;
+    setConfigBusy(true); setConfigError("");
+    const { error } = await supabase.from("sources").delete().eq("name", name);
+    if (error) setConfigError(`Could not remove source: ${error.message}`);
+    else await loadSearchConfig();
+    setConfigBusy(false);
+  }
+
   useEffect(() => {
     loadCompanies();
     fetch("/api/icp").then(r => r.json()).then(d => setIcpContent(d.content));
+    loadSearchConfig();
   }, []);
 
   const results = useMemo(() => {
@@ -450,7 +531,7 @@ export default function Home() {
       const res = await fetch(`${workerBase}/api/search/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ step3Mode, searchConcepts: selectedTerms }),
+        body: JSON.stringify({ step3Mode, searchConcepts: selectedTerms, sourceNames: selectedSources }),
       });
       const data = await res.json();
 
@@ -1027,23 +1108,37 @@ export default function Home() {
 
             {agentState === "idle" && addingState !== "saved" && (
               <>
-                {/* Search configuration — PLACEHOLDER, not wired to the real search yet */}
+                {/* Search configuration — read from the DB; editable in place (Edit toggle) */}
                 <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                   <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
+                    <button type="button" onClick={() => { setConfigEditMode(v => !v); setConfigError(""); setNewTerm(""); setShowAddTerm(false); setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "" }); }}
+                      style={{ background: configEditMode ? "var(--white)" : "var(--accent)", color: configEditMode ? "var(--header)" : "var(--white)", border: "none", borderRadius: 4, padding: "6px 16px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
+                      {configEditMode ? "Done" : "Edit"}
+                    </button>
                   </div>
-                  <div style={{ background: "var(--banner-warn-bg)", borderBottom: "1px solid var(--banner-warn-border)", padding: "10px 20px" }}>
-                    <p style={{ fontSize: 12, color: "var(--banner-warn-text)" }}>Search terms now affect the search — choose up to 3 (leave all unchecked to use the defaults). Sources are still fixed in config/sources.json and can’t be changed here yet.</p>
-                  </div>
+                  {configEditMode && (
+                    <div style={{ background: "var(--banner-warn-bg)", borderBottom: "1px solid var(--banner-warn-border)", padding: "10px 20px" }}>
+                      <p style={{ fontSize: 12, color: "var(--banner-warn-text)" }}>
+                        Editing the shared configuration — changes save right away and affect every search, for everyone.
+                      </p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2" style={{ padding: "20px", gap: 32 }}>
                     {/* Search terms */}
-                    <div>
-                      <label style={labelStyle}>Search terms (choose up to 3)</label>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 4 }}>
-                        {SEARCH_TERM_OPTIONS.map(t => {
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <label style={labelStyle}>{configEditMode ? "Search terms" : "Search terms (choose up to 3)"}</label>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, maxHeight: termsExpanded ? "none" : 232, overflowY: termsExpanded ? "visible" : "auto", paddingRight: 6 }}>
+                        {termOptions.map(t => {
                           const checked = selectedTerms.includes(t);
                           const atMax = selectedTerms.length >= 3;
-                          return (
+                          return configEditMode ? (
+                            <div key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)" }}>
+                              <button type="button" title="Remove term" disabled={configBusy} onClick={() => deleteTerm(t)}
+                                style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>✕</button>
+                              {t}
+                            </div>
+                          ) : (
                             <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
                               <input type="checkbox" checked={checked} disabled={!checked && atMax}
                                 onChange={() => setSelectedTerms(checked ? selectedTerms.filter(x => x !== t) : [...selectedTerms, t])}
@@ -1053,46 +1148,88 @@ export default function Home() {
                           );
                         })}
                       </div>
+                      {termOptions.length > 8 && (
+                        <button type="button" onClick={() => setTermsExpanded(v => !v)}
+                          style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 0", marginTop: 4, textAlign: "left" }}>
+                          {termsExpanded ? "Show fewer ▴" : `Show all ${termOptions.length} ▾`}
+                        </button>
+                      )}
+                      <div style={{ marginTop: "auto", paddingTop: 12 }}>
+                        {showAddTerm ? (
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <input type="text" autoFocus value={newTerm} onChange={e => setNewTerm(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter") addTerm(); if (e.key === "Escape") { setShowAddTerm(false); setNewTerm(""); setConfigError(""); } }}
+                              placeholder="New search term" style={{ ...inputStyle, flex: 1 }} />
+                            <button type="button" onClick={addTerm} disabled={configBusy || !newTerm.trim()}
+                              style={{ ...btnSecondary, padding: "8px 16px" }}>Add</button>
+                            <button type="button" title="Close" onClick={() => { setShowAddTerm(false); setNewTerm(""); setConfigError(""); }}
+                              style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 4px" }}>✕</button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => { setShowAddTerm(true); setConfigError(""); }} style={addBtnStyle}>+ Add new search term</button>
+                        )}
+                      </div>
                     </div>
-                    {/* Sources — still a disabled placeholder (fixed in config/sources.json for now) */}
-                    <div style={{ opacity: 0.5, pointerEvents: "none", filter: "grayscale(1)" }}>
-                      <label style={labelStyle}>Sources (choose up to 4)</label>
+                    {/* Sources */}
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <label style={labelStyle}>{configEditMode ? "Sources" : "Sources (choose up to 4)"}</label>
                       <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -2, marginBottom: 6, lineHeight: 1.6 }}>
                         <strong>Website</strong> = a whole site<br />
                         <strong>Single page</strong> = one specific URL
                       </p>
+                      <div style={{ maxHeight: sourcesExpanded ? "none" : 232, overflowY: sourcesExpanded ? "visible" : "auto", paddingRight: 6 }}>
                       {[
-                        { heading: "Website", items: SOURCE_OPTIONS.filter(s => s.type !== "web page") },
-                        { heading: "Single page", items: SOURCE_OPTIONS.filter(s => s.type === "web page") },
+                        { heading: "Website", items: sourceOptions.filter(s => s.type !== "web page") },
+                        { heading: "Single page", items: sourceOptions.filter(s => s.type === "web page") },
                       ].map(group => group.items.length === 0 ? null : (
                         <div key={group.heading} style={{ marginTop: 10 }}>
                           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 4 }}>{group.heading}</p>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             {group.items.map(s => {
+                              const isPage = s.type === "web page";
                               const checked = selectedSources.includes(s.name);
                               const atMax = selectedSources.length >= 4;
-                              const isPage = s.type === "web page";
-                              return (
+                              const nameBlock = (
+                                <span>
+                                  {s.name}
+                                  {isPage && s.url && (
+                                    <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all" }}>
+                                      {s.url.replace(/^https?:\/\//, "")}
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                              return configEditMode ? (
+                                <div key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "var(--text)" }}>
+                                  <button type="button" title="Remove source" disabled={configBusy} onClick={() => deleteSource(s.name)}
+                                    style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 6px", borderRadius: 4, marginTop: 1, flexShrink: 0 }}>✕</button>
+                                  {nameBlock}
+                                </div>
+                              ) : (
                                 <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
                                   <input type="checkbox" checked={checked} disabled={!checked && atMax}
                                     onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
                                     style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
-                                  <span>
-                                    {s.name}
-                                    {isPage && s.url && (
-                                      <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all" }}>
-                                        {s.url.replace(/^https?:\/\//, "")}
-                                      </span>
-                                    )}
-                                  </span>
+                                  {nameBlock}
                                 </label>
                               );
                             })}
                           </div>
                         </div>
                       ))}
+                      </div>
+                      {sourceOptions.length > 6 && (
+                        <button type="button" onClick={() => setSourcesExpanded(v => !v)}
+                          style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 0", marginTop: 4, textAlign: "left" }}>
+                          {sourcesExpanded ? "Show fewer ▴" : `Show all ${sourceOptions.length} ▾`}
+                        </button>
+                      )}
+                      <div style={{ marginTop: "auto", paddingTop: 14 }}>
+                        <button type="button" onClick={() => { setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "" }); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true); }} style={addBtnStyle}>+ Add new source</button>
+                      </div>
                     </div>
                   </div>
+                  {configError && <p style={{ padding: "0 20px 16px", fontSize: 12, color: "var(--danger-text)" }}>{configError}</p>}
                 </div>
 
                 {/* Search action */}
@@ -1622,6 +1759,84 @@ export default function Home() {
               <button type="button" onClick={() => setPendingExport(false)} style={{ ...btnPrimary }}>
                 Keep editing
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add-source modal — opened by "+ Add new source" in the Search Configuration panel */}
+      {sourceModalOpen && (
+        <div onClick={() => { if (!configBusy) { setSourceModalOpen(false); setConfigError(""); } }}
+          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 520, width: "100%", padding: "26px 28px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)", maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
+              <p style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>Add a source</p>
+              <button type="button" title="What do these fields mean?" aria-label="Help" onClick={() => setSourceInfoOpen(v => !v)}
+                style={{ flexShrink: 0, width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--border)", background: sourceInfoOpen ? "var(--accent)" : "var(--white)", color: sourceInfoOpen ? "var(--white)" : "var(--text-muted)", fontSize: 13, fontWeight: 700, fontStyle: "italic", cursor: "pointer", lineHeight: 1, fontFamily: "Georgia, serif" }}>i</button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
+              Saved to the shared database and used in every search. <span style={reqStyle}>*</span>
+              <span style={{ marginLeft: 4 }}>marks a required field.</span>
+            </p>
+            {sourceInfoOpen && (
+              <div style={{ background: "var(--banner-info-bg)", border: "1px solid var(--banner-info-border)", borderRadius: 4, padding: "12px 14px", marginBottom: 18, fontSize: 12.5, color: "var(--banner-info-text)", lineHeight: 1.6 }}>
+                <p style={{ marginBottom: 8 }}><strong>Which type should I choose?</strong></p>
+                <p style={{ marginBottom: 8 }}><strong>Website</strong> — the AI runs a web search across the whole site, once per search term, looking for companies mentioned anywhere on it. Choose this for an ongoing publication that keeps posting new articles (e.g. a trade-news site). It needs a <strong>search prefix</strong> — usually the domain (like <em>nutraingredients.com</em>) — which is put in front of each term to keep the search on that site.</p>
+                <p style={{ marginBottom: 8 }}><strong>Single page</strong> — the AI reads one specific URL, once, and pulls the companies from it. Choose this when you want it to go through a single fixed page, e.g. a <em>“Top 10 supplement brands for 2026”</em> list. Best for a fixed list — re-running finds nothing new after the first read.</p>
+                <p style={{ margin: 0 }}><strong>Note to the AI</strong> is a free-text instruction for this source — e.g. a paywall tip or a region to focus on.</p>
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={labelStyle}>Name <span style={reqStyle}>*</span></label>
+                <input type="text" autoFocus value={newSource.name} onChange={e => setNewSource({ ...newSource, name: e.target.value })}
+                  placeholder="e.g. Nutrition Insight" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Type <span style={reqStyle}>*</span></label>
+                <select value={newSource.type} onChange={e => setNewSource({ ...newSource, type: e.target.value as "web site" | "web page" })} style={inputStyle}>
+                  <option value="web site">Website</option>
+                  <option value="web page">Single page</option>
+                </select>
+              </div>
+              {newSource.type === "web site" ? (
+                <>
+                  <div>
+                    <label style={labelStyle}>Search prefix <span style={reqStyle}>*</span></label>
+                    <input type="text" value={newSource.search_prefix} onChange={e => setNewSource({ ...newSource, search_prefix: e.target.value })}
+                      placeholder="e.g. nutraingredients.com Europe" style={inputStyle} />
+                    <p style={hintStyle}>Put in front of each search term to target this site — the search becomes <em>“&lt;prefix&gt; &lt;term&gt;”</em>, e.g. <em>nutraingredients.com longevity</em>. Usually just the domain.</p>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Homepage URL <span style={optStyle}>optional</span></label>
+                    <input type="text" value={newSource.url} onChange={e => setNewSource({ ...newSource, url: e.target.value })}
+                      placeholder="https://www.nutraingredients.com" style={inputStyle} />
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label style={labelStyle}>Page URL <span style={reqStyle}>*</span></label>
+                  <input type="text" value={newSource.url} onChange={e => setNewSource({ ...newSource, url: e.target.value })}
+                    placeholder="https://www.healthline.com/nutrition/best-vitamin-brands" style={inputStyle} />
+                  <p style={hintStyle}>The exact page to read. Fetched once — best for a fixed list of brands.</p>
+                </div>
+              )}
+              <div>
+                <label style={labelStyle}>Note to the AI <span style={optStyle}>optional</span></label>
+                <textarea value={newSource.note} onChange={e => setNewSource({ ...newSource, note: e.target.value })} rows={3}
+                  placeholder={'e.g. Serves the US edition by default — always keep "Europe" in the query.'}
+                  style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+                <p style={hintStyle}>Passed to the AI as an instruction for this source (paywall tips, region focus, etc.).</p>
+              </div>
+            </div>
+            {configError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 14 }}>{configError}</p>}
+            <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+              <button type="button" onClick={addSource} disabled={configBusy || !newSource.name.trim()}
+                style={{ ...btnPrimary, opacity: configBusy || !newSource.name.trim() ? 0.6 : 1 }}>
+                {configBusy ? "Saving…" : "Add source"}
+              </button>
+              <button type="button" onClick={() => { setSourceModalOpen(false); setConfigError(""); }} disabled={configBusy} style={{ ...btnSecondary }}>Cancel</button>
             </div>
           </div>
         </div>
