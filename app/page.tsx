@@ -26,7 +26,8 @@ const SEARCH_TERM_OPTIONS = Array.from(new Set([
   ...((sourcesConfig as { search_concepts?: string[] }).search_concepts ?? []),
   ...((sourcesConfig as { keyword_bank?: string[] }).keyword_bank ?? []),
 ]));
-const SOURCE_OPTIONS = ((sourcesConfig as { sources?: { name: string }[] }).sources ?? []).map(s => s.name);
+const SOURCE_OPTIONS = ((sourcesConfig as { sources?: { name: string; type?: string; url?: string }[] }).sources ?? [])
+  .map(s => ({ name: s.name, type: s.type ?? "web site", url: s.url ?? "" }));
 
 type Company = {
   id: number;
@@ -1056,20 +1057,40 @@ export default function Home() {
                     {/* Sources — still a disabled placeholder (fixed in config/sources.json for now) */}
                     <div style={{ opacity: 0.5, pointerEvents: "none", filter: "grayscale(1)" }}>
                       <label style={labelStyle}>Sources (choose up to 4)</label>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 4 }}>
-                        {SOURCE_OPTIONS.map(s => {
-                          const checked = selectedSources.includes(s);
-                          const atMax = selectedSources.length >= 4;
-                          return (
-                            <label key={s} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
-                              <input type="checkbox" checked={checked} disabled={!checked && atMax}
-                                onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s) : [...selectedSources, s])}
-                                style={{ accentColor: "var(--accent)", width: 15, height: 15 }} />
-                              {s}
-                            </label>
-                          );
-                        })}
-                      </div>
+                      <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -2, marginBottom: 6, lineHeight: 1.6 }}>
+                        <strong>Website</strong> = a whole site<br />
+                        <strong>Single page</strong> = one specific URL
+                      </p>
+                      {[
+                        { heading: "Website", items: SOURCE_OPTIONS.filter(s => s.type !== "web page") },
+                        { heading: "Single page", items: SOURCE_OPTIONS.filter(s => s.type === "web page") },
+                      ].map(group => group.items.length === 0 ? null : (
+                        <div key={group.heading} style={{ marginTop: 10 }}>
+                          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 4 }}>{group.heading}</p>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {group.items.map(s => {
+                              const checked = selectedSources.includes(s.name);
+                              const atMax = selectedSources.length >= 4;
+                              const isPage = s.type === "web page";
+                              return (
+                                <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
+                                  <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                                    onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
+                                    style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
+                                  <span>
+                                    {s.name}
+                                    {isPage && s.url && (
+                                      <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all" }}>
+                                        {s.url.replace(/^https?:\/\//, "")}
+                                      </span>
+                                    )}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>

@@ -16,26 +16,36 @@
   ],
   "sources": [
     {
+      "type": "web site",
       "name": "NutraIngredients Europe",
       "url": "https://www.nutraingredients.com",
       "search_prefix": "nutraingredients.com Europe",
       "note": "Serves the US edition by default — always keep \"Europe\" in the query and focus on European companies."
     },
     {
+      "type": "web site",
       "name": "Nutrition Insight",
       "url": "https://www.nutritioninsight.com",
       "search_prefix": "nutritioninsight.com"
     },
     {
+      "type": "web site",
       "name": "Nutraceutical Business Review",
       "url": "https://www.nutraceuticalbusinessreview.com",
       "search_prefix": "nutraceuticalbusinessreview.com",
       "note": "Many articles are paywalled — titles are visible in search, but full text may be blocked. Extract company names from titles/snippets when needed."
     },
     {
+      "type": "web site",
       "name": "Nutritional Outlook",
       "url": "https://www.nutritionaloutlook.com",
       "search_prefix": "nutritionaloutlook.com"
+    },
+    {
+      "type": "web page",
+      "name": "Healthline — Best Vitamin Brands",
+      "url": "https://www.healthline.com/nutrition/best-vitamin-brands",
+      "note": "One-time harvest of a fixed brand list. Not searched — fetched once via web_fetch (wired in step 2). Re-running yields nothing new after the first harvest."
     }
   ]
 }

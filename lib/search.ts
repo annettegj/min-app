@@ -8,9 +8,12 @@ import sourcesConfig from "@/config/sources.json";
 // ---- Types ----
 
 type Source = {
+  // "web site" (default): a whole site/publication searched repeatedly via web_search.
+  // "web page": one specific URL fetched once via web_fetch (wired in step 2).
+  type?: "web site" | "web page";
   name: string;
   url: string;
-  search_prefix: string;
+  search_prefix?: string; // required for "web site" sources; absent for "web page"
   note?: string;
 };
 
@@ -138,7 +141,11 @@ async function discoverCompanies(
   knownNames: string[] = [],
   concepts?: string[]
 ): Promise<DiscoveredCompany[]> {
-  const sourceList = sources
+  // Step 1 currently handles only "web site" sources (searched via web_search). "web page"
+  // sources are fetched via web_fetch in a later step; skip them here so they don't produce
+  // broken queries (they have no search_prefix). Missing type defaults to "web site".
+  const siteSources = sources.filter((s) => (s.type ?? "web site") === "web site");
+  const sourceList = siteSources
     .map((s) => `- ${s.name} (${s.url})${s.note ? ` — NOTE: ${s.note}` : ""}`)
     .join("\n");
   // Build the narrow queries from concepts × sources (single source of truth in sources.json:
@@ -150,7 +157,7 @@ async function discoverCompanies(
       ? concepts
       : (sourcesConfig as { search_concepts?: string[] }).search_concepts ?? [];
   emit(`[search] Step 1: using ${searchConcepts.length} search terms: ${searchConcepts.join(", ")}`);
-  const allQueries = sources.flatMap((s) => searchConcepts.map((c) => `${s.search_prefix} ${c}`));
+  const allQueries = siteSources.flatMap((s) => searchConcepts.map((c) => `${s.search_prefix} ${c}`));
   const queryList = allQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n");
   const countInstruction =
     knownNames.length > 0
