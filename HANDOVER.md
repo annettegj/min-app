@@ -158,6 +158,8 @@ switch buttons back up (there's a comment in the code explaining exactly how).
   `search_terms` table.
 - `config/icp.md` — the ICP definition (price threshold is currency-agnostic: ~60 in own currency).
 - `config/mock-results.json` — demo data (only used if `DEMO_MODE = true` in `page.tsx`).
+- `db/migrations/*.sql` — DB schema + seed (001 = sources/search_terms tables; 002 = trade-show sources).
+- [SOURCES.md](SOURCES.md) — running log of every source evaluated for discovery: works / held / rejected, and why.
 
 ## 8. Running locally
 

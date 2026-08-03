@@ -46,6 +46,20 @@
       "name": "Healthline — Best Vitamin Brands",
       "url": "https://www.healthline.com/nutrition/best-vitamin-brands",
       "note": "One-time harvest of a fixed brand list. Not searched — fetched once via web_fetch (wired in step 2). Re-running yields nothing new after the first harvest."
+    },
+    {
+      "type": "web site",
+      "name": "Vitafoods Europe",
+      "url": "https://www.vitafoods.eu",
+      "search_prefix": "Vitafoods Europe exhibitors",
+      "note": "Nutraceutical trade show (Informa). Extract ONLY finished-brand supplement companies that exhibit; skip ingredient suppliers, contract manufacturers (façonniers) and distributors — those are excluded by the ICP. Focus on European brands."
+    },
+    {
+      "type": "web site",
+      "name": "In-Vitality",
+      "url": "https://www.in-vitality.it",
+      "search_prefix": "in-vitality.it exhibitors",
+      "note": "Italian nutraceutical trade show — raw-materials heavy, so expect many ingredient suppliers to skip. Extract ONLY finished-brand supplement companies; skip ingredient suppliers, contract manufacturers and distributors (excluded by the ICP)."
     }
   ]
 }
