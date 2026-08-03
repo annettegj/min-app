@@ -49,6 +49,21 @@ excludes — so even a readable list tends to produce a **low match rate**.
 | **in-cosmetics** | ⏸️ Hold | **Cosmetics**, not supplements — mostly outside the ICP. JS directory. |
 | **NFBD (Nutriform Business Days)** | ❌ Can't mine (as-is) | No public exhibitor list at all (`nfbd.fr`; registration via idloom). Nothing for the pipeline to read. |
 
+## Evaluated — Associations & partnering conferences (from Viola's list, tested 2026-08)
+
+**General finding:** this batch is a poorer fit than the trade shows. **Partnering conferences**
+(euroPLX, PharmaSynergy) are private 1-on-1 meeting platforms with **no public company directory**
+to read. **CPHI Europe** is a pharma-ingredients show — its exhibitors are API/excipient/CDMO
+suppliers, exactly what the ICP excludes. Only **EHPM** exposes a small, static, on-ICP member list.
+
+| Source | Verdict | Why |
+|---|---|---|
+| **EHPM** (Fed. of Health Product Manufacturers) | 🧪 Candidate — small Single-page trial | `ehpm.org/members-list-2/` is a **static** list of ~18 corporate members — a mix of finished-supplement brands (BioGaia, Lifeplus, Forever Living), multinationals (Nestlé, Unilever) and ingredient suppliers (Sabinsa, Barentz) to skip. Small volume, but clean and relevant. Also lists ~15 national associations (not companies). |
+| **NutraFood (Poland)** | ⏸️ Hold | Only ~9 **featured** exhibitor logos are static (incl. Aker BioMarine itself, KSM-66, Sirio); the full ~113-exhibitor list is behind a JavaScript catalogue (`catalogue.worldfood.pl`). Low fetchable yield, mixed audience. |
+| **euroPLX** | ❌ Can't mine | Private pharma **partnering conference** (pre-arranged 1-on-1 meetings); no public participant list. Focus is drug developers/CDMOs/licensing → off-ICP. |
+| **CPHI Europe** | ⏸️ Reject | Exhibitors are pharma **API / excipient / CDMO / packaging** suppliers — excluded by the ICP. Directory is JavaScript (`exhibitors.cphi.com`); aggregators blocked. |
+| **PharmaSynergy** | ❌ Can't mine | Private OTC/consumer-health **partnering event** (meeting-mojo platform); no public company directory. Audience (OTC brands adding supplements) is relevant, but there's nothing to extract. |
+
 ## If trade shows underperform
 
 If the two trials yield few/no matches, the honest conclusion is that **trade shows don't fit the
