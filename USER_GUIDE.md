@@ -13,12 +13,34 @@ lets you review and save the best matches to a database you can filter and expor
 
 ### 1. Company Database
 
-Your saved companies. Use the filters at the top (geography, category, price, ICP fit, priority
-tier) to narrow the list. Click a row to expand its description.
+Your saved companies. Use the filters at the top (geography, category, price range, ICP fit,
+priority tier) to narrow the list, then **Find Companies** to apply them (or **Show All Companies**).
+Click a row to expand its description.
 
-- **Export as Excel** — downloads an `.xlsx` file of the companies **currently shown** (i.e. it
-  respects your filters). The file name includes the date. The first export may take a moment while
-  the export engine loads; after that it's instant.
+- **Export as Excel** — downloads an `.xlsx` file of the companies **currently shown** (it respects
+  your filters and any rows you've hidden). The file name includes the date. The first export may
+  take a moment while the export engine loads; after that it's instant.
+- **Clear Results** — empties the shown table and returns to a clean starting point (just the
+  filters). It doesn't delete anything.
+
+#### Editing and removing companies
+
+Click **Edit list** (top-right of the results) to turn on edit mode. Each row then shows two icons:
+
+- **✎ (pencil)** — opens an inline form to edit the company's fields (geography, category, price,
+  ICP fit, priority tier, website, description). **Save** writes the change to the database;
+  **Cancel** discards it. *(The company name can't be edited.)*
+- **✕** — opens a small dialog with two choices:
+  - **Remove from this view only** — hides the row from the current list and the Excel export. It's
+    **not deleted** — click **Restore hidden** (top of the results) to bring hidden rows back, or
+    just reload the page.
+  - **Delete from the company database** — removes it from the database. It's kept internally so it
+    can be restored later and won't be re-discovered in future searches.
+
+Click **Done editing** to leave edit mode.
+
+> If you've changed a field but not saved it, and then filter, clear, or export, the app warns you
+> ("You have unsaved changes") so you don't lose the edit by accident.
 
 ### 2. Find New Companies
 

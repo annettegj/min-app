@@ -14,6 +14,8 @@ and letting a user review, save, and export the matches.
   costs, security, and open to-dos (for whoever operates or takes ownership of the app).
 - **[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md)** — a detailed, step-by-step walkthrough of the
   three-step search (discovery → enrichment → ICP matching).
+- **[DESIGN.md](DESIGN.md)** — the visual/design system: colour palette, button hierarchy, hover,
+  and rounded corners, with a "how do I change X" reference.
 
 ## Tech stack
 

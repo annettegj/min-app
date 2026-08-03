@@ -1,7 +1,8 @@
 # Lysoveta Customer Finder — Technical & Handover Documentation
 
 > Audience: whoever operates, maintains, or takes ownership of this app (AKBM IT, future
-> developers, Sprint). For end-user instructions see [USER_GUIDE.md](USER_GUIDE.md).
+> developers, Sprint). For end-user instructions see [USER_GUIDE.md](USER_GUIDE.md); for the
+> visual/design system (colours, buttons, hover, rounding) see [DESIGN.md](DESIGN.md).
 > Last updated: 2026-08 (post-summer, pre-AKBM-handover).
 
 ## 1. What it is
@@ -70,8 +71,11 @@ on serverless functions.
 ## 4. The three tabs
 
 1. **Company Database** — view/filter saved companies (those with `added = true` and
-   `rejected = false`). Includes an **Export as Excel** button (client-side `.xlsx` of the
-   currently filtered list).
+   `rejected = false`). **Export as Excel** (client-side `.xlsx` of the currently shown list) and
+   **Clear Results** (empties the view). **Edit list** mode unlocks per-row **edit** (✎ → inline
+   form → Supabase `update`) and **remove** (✕ → "remove from this view only" = session hide, or
+   "delete from the company database" = soft delete via `rejected`). Unsaved edits are guarded
+   before filtering/clearing/exporting.
 2. **Find New Companies** — runs the search (see pipeline below). Includes a **Search terms**
    selector (choose up to 3 from the keyword bank) and a **Step 3 decision** switch (currently
    **locked on Automatic**).
@@ -132,8 +136,11 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 ## 7. Key files
 
 - `app/page.tsx` — the entire UI (client component). Search-terms selector, Step 3 switch, Excel
-  export, polling, results review.
+  export, polling, results review, and the Company Database edit/remove/clear flows. Also holds the
+  shared button style objects (`btnPrimary`, `btnSecondary`) and `inputStyle`.
 - `app/layout.tsx` — page metadata (browser-tab title, description, `lang`).
+- `app/globals.css` — global styles: the colour-palette CSS variables, the site-wide button hover
+  rule, and the default button border-radius. See [DESIGN.md](DESIGN.md).
 - `lib/search.ts` — the pipeline: `discoverCompanies`, `enrichCompany`, `enrichAll`,
   `evaluateCompanies`, `buildStep3Prompt`, `searchForCompanies`. `emit()` logs to terminal +
   `search_logs`.
