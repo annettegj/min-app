@@ -205,8 +205,9 @@ Open http://localhost:3000. You need a `.env.local` with the Supabase vars + `AN
 2. **Company Prospectus** — the disabled "Soon" tab.
 3. **Editable ICP tab** — the "Edit" button is a placeholder.
    - ✅ *Done:* source & term selection wired to the search; editable sources/terms (DB-backed,
-     from the UI); editable company database (edit fields + soft/hard delete); `web_fetch` for
-     "web page" sources (`discoverViaFetch` — reads a fixed page and extracts companies).
+     from the UI — draft edit mode with a single **Save changes** that diffs & applies); editable
+     company database (edit fields + soft/hard delete); `web_fetch` for "web page" sources
+     (`discoverViaFetch` — reads a fixed page and extracts companies).
 6. **ICP validation** — compare the tool's ICP scores against AKBM's Excel of ~100 companies.
 7. **Softer rejection** — un-reject / review rejected companies.
 8. **AKBM handover** — ownership of repo/hosting/API keys, security, data residency, auth.

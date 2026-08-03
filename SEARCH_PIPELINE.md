@@ -185,9 +185,11 @@ How each source field is used in the search:
 | `url` | Shown to the model as context (website), or the exact page to read (single page). |
 | `note` | Injected into the Step 1 prompt as a per-source instruction (paywall tips, region focus, etc.). |
 
-> **How to change it:** end users add/remove terms and sources from the **Search Configuration**
-> panel on the *Find New Companies* tab — see [USER_GUIDE.md](USER_GUIDE.md#managing-search-terms--sources).
-> There is no code change or redeploy involved.
+> **How to change it:** end users add, **edit (all fields)**, and remove terms and sources from the
+> **Search Configuration** panel on the *Find New Companies* tab. Edit mode is a local **draft** —
+> changes are batched and written to the DB only on **Save changes** (which diffs the draft against
+> the DB and applies inserts/updates/deletes together). See
+> [USER_GUIDE.md](USER_GUIDE.md#managing-search-terms--sources). No code change or redeploy involved.
 
 ## Why the caps (up to 3 terms / 4 sources)
 

@@ -68,11 +68,12 @@ This is where you run a search.
 #### Managing search terms & sources
 
 The lists aren't fixed — you can change what's available to everyone. In the **Search Configuration**
-panel, click **Edit** (top-right):
+panel, click **Edit** (top-right). Everything you do in edit mode is a **draft**: it doesn't touch
+the real configuration until you press **Save changes**.
 
-- **Remove** — a **✕** appears next to each term and source; click it to delete that item.
-- **Add a search term** — click **+ Add new search term**, type it, and press **Add** (or Enter).
-- **Add a source** — click **+ Add new source** to open a form:
+- **Edit a search term** — click its text field and change the wording (fix a typo, reword it).
+- **Edit a source** — click the source to open a form pre-filled with all its fields; change what
+  you need and press **Update source**. The fields are:
   - **Name** — how it's shown in the list.
   - **Type** — **Website** (searched repeatedly) or **Single page** (one URL, read once).
   - **Search prefix** *(website, required)* — what's put in front of each term to target the site,
@@ -81,12 +82,16 @@ panel, click **Edit** (top-right):
   - **Note to the AI** *(optional)* — a plain-language instruction for that source, e.g.
     *"Serves the US edition by default — always keep 'Europe' in the query"* or
     *"Paywalled — read company names from the titles."* This is passed to the AI during the search.
+- **Add** — **+ Add new search term** adds a blank field to type into; **+ Add new source** opens
+  the same form, empty.
+- **Remove** — click the **✕** next to a term or source.
 
-Click **Done** to leave edit mode.
+When you're done, press **Save changes** to write everything at once, or **Cancel** to discard the
+whole draft.
 
-> **These changes are shared and immediate.** They save straight to the database and affect every
-> search for everyone — there's no separate "save" step and no undo beyond re-adding. A yellow line
-> reminds you of this while editing.
+> **Nothing is saved until you press Save changes**, and the changes are **shared** — once saved,
+> they affect every search for everyone. A yellow line reminds you of this while editing. Switching
+> tabs keeps your draft; only reloading the page discards it.
 
 > **Single-page sources** are read during the search: the AI fetches that one URL and pulls the
 > companies from it. This is ideal for a fixed list (e.g. a "best brands 2026" round-up) — but note
