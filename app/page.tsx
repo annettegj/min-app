@@ -64,6 +64,11 @@ type PendingCompany = SearchResult & {
   icp_fit: number;
 };
 
+type EditDraft = {
+  geography: string; product_category: string; max_price: string; price_currency: string;
+  icp_fit: number; priority_tier: string; website_url: string; description: string;
+};
+
 // --- Shared styles ---
 const inputStyle: React.CSSProperties = {
   width: "100%", border: "1px solid #C4CAE8", padding: "8px 10px",
@@ -103,10 +108,10 @@ export default function Home() {
   }>(null);
   // Inline company editing / removal (Company Database tab)
   const [editingCompanyId, setEditingCompanyId] = useState<number | null>(null);
-  const [editDraft, setEditDraft] = useState<null | {
-    geography: string; product_category: string; max_price: string; price_currency: string;
-    icp_fit: number; priority_tier: string; website_url: string; description: string;
-  }>(null);
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const [editOriginal, setEditOriginal] = useState<EditDraft | null>(null);
+  const [pendingNav, setPendingNav] = useState<null | (() => void)>(null);
+  const [pendingExport, setPendingExport] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState("");
   const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
@@ -265,7 +270,7 @@ export default function Home() {
     setEditingCompanyId(c.id);
     setConfirmRemoveId(null);
     setEditError("");
-    setEditDraft({
+    const draft: EditDraft = {
       geography: c.geography ?? "",
       product_category: c.product_category ?? "",
       max_price: c.max_price != null ? String(c.max_price) : "",
@@ -274,12 +279,15 @@ export default function Home() {
       priority_tier: c.priority_tier ?? "",
       website_url: c.website_url ?? "",
       description: c.description ?? "",
-    });
+    };
+    setEditDraft(draft);
+    setEditOriginal(draft);
   }
 
   function cancelEdit() {
     setEditingCompanyId(null);
     setEditDraft(null);
+    setEditOriginal(null);
     setEditError("");
   }
 
@@ -309,6 +317,7 @@ export default function Home() {
     setSavingEdit(false);
     setEditingCompanyId(null);
     setEditDraft(null);
+    setEditOriginal(null);
   }
 
   // Soft delete: mark rejected (reversible, preserves enriched_data) so it drops out of the view,
@@ -350,6 +359,29 @@ export default function Home() {
 
   function restoreHidden() {
     setHiddenIds(new Set());
+  }
+
+  // Clears the shown results and returns the Company Database tab to its empty starting state
+  // (filter panel only, no table). Also resets edit mode and any session-only hidden rows.
+  function clearResults() {
+    setSearchState("idle");
+    setSearchParams(null);
+    setExpandedCompanyId(null);
+    setEditMode(false);
+    cancelEdit();
+    setConfirmRemoveId(null);
+    setHiddenIds(new Set());
+  }
+
+  // True only when an edit form is open AND a field has actually been changed from the original.
+  function hasUnsavedEdit() {
+    return editingCompanyId != null && editDraft != null && editOriginal != null
+      && JSON.stringify(editDraft) !== JSON.stringify(editOriginal);
+  }
+  // Runs `proceed` immediately — unless there's an unsaved edit, in which case it asks first.
+  function guardUnsavedEdit(proceed: () => void) {
+    if (hasUnsavedEdit()) setPendingNav(() => proceed);
+    else proceed();
   }
 
   function handleSearch() {
@@ -696,7 +728,7 @@ export default function Home() {
         {tab === "database" && (
           <>
             <div>
-              <button onClick={() => { setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" }); setSearchState("done"); }}
+              <button onClick={() => guardUnsavedEdit(() => { setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" }); setSearchState("done"); })}
                 style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "#F1F5F9")}
                 onMouseLeave={e => (e.currentTarget.style.background = "#FFFFFF")}>
@@ -758,8 +790,14 @@ export default function Home() {
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={handleSearch}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              {searchState === "done" && (
+                <button onClick={() => guardUnsavedEdit(clearResults)}
+                  style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}>
+                  Clear Results
+                </button>
+              )}
+              <button onClick={() => guardUnsavedEdit(handleSearch)}
                 style={{ ...btnPrimary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "#0670A0")}
                 onMouseLeave={e => (e.currentTarget.style.background = "#0891B2")}>
@@ -956,7 +994,7 @@ export default function Home() {
             {searchState === "done" && results.length > 0 && (
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
                 <button
-                  onClick={handleExportExcel}
+                  onClick={() => { if (hasUnsavedEdit()) setPendingExport(true); else handleExportExcel(); }}
                   disabled={exporting}
                   style={{ ...btnSecondary, padding: "9px 20px", borderRadius: 4, opacity: exporting ? 0.6 : 1, cursor: exporting ? "default" : "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                   {exporting ? "Exporting…" : "↓ Export as Excel"}
@@ -1521,6 +1559,48 @@ export default function Home() {
               <button type="button" onClick={() => setConfirmRemoveId(null)} disabled={removing}
                 style={{ background: "#F1F5F9", color: "#475569", border: "1px solid #CBD5E1", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: removing ? "default" : "pointer" }}>
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unsaved-edit guard — shown only when a row edit has actually been changed */}
+      {pendingNav && (
+        <div onClick={() => setPendingNav(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", maxWidth: 460, width: "100%", padding: "24px 26px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: "#1A2456", marginBottom: 6 }}>You have unsaved changes</p>
+            <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>Discard your edits to this company and continue?</p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button type="button" onClick={() => { const go = pendingNav; cancelEdit(); setPendingNav(null); if (go) go(); }}
+                style={{ ...btnSecondary, color: "#B91C1C", border: "1px solid #FCA5A5" }}>
+                Discard changes
+              </button>
+              <button type="button" onClick={() => setPendingNav(null)} style={{ ...btnPrimary }}>
+                Keep editing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export guard — unsaved edits aren't in the saved data the export reads */}
+      {pendingExport && (
+        <div onClick={() => setPendingExport(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", maxWidth: 460, width: "100%", padding: "24px 26px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: "#1A2456", marginBottom: 6 }}>You have unsaved changes</p>
+            <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>Your unsaved edits won’t be included in the Excel export. Export anyway?</p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button type="button" onClick={() => { setPendingExport(false); handleExportExcel(); }}
+                style={{ ...btnSecondary }}>
+                Export anyway
+              </button>
+              <button type="button" onClick={() => setPendingExport(false)} style={{ ...btnPrimary }}>
+                Keep editing
               </button>
             </div>
           </div>
