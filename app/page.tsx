@@ -85,8 +85,8 @@ const btnBase: React.CSSProperties = {
   padding: "10px 24px", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em",
   textTransform: "uppercase", cursor: "pointer", borderRadius: 4,
 };
-const btnPrimary: React.CSSProperties = { ...btnBase, background: "#0891B2", color: "#FFFFFF", border: "none" };
-const btnSecondary: React.CSSProperties = { ...btnBase, background: "#FFFFFF", color: "#334155", border: "1px solid #CBD5E1" };
+const btnPrimary: React.CSSProperties = { ...btnBase, background: "var(--accent)", color: "#FFFFFF", border: "none" };
+const btnSecondary: React.CSSProperties = { ...btnBase, background: "#FFFFFF", color: "var(--ink)", border: "1px solid var(--border)" };
 
 export default function Home() {
   const [tab, setTab] = useState<"database" | "search" | "icp" | "prospectus">("database");
@@ -672,10 +672,10 @@ export default function Home() {
   const selectedCount = searchResults.filter(r => r.selected).length;
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#F4F5FA", fontFamily: "Inter, sans-serif" }}>
+    <div className="min-h-screen flex flex-col" style={{ background: "var(--page)", fontFamily: "Inter, sans-serif" }}>
 
       {/* Top bar */}
-      <div style={{ background: "#0C1C2E", borderBottom: "3px solid #0891B2" }}>
+      <div style={{ background: "var(--header)", borderBottom: "3px solid var(--accent)" }}>
         <div className="max-w-screen-2xl mx-auto px-8 py-6 flex items-center justify-between">
           <div className="flex flex-col gap-2" style={{ alignItems: "flex-start" }}>
             <img src="/AKBM logo.png" alt="Aker BioMarine" style={{ height: 52, width: "auto", objectFit: "contain", display: "block" }} />
@@ -697,9 +697,9 @@ export default function Home() {
                 style={{
                   padding: "10px 20px", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
                   borderRadius: 4,
-                  background: tab === t.key ? "#F4F5FA" : "transparent",
+                  background: tab === t.key ? "var(--page)" : "transparent",
                   color: tab === t.key ? "#1A2456" : "#A0AECF",
-                  borderTop: tab === t.key ? "2px solid #0891B2" : "2px solid transparent",
+                  borderTop: tab === t.key ? "2px solid var(--accent)" : "2px solid transparent",
                 }}
               >
                 {t.label}
@@ -730,14 +730,14 @@ export default function Home() {
             <div>
               <button onClick={() => guardUnsavedEdit(() => { setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" }); setSearchState("done"); })}
                 style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#F1F5F9")}
+                onMouseEnter={e => (e.currentTarget.style.background = "var(--surface)")}
                 onMouseLeave={e => (e.currentTarget.style.background = "#FFFFFF")}>
                 Show All Companies →
               </button>
             </div>
 
             <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ background: "#0C1C2E", padding: "12px 20px" }}>
+              <div style={{ background: "var(--header)", padding: "12px 20px" }}>
                 <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Filter Companies</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0" style={{ borderTop: "1px solid #E4E7F2" }}>
@@ -761,7 +761,7 @@ export default function Home() {
                   <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button key={star} onClick={() => setIcpMin(icpMin === star ? 1 : star)}
-                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= icpMin ? (icpMin >= 4 ? "#15803D" : icpMin === 3 ? "#B45309" : "#DC2626") : "#D1D5DB" }}>
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= icpMin ? (icpMin >= 4 ? "var(--success)" : icpMin === 3 ? "var(--warning)" : "var(--danger)") : "#D1D5DB" }}>
                         ★
                       </button>
                     ))}
@@ -799,8 +799,8 @@ export default function Home() {
               )}
               <button onClick={() => guardUnsavedEdit(handleSearch)}
                 style={{ ...btnPrimary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "#0670A0")}
-                onMouseLeave={e => (e.currentTarget.style.background = "#0891B2")}>
+                onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-hover)")}
+                onMouseLeave={e => (e.currentTarget.style.background = "var(--accent)")}>
                 Find Companies →
               </button>
             </div>
@@ -809,7 +809,7 @@ export default function Home() {
 
             {searchState === "done" && (
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Results</p>
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <p style={{ color: "#FFFFFF", fontSize: 12 }}>
@@ -823,7 +823,7 @@ export default function Home() {
                     )}
                     {results.length > 0 && (
                       <button type="button" onClick={toggleEditMode}
-                        style={{ background: editMode ? "#FFFFFF" : "#0891B2", color: editMode ? "#0C1C2E" : "#FFFFFF", border: "none", padding: "6px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
+                        style={{ background: editMode ? "#FFFFFF" : "var(--accent)", color: editMode ? "var(--header)" : "#FFFFFF", border: "none", padding: "6px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
                         {editMode ? "Done editing" : "Edit list"}
                       </button>
                     )}
@@ -858,7 +858,7 @@ export default function Home() {
                                       onClick={(e) => { e.stopPropagation(); startEdit(c); }}
                                       onMouseEnter={(e) => (e.currentTarget.style.background = "#E2E8F0")}
                                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                                      style={{ background: "transparent", border: "none", borderRadius: 4, color: "#334155", cursor: "pointer", padding: "4px 6px", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
+                                      style={{ background: "transparent", border: "none", borderRadius: 4, color: "var(--ink)", cursor: "pointer", padding: "4px 6px", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
                                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                         <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
                                       </svg>
@@ -877,7 +877,7 @@ export default function Home() {
                               {c.website_url ? (
                                 <a href={safeHref(c.website_url)} target="_blank" rel="noopener noreferrer"
                                   onClick={e => e.stopPropagation()}
-                                  style={{ color: "#0891B2", fontSize: 12, textDecoration: "none" }}
+                                  style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none" }}
                                   onMouseEnter={e => (e.currentTarget.style.textDecoration = "underline")}
                                   onMouseLeave={e => (e.currentTarget.style.textDecoration = "none")}>
                                   {displayHostname(c.website_url)}
@@ -894,7 +894,7 @@ export default function Home() {
                             <td style={{ padding: "16px 22px", color: "#4B5563", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : c.price_currency === "EUR" ? "€" : ""}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
                             <td style={{ padding: "16px 22px", whiteSpace: "nowrap" }}>
                               {c.priority_tier === "early_mover" && (
-                                <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Early Mover</span>
+                                <span style={{ background: "#DCFCE7", color: "var(--success)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Early Mover</span>
                               )}
                               {c.priority_tier === "follower" && (
                                 <span style={{ background: "#FEF9C3", color: "#854D0E", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Follower</span>
@@ -940,7 +940,7 @@ export default function Home() {
                                         <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
                                           {[1, 2, 3, 4, 5].map(star => (
                                             <button key={star} type="button" onClick={() => setEditDraft({ ...editDraft, icp_fit: star })}
-                                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= editDraft.icp_fit ? "#0891B2" : "#D1D5DB" }}>★</button>
+                                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= editDraft.icp_fit ? "var(--accent)" : "#D1D5DB" }}>★</button>
                                           ))}
                                         </div>
                                       </div>
@@ -962,10 +962,10 @@ export default function Home() {
                                         <textarea value={editDraft.description} onChange={e => setEditDraft({ ...editDraft, description: e.target.value })} rows={3} style={{ ...inputStyle, resize: "vertical" }} />
                                       </div>
                                     </div>
-                                    {editError && <p style={{ color: "#DC2626", fontSize: 12, marginBottom: 10 }}>{editError}</p>}
+                                    {editError && <p style={{ color: "var(--danger)", fontSize: 12, marginBottom: 10 }}>{editError}</p>}
                                     <div style={{ display: "flex", gap: 10 }}>
                                       <button type="button" onClick={() => saveEdit(c)} disabled={savingEdit}
-                                        style={{ ...btnPrimary, padding: "9px 22px", background: savingEdit ? "#7FBFCF" : "#0891B2", cursor: savingEdit ? "default" : "pointer" }}>
+                                        style={{ ...btnPrimary, padding: "9px 22px", background: savingEdit ? "#7FBFCF" : "var(--accent)", cursor: savingEdit ? "default" : "pointer" }}>
                                         {savingEdit ? "Saving…" : "Save"}
                                       </button>
                                       <button type="button" onClick={cancelEdit} disabled={savingEdit}
@@ -1012,7 +1012,7 @@ export default function Home() {
             {activeSearchJobId != null && logLines.length > 0 && (
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
                 <div onClick={() => setShowLog(!showLog)}
-                  style={{ background: "#0C1C2E", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+                  style={{ background: "var(--header)", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 13, fontWeight: 700 }}>Search Log</p>
                   <span style={{ color: "#A0BEFF", fontSize: 12 }}>{showLog ? "Hide ▴" : "Show ▾"} ({logLines.length})</span>
                 </div>
@@ -1028,7 +1028,7 @@ export default function Home() {
               <>
                 {/* Search configuration — PLACEHOLDER, not wired to the real search yet */}
                 <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
                   </div>
                   <div style={{ background: "#FFFBEB", borderBottom: "1px solid #FCD34D", padding: "10px 20px" }}>
@@ -1046,7 +1046,7 @@ export default function Home() {
                             <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "#374151" : "#A0AECF", cursor: checked || !atMax ? "pointer" : "default" }}>
                               <input type="checkbox" checked={checked} disabled={!checked && atMax}
                                 onChange={() => setSelectedTerms(checked ? selectedTerms.filter(x => x !== t) : [...selectedTerms, t])}
-                                style={{ accentColor: "#0891B2", width: 15, height: 15 }} />
+                                style={{ accentColor: "var(--accent)", width: 15, height: 15 }} />
                               {t}
                             </label>
                           );
@@ -1064,7 +1064,7 @@ export default function Home() {
                             <label key={s} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "#374151" : "#A0AECF", cursor: checked || !atMax ? "pointer" : "default" }}>
                               <input type="checkbox" checked={checked} disabled={!checked && atMax}
                                 onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s) : [...selectedSources, s])}
-                                style={{ accentColor: "#0891B2", width: 15, height: 15 }} />
+                                style={{ accentColor: "var(--accent)", width: 15, height: 15 }} />
                               {s}
                             </label>
                           );
@@ -1079,7 +1079,7 @@ export default function Home() {
                   {/* Step 3 decision — segmented on/off switch in the top-right corner */}
                   <div style={{ position: "absolute", top: 16, right: 20, display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#6B7280" }}>Step 3 decision:</span>
-                    <div style={{ display: "inline-flex", border: "1px solid #CBD5E1", borderRadius: 4, overflow: "hidden" }} title="Locked on Automatic for now">
+                    <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }} title="Locked on Automatic for now">
                       {([
                         { value: "auto", label: "Automatic" },
                         { value: "manual", label: "Manual" },
@@ -1087,7 +1087,7 @@ export default function Home() {
                         const active = step3Mode === opt.value;
                         return (
                           <button key={opt.value} type="button" disabled
-                            style={{ background: active ? "#0891B2" : "#FFFFFF", color: active ? "#FFFFFF" : "#B0B6CC", border: "none", borderRadius: 0, padding: "6px 16px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", cursor: "not-allowed" }}>
+                            style={{ background: active ? "var(--accent)" : "#FFFFFF", color: active ? "#FFFFFF" : "#B0B6CC", border: "none", borderRadius: 0, padding: "6px 16px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", cursor: "not-allowed" }}>
                             {opt.label}
                           </button>
                         );
@@ -1098,7 +1098,7 @@ export default function Home() {
                   <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 28 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
 
                   <button onClick={() => { if (!SEARCH_DISABLED) handleAgentSearch(); }} disabled={SEARCH_DISABLED}
-                    style={{ background: SEARCH_DISABLED ? "#E4E7F2" : "#0891B2", color: SEARCH_DISABLED ? "#9CA3AF" : "#FFFFFF", border: SEARCH_DISABLED ? "1px solid #D1D5DB" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer", borderRadius: 4 }}>
+                    style={{ background: SEARCH_DISABLED ? "#E4E7F2" : "var(--accent)", color: SEARCH_DISABLED ? "#9CA3AF" : "#FFFFFF", border: SEARCH_DISABLED ? "1px solid #D1D5DB" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer", borderRadius: 4 }}>
                     {SEARCH_DISABLED ? "Search Disabled (Demo)" : "Search for New Companies →"}
                   </button>
                   {SEARCH_DISABLED && (
@@ -1139,11 +1139,11 @@ export default function Home() {
                   </div>
                   <div style={{ display: "flex", gap: 12 }}>
                     <button onClick={() => { setAgentState("idle"); setStaleCompanies([]); }}
-                      style={{ background: "#0C1C2E", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                      style={{ background: "var(--header)", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                       OK, got it
                     </button>
                     <button onClick={() => { setStaleCompanies([]); setAgentState("searching"); handleAgentSearch(); }}
-                      style={{ background: "#0891B2", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                      style={{ background: "var(--accent)", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                       Start new search →
                     </button>
                   </div>
@@ -1153,14 +1153,14 @@ export default function Home() {
 
             {agentState === "searching" && (
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", padding: "64px 32px", textAlign: "center" }}>
-                <div style={{ display: "inline-block", width: 40, height: 40, border: "4px solid #E4E7F2", borderTop: "4px solid #0891B2", borderRadius: "50%", animation: "spin 0.9s linear infinite", marginBottom: 20 }} />
+                <div style={{ display: "inline-block", width: 40, height: 40, border: "4px solid #E4E7F2", borderTop: "4px solid var(--accent)", borderRadius: "50%", animation: "spin 0.9s linear infinite", marginBottom: 20 }} />
                 <p style={{ fontSize: 14, fontWeight: 600, color: "#1A2456", marginBottom: 10 }}>
                   Step {currentStep} of 3 — {currentStep === 1 ? "Finding companies" : currentStep === 2 ? "Enriching companies" : "Evaluating"}
                 </p>
                 {/* Step progress dots */}
                 <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
                   {[1, 2, 3].map(s => (
-                    <div key={s} style={{ width: 36, height: 5, borderRadius: 3, background: s <= currentStep ? "#0891B2" : "#E4E7F2" }} />
+                    <div key={s} style={{ width: 36, height: 5, borderRadius: 3, background: s <= currentStep ? "var(--accent)" : "#E4E7F2" }} />
                   ))}
                 </div>
                 <p style={{ fontSize: 13, color: "#6B7280" }}>{searchProgress || "The AI agent is finding relevant companies. This may take a few minutes."}</p>
@@ -1195,7 +1195,7 @@ export default function Home() {
                   <div style={{ display: "flex", gap: 12 }}>
                     {agentError.canRetry && (
                       <button onClick={() => handleAgentSearch()}
-                        style={{ background: "#0891B2", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                        style={{ background: "var(--accent)", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                         Try again →
                       </button>
                     )}
@@ -1218,7 +1218,7 @@ export default function Home() {
                     </p>
                   </div>
                 )}
-                <div style={{ background: "#0C1C2E", padding: "12px 20px" }}>
+                <div style={{ background: "var(--header)", padding: "12px 20px" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Step 3 — Manual Evaluation</p>
                   <p style={{ color: "#A0BEFF", fontSize: 12, marginTop: 2 }}>Steps 1 and 2 are done. Copy the prompt below and paste it into Claude Chat to evaluate the companies.</p>
                 </div>
@@ -1229,7 +1229,7 @@ export default function Home() {
                       style={{ width: "100%", fontSize: 12, fontFamily: "monospace", color: "#374151", background: "#F8F9FF", border: "1px solid #D0D5E8", padding: "12px", resize: "vertical", boxSizing: "border-box" }} />
                     <button
                       onClick={() => { navigator.clipboard.writeText(step3Prompt); setStep3CopyDone(true); }}
-                      style={{ position: "absolute", top: 8, right: 8, background: step3CopyDone ? "#16a34a" : "#0891B2", color: "#fff", border: "none", padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      style={{ position: "absolute", top: 8, right: 8, background: step3CopyDone ? "#16a34a" : "var(--accent)", color: "#fff", border: "none", padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                       {step3CopyDone ? "Copied ✓" : "Copy"}
                     </button>
                   </div>
@@ -1249,7 +1249,7 @@ export default function Home() {
                       Cancel
                     </button>
                     <button onClick={handleStep3Submit} disabled={!step3Paste.trim()}
-                      style={{ background: step3Paste.trim() ? "#0891B2" : "#C4CAE8", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: step3Paste.trim() ? "pointer" : "default" }}>
+                      style={{ background: step3Paste.trim() ? "var(--accent)" : "#C4CAE8", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: step3Paste.trim() ? "pointer" : "default" }}>
                       Show results →
                     </button>
                   </div>
@@ -1259,7 +1259,7 @@ export default function Home() {
 
             {agentState === "done" && addingState === "idle" && (
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Search Results</p>
                   <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                     <p style={{ color: "#A0BEFF", fontSize: 12 }}>{searchResults.length} companies found</p>
@@ -1273,12 +1273,12 @@ export default function Home() {
                   {searchResults.map((r, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "18px 20px", borderBottom: "1px solid #E4E7F2", background: r.selected ? "#F0F4FF" : i % 2 === 0 ? "#FFFFFF" : "#FAFBFF" }}>
                       <input type="checkbox" checked={r.selected} onChange={() => toggleResult(i)}
-                        style={{ marginTop: 3, accentColor: "#0891B2", width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />
+                        style={{ marginTop: 3, accentColor: "var(--accent)", width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                           <p style={{ fontWeight: 600, color: "#1A2456", fontSize: 14 }}>{r.name}</p>
                           {r.priority_tier === "early_mover" && (
-                            <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Early Mover</span>
+                            <span style={{ background: "#DCFCE7", color: "var(--success)", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Early Mover</span>
                           )}
                           {r.priority_tier === "follower" && (
                             <span style={{ background: "#FEF9C3", color: "#854D0E", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Follower</span>
@@ -1287,13 +1287,13 @@ export default function Home() {
                             <span style={{ background: "#EDE9FE", color: "#5B21B6", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Enabler</span>
                           )}
                           {r.icp_score != null && (
-                            <span style={{ fontSize: 13, color: r.icp_score >= 4 ? "#15803D" : r.icp_score === 3 ? "#B45309" : "#DC2626", letterSpacing: 1 }}>
+                            <span style={{ fontSize: 13, color: r.icp_score >= 4 ? "var(--success)" : r.icp_score === 3 ? "var(--warning)" : "var(--danger)", letterSpacing: 1 }}>
                               {"★".repeat(r.icp_score)}{"☆".repeat(5 - r.icp_score)}
                             </span>
                           )}
                         </div>
                         <a href={safeHref(r.website_url)} target="_blank" rel="noopener noreferrer"
-                          style={{ color: "#0891B2", fontSize: 12, marginBottom: 6, display: "inline-block" }}>
+                          style={{ color: "var(--accent)", fontSize: 12, marginBottom: 6, display: "inline-block" }}>
                           {r.website_url}
                         </a>
                         <p style={{ fontSize: 13, color: "#4B5563" }}>{r.description}</p>
@@ -1340,7 +1340,7 @@ export default function Home() {
 
             {(addingState === "form" || addingState === "saving") && (
               <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ background: "#0C1C2E", padding: "12px 20px" }}>
+                <div style={{ background: "var(--header)", padding: "12px 20px" }}>
                   <p style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 700 }}>Fill in Details</p>
                   <p style={{ color: "#A0BEFF", fontSize: 14, marginTop: 2 }}>Complete the information before adding to the database.</p>
                 </div>
@@ -1350,7 +1350,7 @@ export default function Home() {
                 {pendingCompanies.map((c, i) => (
                   <div key={i} style={{ padding: "20px", borderBottom: "1px solid #E4E7F2" }}>
                     <p style={{ fontWeight: 700, color: "#1A2456", fontSize: 14, marginBottom: 4 }}>{c.name}</p>
-                    <a href={safeHref(c.website_url)} target="_blank" rel="noopener noreferrer" style={{ color: "#0891B2", fontSize: 12 }}>{c.website_url}</a>
+                    <a href={safeHref(c.website_url)} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 12 }}>{c.website_url}</a>
                     {c.description && (
                       <p style={{ fontSize: 13, color: "#4B5563", marginTop: 8, lineHeight: 1.6 }}>{c.description}</p>
                     )}
@@ -1389,7 +1389,7 @@ export default function Home() {
                         <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
                           {[1, 2, 3, 4, 5].map((star) => (
                             <button key={star} onClick={() => updatePending(i, "icp_fit", star)}
-                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, lineHeight: 1, padding: "0 1px", color: star <= c.icp_fit ? (c.icp_fit >= 4 ? "#15803D" : c.icp_fit === 3 ? "#B45309" : "#DC2626") : "#D1D5DB" }}>
+                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, lineHeight: 1, padding: "0 1px", color: star <= c.icp_fit ? (c.icp_fit >= 4 ? "var(--success)" : c.icp_fit === 3 ? "var(--warning)" : "var(--danger)") : "#D1D5DB" }}>
                               ★
                             </button>
                           ))}
@@ -1414,7 +1414,7 @@ export default function Home() {
                     Cancel
                   </button>
                   <button onClick={handleSave} disabled={addingState === "saving"}
-                    style={{ background: addingState === "saving" ? "#A0AECF" : "#0891B2", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: addingState === "saving" ? "default" : "pointer" }}>
+                    style={{ background: addingState === "saving" ? "#A0AECF" : "var(--accent)", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: addingState === "saving" ? "default" : "pointer" }}>
                     {addingState === "saving" ? "Saving…" : "Confirm & Save →"}
                   </button>
                 </div>
@@ -1431,7 +1431,7 @@ export default function Home() {
                     Search Again
                   </button>
                   <button onClick={() => { setAddingState("idle"); setAgentState("idle"); setTab("database"); }}
-                    style={{ background: "#0C1C2E", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                    style={{ background: "var(--header)", color: "#FFFFFF", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                     Go to Company Database →
                   </button>
                 </div>
@@ -1442,7 +1442,7 @@ export default function Home() {
         {/* ── TAB 3: ICP Criteria ── */}
         {tab === "icp" && (
           <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden", maxWidth: 920, width: "100%", margin: "0 auto" }}>
-            <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Lysoveta ICP Criteria</p>
               <button disabled style={{ background: "none", border: "1px solid rgba(255,255,255,0.3)", color: "rgba(255,255,255,0.5)", padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "not-allowed", borderRadius: 4, letterSpacing: "0.04em" }}>
                 ✎ Edit Criteria
@@ -1544,7 +1544,7 @@ export default function Home() {
             <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 20 }}>Choose how you want to remove this company.</p>
             <div style={{ display: "flex", gap: 14 }}>
               <button type="button" onClick={() => { hideFromView(removeTarget.id); setConfirmRemoveId(null); }} disabled={removing}
-                style={{ flex: 1, textAlign: "left", background: "#FFFFFF", color: "#1A2456", border: "1px solid #CBD5E1", padding: "16px", cursor: removing ? "default" : "pointer" }}>
+                style={{ flex: 1, textAlign: "left", background: "#FFFFFF", color: "#1A2456", border: "1px solid var(--border)", padding: "16px", cursor: removing ? "default" : "pointer" }}>
                 <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Remove from this view only</span>
                 <span style={{ display: "block", fontSize: 12, color: "#6B7280", lineHeight: 1.5 }}>Hides it from the current list and the Excel export. Not deleted — use “Restore hidden” to bring it back.</span>
               </button>
@@ -1556,7 +1556,7 @@ export default function Home() {
             </div>
             <div style={{ marginTop: 20 }}>
               <button type="button" onClick={() => setConfirmRemoveId(null)} disabled={removing}
-                style={{ background: "#F1F5F9", color: "#475569", border: "1px solid #CBD5E1", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: removing ? "default" : "pointer" }}>
+                style={{ background: "var(--surface)", color: "#475569", border: "1px solid var(--border)", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: removing ? "default" : "pointer" }}>
                 Cancel
               </button>
             </div>

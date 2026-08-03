@@ -35,11 +35,11 @@ The palette is defined once as **CSS variables** in `app/globals.css` (`:root`):
 neutrals for everything secondary, and the status colours only for status. Adding more accent
 colours makes it look busy.
 
-> ⚠️ **Honest state:** the variables above are the intended single source of truth, but most of the
-> app still uses the **hard-coded hex values** inline (e.g. `"#0891B2"` written directly in
-> `page.tsx`). So editing a variable alone will **not** recolour the whole app yet. There is an open
-> task to migrate the inline hex values to `var(--name)`. Until then, to change a colour globally,
-> search-and-replace the hex value across `page.tsx` (and update the variable too).
+> **These variables are wired up:** the palette colours are referenced as `var(--name)` throughout
+> `page.tsx`, so **changing a variable's value in `globals.css` recolours the whole app** — one place,
+> no search-and-replace. A few one-off shades (some specific text greys, badge backgrounds, and a
+> couple of lowercase hex values) are still hard-coded; promote them into the palette if you find you
+> need to theme them too.
 
 ## Buttons — the hierarchy
 
@@ -95,8 +95,8 @@ the rounded card.
 
 ## Quick "how do I…" reference
 
-- **Change the accent colour** → update `--accent` in `globals.css` **and** replace `#0891B2` across
-  `page.tsx` (until the hex→variable migration is done).
+- **Change the accent colour** → update `--accent` in `globals.css`. That's it — it recolours every
+  teal element across the app.
 - **Make everything more/less rounded** → change `border-radius` in the `globals.css` button rule and
   the inline `borderRadius: 4` values in `page.tsx`.
 - **Make hover stronger/weaker** → change the `brightness()` value in `globals.css`.
