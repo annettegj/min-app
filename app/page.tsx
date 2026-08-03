@@ -769,7 +769,7 @@ export default function Home() {
                   <p style={{ fontSize: 11, color: "#A0AECF", marginTop: 4 }}>Showing {icpMin}★ and above</p>
                 </div>
 
-                <div style={{ padding: "18px 20px", borderBottom: "1px solid #E4E7F2" }}>
+                <div style={{ padding: "18px 20px", borderRight: "1px solid #E4E7F2", borderBottom: "1px solid #E4E7F2" }}>
                   <label style={labelStyle}>Priority Tier</label>
                   <select value={tier} onChange={(e) => setTier(e.target.value)} style={inputStyle}>
                     {TIERS.map(t => <option key={t}>{t}</option>)}
@@ -779,7 +779,7 @@ export default function Home() {
 
 
                 <div style={{ padding: "18px 20px", borderRight: "1px solid #E4E7F2" }}>
-                  <label style={labelStyle}>Max. Price</label>
+                  <label style={labelStyle}>Price Range</label>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input type="number" placeholder="Min" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} style={inputStyle} />
                     <input type="number" placeholder="Max" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} style={inputStyle} />
@@ -1030,7 +1030,6 @@ export default function Home() {
                 <div style={{ background: "#FFFFFF", border: "1px solid #D0D5E8", borderRadius: 4, overflow: "hidden" }}>
                   <div style={{ background: "#0C1C2E", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <p style={{ color: "#FFFFFF", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
-                    <span style={{ color: "#A0BEFF", fontSize: 11, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>Preview</span>
                   </div>
                   <div style={{ background: "#FFFBEB", borderBottom: "1px solid #FCD34D", padding: "10px 20px" }}>
                     <p style={{ fontSize: 12, color: "#78350F" }}>Search terms now affect the search — choose up to 3 (leave all unchecked to use the defaults). Sources are still fixed in config/sources.json and can’t be changed here yet.</p>
@@ -1080,7 +1079,7 @@ export default function Home() {
                   {/* Step 3 decision — segmented on/off switch in the top-right corner */}
                   <div style={{ position: "absolute", top: 16, right: 20, display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#6B7280" }}>Step 3 decision:</span>
-                    <div style={{ display: "inline-flex", border: "1px solid #C4CAE8" }} title="Locked on Automatic for now">
+                    <div style={{ display: "inline-flex", border: "1px solid #CBD5E1", borderRadius: 4, overflow: "hidden" }} title="Locked on Automatic for now">
                       {([
                         { value: "auto", label: "Automatic" },
                         { value: "manual", label: "Manual" },
@@ -1088,7 +1087,7 @@ export default function Home() {
                         const active = step3Mode === opt.value;
                         return (
                           <button key={opt.value} type="button" disabled
-                            style={{ background: active ? "#0891B2" : "#FFFFFF", color: active ? "#FFFFFF" : "#B0B6CC", border: "none", padding: "6px 16px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", cursor: "not-allowed" }}>
+                            style={{ background: active ? "#0891B2" : "#FFFFFF", color: active ? "#FFFFFF" : "#B0B6CC", border: "none", borderRadius: 0, padding: "6px 16px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", cursor: "not-allowed" }}>
                             {opt.label}
                           </button>
                         );
