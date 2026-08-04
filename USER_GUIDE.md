@@ -148,10 +148,16 @@ window; it's a shared setting that affects the warnings everyone sees.
 
 ### 3. Lysoveta ICP Criteria
 
-Shows the ICP definition the app uses to score companies (read-only for now). There are **two
-profiles** on their own sub-tabs — **European** and **US** — because the ideal customer differs by
-market; each company is scored against the profile that matches its primary market. If you'd like
-changes to the criteria, note them down — editing from the app is planned but not built yet.
+Shows the ICP definition the app uses to score companies. There are **two profiles** on their own
+sub-tabs — **European** and **US** — because the ideal customer differs by market; each company is
+scored against the profile that matches its primary market.
+
+**Editing the criteria.** Click **✎ Edit Criteria** to change the text for the current market. It's
+plain Markdown, and it *is* the exact instruction the AI scores against — so write it clearly. Press
+**Save changes** (shared — it affects everyone's searches from the next run on) or **Cancel**. Every
+save is kept in **Version history**: open it, pick an older version, **Load into editor**, and Save to
+roll back. *(A built-in AI check that reviews your edit, and a test-on-sample-companies preview, are
+planned as the next steps.)*
 
 ## Tips
 

@@ -88,8 +88,10 @@ a **Log out** button + the signed-in email sit top-right. See §10.
    line), a **Target market** selector (Europe / US / No preference — a *soft* discovery steer, not a
    hard filter), a queue pop-up when ≥ 5 companies are waiting, and a **Step 3 decision** switch
    (currently **locked on Automatic**).
-3. **Lysoveta ICP Criteria** — renders the ICP read-only, on **two sub-tabs**: **European**
-   (`config/icp.md`) and **US** (`config/icp_us.md`). The "Edit" button is a disabled placeholder.
+3. **Lysoveta ICP Criteria** — the ICP the AI scores against, on **two sub-tabs**: **European** and
+   **US**. **Editable** (✎ Edit Criteria → free-form Markdown textarea → Save) — stored in the
+   `icp_docs` table, with a version snapshot on every save (Version history → "Load into editor" to
+   revert). Falls back to `config/icp.md` / `config/icp_us.md` until first edited.
 4. **How It Works** — an in-app help guide (left-hand section menu) covering the pipeline, waiting
    list, scoring, source stats, signing in, and exception states in plain language.
 
@@ -157,12 +159,18 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - **`app_settings`** — shared key/value settings (migration 013). Currently holds the source-warning
   thresholds `source_warn_threshold_pct` (default `1`) and `source_warn_min_uses` (default `5`),
   edited from the **Source performance** modal.
+- **`icp_docs`** — the editable ICP text per market (`market` `eu`/`us`, `content`), migration 014.
+  Read by `getIcpDocs` (worker) and the ICP tab; empty → falls back to `config/icp*.md`.
+- **`icp_doc_versions`** — a snapshot of the ICP `content` on every save (`market`, `content`,
+  `saved_by`, `created_at`) for the version-history / revert feature.
 
 > **Migration notes:**
 > - `results` column on `search_jobs` (automatic Step 3): `alter table search_jobs add column results jsonb;`
 > - Source stats (migration 012): `times_used` / `companies_found` on `sources`, `source_name` on
 >   `companies`. Forward-looking — counters start at 0 and accumulate from the next search.
 > - Source warning (migration 013): `app_settings` table with the editable hit-rate thresholds.
+> - Editable ICP (migration 014): `icp_docs` + `icp_doc_versions` tables. Empty is fine — the config
+>   files remain the fallback until someone edits the ICP from the app.
 
 ## 7. Key files
 
@@ -187,12 +195,13 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - `config/sources.json` — now a **fallback** for the two tables (used if the DB read fails), plus
   `enrichment_model` (still read from here). `keyword_bank` was the old term pool, superseded by the
   `search_terms` table.
-- `config/icp.md` — the **European** ICP definition (price threshold is currency-agnostic: ~60 in own currency).
-- `config/icp_us.md` — the **US** ICP. Placeholder until real criteria are pasted in; Step 3 routes US companies to it by geography once it's real (see SEARCH_PIPELINE.md → Step 3).
+- `config/icp.md` — the **European** ICP definition (price threshold is currency-agnostic: ~60 in own currency). Now the **seed/fallback**: the live ICP is the `icp_docs` table, editable from the ICP tab.
+- `config/icp_us.md` — the **US** ICP. Placeholder until real criteria are entered (in the app or here); Step 3 routes US companies to it by geography once it's real (see SEARCH_PIPELINE.md → Step 3). Also a fallback for the `icp_docs` `us` row.
 - `config/mock-results.json` — demo data (only used if `DEMO_MODE = true` in `page.tsx`).
 - `db/migrations/*.sql` — DB schema + seed (001 = sources/search_terms tables; 002+ = added sources;
   008 = source `market` tags; 011 = `app_users` login; 012 = source performance counters +
-  `companies.source_name`; 013 = `app_settings` for the source-warning thresholds).
+  `companies.source_name`; 013 = `app_settings` for the source-warning thresholds; 014 = `icp_docs`
+  + `icp_doc_versions` for the editable ICP).
 - [SOURCES.md](SOURCES.md) — running log of every source evaluated for discovery: works / held / rejected, and why.
 
 ## 8. Running locally
@@ -242,7 +251,9 @@ Open http://localhost:3000. You need a `.env.local` with the Supabase vars + `AN
 
 1. **US expansion** — add US companies/sources (vs. today's European focus).
 2. **Company Prospectus** — the disabled "Soon" tab.
-3. **Editable ICP tab** — the "Edit" button is a placeholder.
+3. **Editable ICP tab** — ✅ step 1 done (free-form editing + version history, `icp_docs`). Planned
+   next: an **advisory AI check** on save (does the text read as clear scoring instructions?) and a
+   **test-on-sample-companies** preview — both agreed, not yet built.
    - ✅ *Done:* source & term selection wired to the search; editable sources/terms (DB-backed,
      from the UI — draft edit mode with a single **Save changes** that diffs & applies); editable
      company database (edit fields + soft/hard delete); `web_fetch` for "web page" sources

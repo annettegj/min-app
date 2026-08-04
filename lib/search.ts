@@ -659,11 +659,33 @@ async function enrichAll(
 // ---- Step 3: prompt builder ----
 // Builds the manual evaluation prompt — no API call. User pastes this into Claude Chat.
 
-export function buildStep3Prompt(companies: EnrichedCompany[]): string {
+// Reads the ICP documents from the DB (UI-editable, migration 014), falling back to the config files
+// per market when the DB has no row for that market — so behaviour is unchanged until someone edits
+// from the app, and a DB hiccup never blocks Step 3.
+export async function getIcpDocs(supabase: SupabaseClient): Promise<{ eu: string; us: string }> {
   const dir = path.join(process.cwd(), "config");
-  const icpEu = fs.readFileSync(path.join(dir, "icp.md"), "utf-8");
-  let icpUs = "";
-  try { icpUs = fs.readFileSync(path.join(dir, "icp_us.md"), "utf-8"); } catch { /* optional */ }
+  const readFile = (name: string) => {
+    try { return fs.readFileSync(path.join(dir, name), "utf-8"); } catch { return ""; }
+  };
+  const fileEu = readFile("icp.md");
+  const fileUs = readFile("icp_us.md");
+  try {
+    const { data, error } = await supabase.from("icp_docs").select("market, content");
+    if (error) throw error;
+    const map = new Map((data ?? []).map((r: { market: string; content: string }) => [r.market, r.content]));
+    const dbEu = (map.get("eu") ?? "").trim();
+    const dbUs = (map.get("us") ?? "").trim();
+    if (dbEu || dbUs) emit(`[search] ICP: loaded from DB (${dbEu ? "eu" : "eu=file"}, ${dbUs ? "us" : "us=file"})`);
+    return { eu: dbEu ? map.get("eu")! : fileEu, us: dbUs ? map.get("us")! : fileUs };
+  } catch (err) {
+    emit(`[search] ICP: DB read failed — using config files (${err instanceof Error ? err.message : String(err)})`);
+    return { eu: fileEu, us: fileUs };
+  }
+}
+
+export function buildStep3Prompt(companies: EnrichedCompany[], icp: { eu: string; us: string }): string {
+  const icpEu = icp.eu;
+  const icpUs = icp.us;
   // The US ICP is used only once real content replaces the placeholder — until then, everything is
   // scored against the European ICP (unchanged behaviour), so US companies are never mis-scored
   // against a placeholder.
@@ -728,7 +750,8 @@ Return ONLY a raw JSON array, no markdown. For each company include:
 
 async function evaluateCompanies(
   client: Anthropic,
-  companies: EnrichedCompany[]
+  companies: EnrichedCompany[],
+  icp: { eu: string; us: string }
 ): Promise<EvaluatedCompany[] | null> {
   emit(`[search] Step 3: evaluating ${companies.length} companies against the ICP...`);
   try {
@@ -736,7 +759,7 @@ async function evaluateCompanies(
       {
         model: "claude-sonnet-5",
         max_tokens: 16000,
-        messages: [{ role: "user", content: buildStep3Prompt(companies) }],
+        messages: [{ role: "user", content: buildStep3Prompt(companies, icp) }],
       },
       { signal: activeSignal ?? undefined }
     );
@@ -1035,9 +1058,13 @@ export async function searchForCompanies(
   const failed = toEnrich.length - enriched.length;
   emit(`[search] ===== Steps 1-2 done: ${enriched.length} enriched, ${failed} failed =====`);
 
+  // Load the ICP once (DB-editable, falls back to the config files) and reuse it for both the
+  // manual-paste prompt and the automatic evaluation below.
+  const icp = await getIcpDocs(supabase);
+
   // Build the manual-paste prompt regardless — it doubles as the fallback if automatic Step 3
   // evaluation fails, so a finished (expensive) job is never lost.
-  const step3Prompt = buildStep3Prompt(enriched);
+  const step3Prompt = buildStep3Prompt(enriched, icp);
 
   // Step 3: ICP matching. In "auto" mode we run it here via the Anthropic API. In "manual" mode we
   // skip it and the user pastes the prompt into Claude Chat, exactly as before. Runs BEFORE
@@ -1045,7 +1072,7 @@ export async function searchForCompanies(
   let results: EvaluatedCompany[] | undefined;
   if (step3Mode === "auto" && enriched.length > 0) {
     await reportProgress(`Evaluating ${enriched.length} companies against the ICP…`);
-    const evaluated = await evaluateCompanies(client, enriched);
+    const evaluated = await evaluateCompanies(client, enriched, icp);
     if (evaluated) {
       results = evaluated;
       // Companies enriched in Step 2 but NOT returned by Step 3 are rejected (this mirrors the

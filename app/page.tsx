@@ -174,6 +174,14 @@ export default function Home() {
   const [aboutSection, setAboutSection] = useState("overview");
   const [icpDocs, setIcpDocs] = useState<{ eu: string; us: string } | null>(null);
   const [icpRegion, setIcpRegion] = useState<"eu" | "us">("eu");
+  // ICP editing (stored in the DB; falls back to config files). Free-form Markdown per market, with
+  // a version snapshot on every save so edits can be reverted.
+  const [icpEditMode, setIcpEditMode] = useState(false);
+  const [icpDraft, setIcpDraft] = useState("");
+  const [icpSaving, setIcpSaving] = useState(false);
+  const [icpError, setIcpError] = useState("");
+  const [icpHistoryOpen, setIcpHistoryOpen] = useState(false);
+  const [icpVersions, setIcpVersions] = useState<{ id: number; content: string; saved_by: string | null; created_at: string }[]>([]);
 
   // --- Database tab state ---
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -476,6 +484,46 @@ export default function Home() {
     setClearingQueue(false);
   }
 
+  // --- ICP documents (DB-editable, fall back to config files) ---
+  async function loadIcp() {
+    const [fileDocs, dbRes] = await Promise.all([
+      fetch("/api/icp").then(r => r.json()).catch(() => ({ eu: "", us: "" })),
+      supabase.from("icp_docs").select("market, content"),
+    ]);
+    const dbMap = new Map((dbRes.data ?? []).map((r: { market: string; content: string }) => [r.market, r.content]));
+    const pick = (m: "eu" | "us") => {
+      const db = ((dbMap.get(m) as string) ?? "").trim();
+      return db ? (dbMap.get(m) as string) : (fileDocs[m] ?? fileDocs.content ?? "");
+    };
+    setIcpDocs({ eu: pick("eu"), us: pick("us") });
+  }
+  function enterIcpEdit() {
+    setIcpDraft(icpDocs?.[icpRegion] ?? "");
+    setIcpError(""); setIcpHistoryOpen(false); setIcpEditMode(true);
+  }
+  function cancelIcpEdit() { setIcpEditMode(false); setIcpError(""); setIcpHistoryOpen(false); }
+  async function saveIcp() {
+    if (!icpDraft.trim()) { setIcpError("The ICP text can't be empty."); return; }
+    setIcpSaving(true);
+    const { error } = await supabase.from("icp_docs").upsert(
+      { market: icpRegion, content: icpDraft, updated_at: new Date().toISOString() }, { onConflict: "market" });
+    if (error) { setIcpError("Could not save: " + error.message); setIcpSaving(false); return; }
+    // Snapshot this version so it can be reverted later (best-effort — a failed snapshot doesn't block the save).
+    await supabase.from("icp_doc_versions").insert({ market: icpRegion, content: icpDraft, saved_by: authEmail ?? null });
+    await loadIcp();
+    setIcpSaving(false); setIcpEditMode(false); setIcpHistoryOpen(false);
+  }
+  async function toggleIcpHistory() {
+    const next = !icpHistoryOpen;
+    setIcpHistoryOpen(next);
+    if (next) {
+      const { data } = await supabase.from("icp_doc_versions")
+        .select("id, content, saved_by, created_at").eq("market", icpRegion)
+        .order("created_at", { ascending: false }).limit(30);
+      setIcpVersions((data ?? []) as { id: number; content: string; saved_by: string | null; created_at: string }[]);
+    }
+  }
+
   // --- Source-performance settings (shared thresholds in app_settings) ---
   async function loadSettings() {
     const { data } = await supabase.from("app_settings").select("key, value");
@@ -524,7 +572,7 @@ export default function Home() {
 
   useEffect(() => {
     loadCompanies();
-    fetch("/api/icp").then(r => r.json()).then(d => setIcpDocs({ eu: d.eu ?? d.content ?? "", us: d.us ?? "" }));
+    loadIcp();
     loadSearchConfig();
     loadPendingCount();
     loadSettings();
@@ -1950,14 +1998,18 @@ export default function Home() {
           <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 920, width: "100%", margin: "0 auto" }}>
             <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Lysoveta ICP Criteria</p>
-              <button disabled style={{ background: "none", border: "1px solid rgba(255,255,255,0.3)", color: "rgba(255,255,255,0.5)", padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor: "not-allowed", borderRadius: 4, letterSpacing: "0.04em" }}>
-                ✎ Edit Criteria
-              </button>
+              {!icpEditMode && (
+                <button type="button" onClick={enterIcpEdit}
+                  style={{ background: "var(--accent)", border: "none", color: "var(--white)", padding: "5px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", borderRadius: 4, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                  ✎ Edit Criteria
+                </button>
+              )}
             </div>
             <div style={{ display: "flex", gap: 4, padding: "10px 20px", borderBottom: "1px solid var(--border-light)", background: "var(--surface-tint)" }}>
               {([{ key: "eu", label: "European ICP" }, { key: "us", label: "US ICP" }] as const).map(r => (
-                <button key={r.key} type="button" onClick={() => setIcpRegion(r.key)}
-                  style={{ padding: "7px 16px", borderRadius: 4, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
+                <button key={r.key} type="button" disabled={icpEditMode} onClick={() => setIcpRegion(r.key)}
+                  style={{ padding: "7px 16px", borderRadius: 4, border: "none", cursor: icpEditMode ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
+                    opacity: icpEditMode && icpRegion !== r.key ? 0.4 : 1,
                     background: icpRegion === r.key ? "var(--accent)" : "transparent",
                     color: icpRegion === r.key ? "var(--white)" : "var(--text-slate)" }}>
                   {r.label}
@@ -1971,7 +2023,45 @@ export default function Home() {
                   : "The US Ideal Customer Profile. Once it holds real criteria (not the placeholder), Step 3 automatically scores companies whose primary market is the United States against it instead of the European ICP."}
               </p>
             </div>
-            <div style={{ padding: "32px 48px", maxWidth: 820 }}>
+            {icpEditMode && (
+              <div style={{ padding: "24px 40px" }}>
+                <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 12 }}>
+                  Editing the <strong>{icpRegion === "eu" ? "European" : "US"}</strong> ICP. This text is the exact criteria the AI uses to score companies in Step 3 — write it as clear instructions (Markdown: <code>##</code> headings, <code>-</code> bullets, and <code>|</code> tables all render). Changes are shared and take effect on the next search. Every save is snapshotted so you can revert.
+                </p>
+                <textarea value={icpDraft} onChange={e => setIcpDraft(e.target.value)} spellCheck={false}
+                  style={{ width: "100%", minHeight: 460, padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13.5, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", lineHeight: 1.6, color: "var(--text)", resize: "vertical" }} />
+                {icpError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 8 }}>{icpError}</p>}
+                <div style={{ display: "flex", gap: 10, marginTop: 14, alignItems: "center" }}>
+                  <button type="button" onClick={saveIcp} disabled={icpSaving}
+                    style={{ ...btnPrimary, padding: "9px 24px", opacity: icpSaving ? 0.6 : 1 }}>{icpSaving ? "Saving…" : "Save changes"}</button>
+                  <button type="button" onClick={cancelIcpEdit} disabled={icpSaving}
+                    style={{ ...btnSecondary, padding: "9px 22px" }}>Cancel</button>
+                  <button type="button" onClick={toggleIcpHistory}
+                    style={{ background: "transparent", border: "none", color: "var(--accent)", fontSize: 13, fontWeight: 700, cursor: "pointer", marginLeft: "auto" }}>
+                    {icpHistoryOpen ? "Hide version history" : "Version history"}
+                  </button>
+                </div>
+                {icpHistoryOpen && (
+                  <div style={{ marginTop: 14, border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
+                    {icpVersions.length === 0 ? (
+                      <p style={{ fontSize: 12.5, color: "var(--text-muted)", padding: "12px 16px" }}>No saved versions yet — the first save you make will appear here.</p>
+                    ) : icpVersions.map(v => (
+                      <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 16px", borderBottom: "1px solid var(--border-card)" }}>
+                        <span style={{ fontSize: 12.5, color: "var(--text)" }}>
+                          {new Date(v.created_at).toLocaleString()}{v.saved_by ? ` · ${v.saved_by}` : ""}
+                        </span>
+                        <button type="button" onClick={() => { setIcpDraft(v.content); setIcpHistoryOpen(false); }}
+                          style={{ ...btnSecondary, padding: "5px 14px", fontSize: 12 }}>Load into editor</button>
+                      </div>
+                    ))}
+                    {icpVersions.length > 0 && (
+                      <p style={{ fontSize: 11.5, color: "var(--text-muted)", padding: "9px 16px" }}>“Load into editor” fills the box with that version — review it, then <strong>Save changes</strong> to make it current.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <div style={{ padding: "32px 48px", maxWidth: 820, display: icpEditMode ? "none" : "block" }}>
               {!icpDocs ? (
                 <p style={{ color: "var(--text-faint)", fontSize: 14 }}>Loading…</p>
               ) : (() => {
@@ -2122,6 +2212,7 @@ export default function Home() {
                 <p style={ps}>After a company is researched, the AI scores it against the <strong>Lysoveta ICP Criteria</strong> (see that tab). It assigns an ICP fit score and a priority tier (Early Mover, Follower, or Enabler).</p>
                 <p style={ps}>There are separate profiles for <strong>Europe</strong> and the <strong>US</strong> (both on the ICP Criteria tab). Each company is scored against the profile that matches its primary market.</p>
                 <p style={ps}>Only companies that <strong>pass</strong> the ICP are shown for you to save. The rest are set aside — kept internally so they aren&apos;t re-discovered in future searches.</p>
+                <p style={ps}>The ICP itself is <strong>editable</strong> — on the <strong>Lysoveta ICP Criteria</strong> tab, click <strong>✎ Edit Criteria</strong> to adjust the text for either market. Changes are shared, take effect on the next search, and every save is kept in <strong>Version history</strong> so you can roll back.</p>
               </>
             ) },
             { key: "exceptions", label: "When something goes wrong", content: (

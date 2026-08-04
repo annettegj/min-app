@@ -216,8 +216,12 @@ source with a **hit rate = `companies_found` ÷ `times_used`** (rendered as a %)
 - **Prompt** (`buildStep3Prompt`) embeds the ICP document(s) + the enriched JSON, and asks the model to
   apply hard exclusions, compute an ICP fit score, assign a priority tier, and write a short
   justification.
-- **Per-geography ICP:** `config/icp.md` is the **European** ICP; `config/icp_us.md` is the **US**
-  ICP. When `icp_us.md` holds real criteria (not the `US_ICP_PLACEHOLDER`), the prompt includes both
+- **Where the ICP comes from:** `getIcpDocs(supabase)` reads the ICP per market from the **`icp_docs`
+  table** (UI-editable — see the ICP Criteria tab), falling back to `config/icp.md` / `config/icp_us.md`
+  when a market has no DB row. So the config files are the seed/fallback; edits made in the app are the
+  live source. `buildStep3Prompt(companies, icp)` takes the resolved text (no longer reads files itself).
+- **Per-geography ICP:** the **European** ICP (`eu`) and the **US** ICP (`us`). When the US ICP holds
+  real criteria (not the `US_ICP_PLACEHOLDER`), the prompt includes both
   and instructs the model to score each company against the ICP matching its primary market (US → US
   ICP, otherwise European). While the placeholder is in place, everything uses the European ICP —
   so US companies are never scored against a placeholder, and routing turns on automatically once
