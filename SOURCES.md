@@ -42,6 +42,7 @@ and that anyone can see the reasoning behind the current source list.
 | mindbodygreen — Best Omega-3 / Memory / Nootropics | Single page (×3) | 🧪 Trial (2026-08) | Editorial "best of" round-ups (multi-brand, static). Added via migration 004. US-leaning; ICP filters. Omega-3 list includes a krill brand (Kori). |
 | Well+Good, Everyday Health, Prevention, Verywell Health | Website (×4) | 🧪 Trial (2026-08) | US consumer health media that publish supplement brand round-ups. Added via migration 005. Domain-scoped search; ICP filters to European brands. |
 | YouTube — Supplement Reviews | YouTube | 🧪 Trial (2026-08) | Searches YouTube for the terms, extracts brands from video titles/descriptions. Added via migration 006. Experimental — noisier, US/English-leaning. Needs `YOUTUBE_API_KEY` on Render (skipped if unset). |
+| TikTok Shop | Website | 🧪 Trial (2026-08) | Domain-scoped search (`shop.tiktok.com`). Added via migration 007. Category-relevant brands surface (e.g. Simply Nootropics / NMN / longevity); US + mass-market skew, ICP filters. No VPN needed (search index is global). |
 
 ## Evaluated — Events & trade shows (from Viola's list, tested 2026-08)
 
@@ -92,7 +93,8 @@ genuine new *company* source stood out: SupplySide Supplement Journal (trade med
 | **Examine / NIH Office of Dietary Supplements** | ❌ Not a source | Ingredient/evidence references only — no company names to extract. |
 | **ConsumerLab / Consumer Reports** | ❌ Paywalled | Brand testing behind subscription; not readable. |
 | **Google Trends / Spate / Glimpse** | ⛔ Trend platforms | Paid/JS dashboards, no company list. Inspiration for search terms only (Google Trends excluded per request). |
-| **TikTok / Instagram / YouTube** | ⛔ Excluded (for now) | Social signal, not validated company data. |
+| **TikTok Shop** | ✅ Added — Website (migration 007) | The catch: search *about* TikTok Shop returns mass-market beauty/gummy brands, but a search **scoped to the `shop.tiktok.com` domain** returns real Shop listings incl. category-relevant nootropic/longevity brands (Simply Nootropics, etc.). No VPN needed — the search index is global. US/mass-market skew; ICP filters. |
+| **Instagram / general TikTok / YouTube channels** | ⛔ Not pursued (YouTube has its own type) | Social feeds are signal, not validated company data. YouTube is covered via the dedicated `youtube` source type; Instagram not pursued. |
 
 ## If trade shows underperform
 
