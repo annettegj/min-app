@@ -182,6 +182,9 @@ export default function Home() {
   const [icpError, setIcpError] = useState("");
   const [icpHistoryOpen, setIcpHistoryOpen] = useState(false);
   const [icpVersions, setIcpVersions] = useState<{ id: number; content: string; saved_by: string | null; created_at: string }[]>([]);
+  // Advisory AI review of an edit before it's saved (never blocks — user can save anyway).
+  const [icpChecking, setIcpChecking] = useState(false);
+  const [icpCheck, setIcpCheck] = useState<{ ok: boolean | null; summary: string; issues: { severity: string; text: string }[]; error?: string } | null>(null);
 
   // --- Database tab state ---
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -499,10 +502,37 @@ export default function Home() {
   }
   function enterIcpEdit() {
     setIcpDraft(icpDocs?.[icpRegion] ?? "");
-    setIcpError(""); setIcpHistoryOpen(false); setIcpEditMode(true);
+    setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpEditMode(true);
   }
-  function cancelIcpEdit() { setIcpEditMode(false); setIcpError(""); setIcpHistoryOpen(false); }
-  async function saveIcp() {
+  function cancelIcpEdit() { setIcpEditMode(false); setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); }
+
+  // Save flow: run an advisory AI review first. If it comes back clean, save straight away; if it
+  // finds issues (or can't run), show them and let the user save anyway or keep editing.
+  async function reviewIcp() {
+    if (!icpDraft.trim()) { setIcpError("The ICP text can't be empty."); return; }
+    setIcpError(""); setIcpCheck(null); setIcpChecking(true);
+    try {
+      const workerBase = process.env.NEXT_PUBLIC_WORKER_URL ?? "";
+      const res = await fetch(`${workerBase}/api/icp/check`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: icpDraft, market: icpRegion }),
+      });
+      const data = await res.json();
+      const issues = Array.isArray(data.issues) ? data.issues : [];
+      if (data.ok === true && issues.length === 0) {
+        // Clean — save without an extra confirmation step.
+        await commitIcp();
+      } else {
+        setIcpCheck({ ok: data.ok ?? null, summary: data.summary ?? "", issues, error: data.error });
+      }
+    } catch (err) {
+      // Review couldn't run — advisory only, so let the user decide to save anyway.
+      setIcpCheck({ ok: null, summary: "", issues: [], error: err instanceof Error ? err.message : "Review failed." });
+    } finally {
+      setIcpChecking(false);
+    }
+  }
+  async function commitIcp() {
     if (!icpDraft.trim()) { setIcpError("The ICP text can't be empty."); return; }
     setIcpSaving(true);
     const { error } = await supabase.from("icp_docs").upsert(
@@ -511,7 +541,7 @@ export default function Home() {
     // Snapshot this version so it can be reverted later (best-effort — a failed snapshot doesn't block the save).
     await supabase.from("icp_doc_versions").insert({ market: icpRegion, content: icpDraft, saved_by: authEmail ?? null });
     await loadIcp();
-    setIcpSaving(false); setIcpEditMode(false); setIcpHistoryOpen(false);
+    setIcpSaving(false); setIcpEditMode(false); setIcpHistoryOpen(false); setIcpCheck(null);
   }
   async function toggleIcpHistory() {
     const next = !icpHistoryOpen;
@@ -2032,15 +2062,47 @@ export default function Home() {
                   style={{ width: "100%", minHeight: 460, padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13.5, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", lineHeight: 1.6, color: "var(--text)", resize: "vertical" }} />
                 {icpError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 8 }}>{icpError}</p>}
                 <div style={{ display: "flex", gap: 10, marginTop: 14, alignItems: "center" }}>
-                  <button type="button" onClick={saveIcp} disabled={icpSaving}
-                    style={{ ...btnPrimary, padding: "9px 24px", opacity: icpSaving ? 0.6 : 1 }}>{icpSaving ? "Saving…" : "Save changes"}</button>
-                  <button type="button" onClick={cancelIcpEdit} disabled={icpSaving}
+                  <button type="button" onClick={reviewIcp} disabled={icpSaving || icpChecking}
+                    style={{ ...btnPrimary, padding: "9px 24px", opacity: (icpSaving || icpChecking) ? 0.6 : 1 }}>{icpChecking ? "Reviewing…" : icpSaving ? "Saving…" : "Save changes"}</button>
+                  <button type="button" onClick={cancelIcpEdit} disabled={icpSaving || icpChecking}
                     style={{ ...btnSecondary, padding: "9px 22px" }}>Cancel</button>
-                  <button type="button" onClick={toggleIcpHistory}
+                  <button type="button" onClick={toggleIcpHistory} disabled={icpChecking}
                     style={{ background: "transparent", border: "none", color: "var(--accent)", fontSize: 13, fontWeight: 700, cursor: "pointer", marginLeft: "auto" }}>
                     {icpHistoryOpen ? "Hide version history" : "Version history"}
                   </button>
                 </div>
+
+                {/* Advisory AI review — shown when the check found issues or couldn't run. Never blocks saving. */}
+                {icpCheck && (
+                  <div style={{ marginTop: 14, border: "1px solid var(--border-card)", borderRadius: 4, borderLeft: `3px solid ${icpCheck.issues.some(i => i.severity === "critical") ? "var(--danger-text)" : "var(--accent)"}`, padding: "14px 16px", background: "var(--surface)" }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>
+                      {icpCheck.ok === null ? "Couldn’t run the AI review" : icpCheck.issues.some(i => i.severity === "critical") ? "The AI review found some gaps" : "The AI review has a few suggestions"}
+                    </p>
+                    {icpCheck.error ? (
+                      <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 10 }}>The review couldn’t run ({icpCheck.error}). This is only an advisory check — you can still save.</p>
+                    ) : (
+                      <>
+                        {icpCheck.summary && <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6, marginBottom: 8 }}>{icpCheck.summary}</p>}
+                        {icpCheck.issues.length > 0 && (
+                          <ul style={{ margin: "0 0 10px", paddingLeft: 18 }}>
+                            {icpCheck.issues.map((iss, idx) => (
+                              <li key={idx} style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.55, marginBottom: 4 }}>
+                                <strong style={{ color: iss.severity === "critical" ? "var(--danger-text)" : "var(--navy-mid)" }}>{iss.severity === "critical" ? "Critical: " : "Suggestion: "}</strong>{iss.text}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>This is advice, not a gate — you can save as-is, or keep editing and address the points above.</p>
+                      </>
+                    )}
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button type="button" onClick={commitIcp} disabled={icpSaving}
+                        style={{ ...btnPrimary, padding: "8px 20px", opacity: icpSaving ? 0.6 : 1 }}>{icpSaving ? "Saving…" : "Save anyway"}</button>
+                      <button type="button" onClick={() => setIcpCheck(null)} disabled={icpSaving}
+                        style={{ ...btnSecondary, padding: "8px 20px" }}>Keep editing</button>
+                    </div>
+                  </div>
+                )}
                 {icpHistoryOpen && (
                   <div style={{ marginTop: 14, border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                     {icpVersions.length === 0 ? (
@@ -2212,7 +2274,7 @@ export default function Home() {
                 <p style={ps}>After a company is researched, the AI scores it against the <strong>Lysoveta ICP Criteria</strong> (see that tab). It assigns an ICP fit score and a priority tier (Early Mover, Follower, or Enabler).</p>
                 <p style={ps}>There are separate profiles for <strong>Europe</strong> and the <strong>US</strong> (both on the ICP Criteria tab). Each company is scored against the profile that matches its primary market.</p>
                 <p style={ps}>Only companies that <strong>pass</strong> the ICP are shown for you to save. The rest are set aside — kept internally so they aren&apos;t re-discovered in future searches.</p>
-                <p style={ps}>The ICP itself is <strong>editable</strong> — on the <strong>Lysoveta ICP Criteria</strong> tab, click <strong>✎ Edit Criteria</strong> to adjust the text for either market. Changes are shared, take effect on the next search, and every save is kept in <strong>Version history</strong> so you can roll back.</p>
+                <p style={ps}>The ICP itself is <strong>editable</strong> — on the <strong>Lysoveta ICP Criteria</strong> tab, click <strong>✎ Edit Criteria</strong> to adjust the text for either market. When you save, an <strong>AI review</strong> checks that your text still reads as clear scoring instructions and flags any gaps (advice only — you can save anyway). Changes are shared, take effect on the next search, and every save is kept in <strong>Version history</strong> so you can roll back.</p>
               </>
             ) },
             { key: "exceptions", label: "When something goes wrong", content: (

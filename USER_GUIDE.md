@@ -156,8 +156,13 @@ scored against the profile that matches its primary market.
 plain Markdown, and it *is* the exact instruction the AI scores against — so write it clearly. Press
 **Save changes** (shared — it affects everyone's searches from the next run on) or **Cancel**. Every
 save is kept in **Version history**: open it, pick an older version, **Load into editor**, and Save to
-roll back. *(A built-in AI check that reviews your edit, and a test-on-sample-companies preview, are
-planned as the next steps.)*
+roll back.
+
+When you press **Save changes**, an **AI review** first reads your text and checks it works as clear
+scoring instructions (target market, tiers, a scoring method, exclusions, no contradictions). If it's
+clean it saves straight away; if it spots gaps it lists them — but this is **advice, not a gate**, so
+you can **Save anyway** or **Keep editing**. *(A test-on-sample-companies preview is the planned next
+step.)*
 
 ## Tips
 
