@@ -64,7 +64,8 @@ incrementally along the way are kept even if the run is aborted.
   none, the worker uses the default terms / all active sources. `config/sources.json` is the
   fallback if the DB read fails.
 - Only **"web site"** sources produce queries here. **"web page"** sources are read once via
-  `web_fetch` (`discoverViaFetch`, below) and do **not** consume the 12-search budget.
+  `web_fetch` (`discoverViaFetch`), and **"youtube"** sources go through the YouTube Data API
+  (`discoverViaYouTube`) — neither consumes the 12-search web budget.
 
 ### The page-fetch path (`discoverViaFetch`)
 
@@ -79,7 +80,22 @@ the dedup + `discovery_queue` upsert downstream treats them identically.
   an error block and is skipped — the run continues with the other pages.
 - **Exhaustion:** a fixed page yields the same names every run, so after the first harvest the dedup
   step drops them all as already-known. Deactivate or delete a page source once it's been mined.
-- If **only** page sources are selected for a run, the `web_search` path is skipped entirely.
+- If the run has **no website sources** selected (only page and/or YouTube), the `web_search` path
+  is skipped entirely.
+
+### The YouTube path (`discoverViaYouTube`)
+
+For **"youtube"** sources, `discoverCompanies` calls `discoverViaYouTube`. For each selected search
+term it runs a YouTube **`search.list`** (biased toward European/English content via `regionCode=GB`
+/ `relevanceLanguage=en`, optionally prefixed by the source's `search_prefix`), collects the top
+videos, then one **`videos.list`** call pulls their full titles + descriptions. That text goes to
+`claude-sonnet-5`, which extracts finished-brand company names in the same `{ name, source_name }`
+shape — merged in with the other paths.
+
+- **Key:** server-only `YOUTUBE_API_KEY` (Render). If unset, YouTube sources are skipped with a log line.
+- **Quota:** `search.list` costs 100 units, `videos.list` 1 — the free 10,000/day budget is ample.
+- **Character:** experimental and noisier than trade media, US/English-leaning — treat as a
+  complementary source; the ICP step filters downstream.
 - **Avoids duplicates two ways:**
   1. Known company names (from `companies` + `discovery_queue`) are passed into the prompt so the
      model only returns companies we don't already have.

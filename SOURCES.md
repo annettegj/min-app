@@ -8,7 +8,8 @@ and that anyone can see the reasoning behind the current source list.
   (Search Configuration → Edit). See [USER_GUIDE.md](USER_GUIDE.md#managing-search-terms--sources).
 - How sources are used in the pipeline: [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md).
 - Source types: **Website** = searched repeatedly via `web_search`; **Single page** = read once via
-  `web_fetch`.
+  `web_fetch`; **YouTube** = searches YouTube (Data API v3) for the terms and extracts brands from
+  video titles/descriptions (needs `YOUTUBE_API_KEY` on the server).
 
 ## The two levers that decide if a source works
 
@@ -40,6 +41,7 @@ and that anyone can see the reasoning behind the current source list.
 | SupplySide Supplement Journal | Website | 🧪 Trial (2026-08) | Trade media, names companies (incl. European launches). Added via migration 004. |
 | mindbodygreen — Best Omega-3 / Memory / Nootropics | Single page (×3) | 🧪 Trial (2026-08) | Editorial "best of" round-ups (multi-brand, static). Added via migration 004. US-leaning; ICP filters. Omega-3 list includes a krill brand (Kori). |
 | Well+Good, Everyday Health, Prevention, Verywell Health | Website (×4) | 🧪 Trial (2026-08) | US consumer health media that publish supplement brand round-ups. Added via migration 005. Domain-scoped search; ICP filters to European brands. |
+| YouTube — Supplement Reviews | YouTube | 🧪 Trial (2026-08) | Searches YouTube for the terms, extracts brands from video titles/descriptions. Added via migration 006. Experimental — noisier, US/English-leaning. Needs `YOUTUBE_API_KEY` on Render (skipped if unset). |
 
 ## Evaluated — Events & trade shows (from Viola's list, tested 2026-08)
 

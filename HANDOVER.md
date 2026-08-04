@@ -54,6 +54,9 @@ on serverless functions.
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `ANTHROPIC_API_KEY` — **only lives here**, never exposed to the browser
+- `YOUTUBE_API_KEY` — optional; enables `youtube` sources (YouTube Data API v3). Server-only, like
+  the Anthropic key. If unset, YouTube sources are simply skipped. Restrict the key to *YouTube Data
+  API v3* in Google Cloud; the API is free/quota-capped so a leak burns quota, not money.
 - `ALLOWED_ORIGIN` — optional; pins CORS to the Vercel origin. Defaults to `"*"` if unset. **If you
   rename the Vercel URL and this is pinned to the old one, update it.**
 

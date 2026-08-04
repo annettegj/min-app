@@ -119,6 +119,13 @@
       "url": "https://www.verywellhealth.com",
       "search_prefix": "verywellhealth.com best supplements",
       "note": "US medically-reviewed consumer health media — some supplement 'best of' reviews. Extract finished-brand supplement companies; the ICP filters to European brands."
+    },
+    {
+      "type": "youtube",
+      "name": "YouTube — Supplement Reviews",
+      "url": "",
+      "search_prefix": "supplement review",
+      "note": "Searches YouTube (Data API v3) for the selected terms and extracts brands from video titles/descriptions. Experimental; US/English-skewed. search_prefix biases the query. Requires YOUTUBE_API_KEY on the server."
     }
   ]
 }

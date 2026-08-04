@@ -9,11 +9,12 @@ import sourcesConfig from "@/config/sources.json";
 
 type Source = {
   // "web site" (default): a whole site/publication searched repeatedly via web_search.
-  // "web page": one specific URL fetched once via web_fetch (wired in step 2).
-  type?: "web site" | "web page";
+  // "web page": one specific URL fetched once via web_fetch.
+  // "youtube": search YouTube (Data API v3) for the concepts, extract brands from video metadata.
+  type?: "web site" | "web page" | "youtube";
   name: string;
   url: string;
-  search_prefix?: string; // required for "web site" sources; absent for "web page"
+  search_prefix?: string; // "web site": prepended to each query. "youtube": optional query bias. "web page": absent.
   note?: string;
 };
 
@@ -190,22 +191,26 @@ async function discoverCompanies(
   // web_fetch (discoverViaFetch). Missing type defaults to "web site".
   const siteSources = sources.filter((s) => (s.type ?? "web site") === "web site");
   const pageSources = sources.filter((s) => (s.type ?? "web site") === "web page");
-  // If only page sources were selected, skip the web_search path entirely (no queries to run).
-  if (siteSources.length === 0) {
-    emit(`[search] Step 1: no website sources selected — using page fetch only`);
-    return pageSources.length > 0 ? await discoverViaFetch(client, pageSources, knownNames) : [];
-  }
-  const sourceList = siteSources
-    .map((s) => `- ${s.name} (${s.url})${s.note ? ` — NOTE: ${s.note}` : ""}`)
-    .join("\n");
-  // Build the narrow queries from concepts × sources (single source of truth in sources.json:
-  // search_concepts + each source's search_prefix). One concept per query, presented as an
-  // explicit numbered list so the model runs them as separate searches rather than combining them.
-  // Use the caller-selected terms when provided; otherwise fall back to the configured concepts.
+  const youtubeSources = sources.filter((s) => s.type === "youtube");
+  // Effective search terms: caller-selected, else the configured defaults. Shared by the web_search
+  // path and the YouTube path.
   const searchConcepts =
     concepts && concepts.length > 0
       ? concepts
       : (sourcesConfig as { search_concepts?: string[] }).search_concepts ?? [];
+  // Page fetch + YouTube run regardless; the web_search path below runs only when there are website
+  // sources. If there are none, do just page + YouTube and return.
+  if (siteSources.length === 0) {
+    emit(`[search] Step 1: no website sources selected — skipping web_search`);
+    const pageOnly = pageSources.length > 0 ? await discoverViaFetch(client, pageSources, knownNames) : [];
+    const ytOnly = youtubeSources.length > 0 ? await discoverViaYouTube(client, youtubeSources, searchConcepts, knownNames) : [];
+    return [...pageOnly, ...ytOnly];
+  }
+  const sourceList = siteSources
+    .map((s) => `- ${s.name} (${s.url})${s.note ? ` — NOTE: ${s.note}` : ""}`)
+    .join("\n");
+  // Build the narrow queries from concepts × sources: one concept per query, as an explicit numbered
+  // list so the model runs them as separate searches rather than combining them.
   emit(`[search] Step 1: using ${searchConcepts.length} search terms: ${searchConcepts.join(", ")}`);
   const allQueries = siteSources.flatMap((s) => searchConcepts.map((c) => `${s.search_prefix} ${c}`));
   const queryList = allQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n");
@@ -279,7 +284,120 @@ Return ONLY a raw JSON array, no markdown or explanation:
     `[search] Step 1 tokens: ${response.usage.input_tokens} input, ${response.usage.output_tokens} output`
   );
   const pageDiscovered = pageSources.length > 0 ? await discoverViaFetch(client, pageSources, knownNames) : [];
-  return [...discovered, ...pageDiscovered];
+  const ytDiscovered = youtubeSources.length > 0 ? await discoverViaYouTube(client, youtubeSources, searchConcepts, knownNames) : [];
+  return [...discovered, ...pageDiscovered, ...ytDiscovered];
+}
+
+// Step 1 (YouTube path): search YouTube (Data API v3) for each concept, gather the top videos'
+// titles + descriptions, and let Claude extract finished-brand supplement companies. Uses the
+// official API (public metadata only). The key is server-only: process.env.YOUTUBE_API_KEY.
+// Experimental/complementary source — noisier and US/English-leaning; the ICP step filters later.
+async function discoverViaYouTube(
+  client: Anthropic,
+  youtubeSources: Source[],
+  concepts: string[],
+  knownNames: string[] = []
+): Promise<DiscoveredCompany[]> {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) {
+    emit(`[search] Step 1 (youtube): skipped — YOUTUBE_API_KEY not set on the server`);
+    return [];
+  }
+  if (concepts.length === 0) {
+    emit(`[search] Step 1 (youtube): skipped — no search terms`);
+    return [];
+  }
+
+  const REGION = "GB";   // nudge toward European/English content (not a hard filter)
+  const LANG = "en";
+  const PER_TERM = 8;    // videos fetched per term
+  // A youtube source may carry a search_prefix to bias the query (e.g. "supplement review").
+  const prefix = youtubeSources.map((s) => s.search_prefix?.trim()).find(Boolean) ?? "";
+  const sourceName = youtubeSources[0]?.name ?? "YouTube";
+  emit(`[search] Step 1 (youtube) technique: YouTube search on ${concepts.length} term(s)${prefix ? ` (bias: "${prefix}")` : ""}`);
+
+  // 1) search.list per concept → collect video ids
+  const videoIds: string[] = [];
+  for (const concept of concepts) {
+    const q = `${prefix} ${concept}`.trim();
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${PER_TERM}&regionCode=${REGION}&relevanceLanguage=${LANG}&q=${encodeURIComponent(q)}&key=${apiKey}`;
+    try {
+      const res = await fetch(searchUrl, { signal: activeSignal ?? undefined });
+      if (!res.ok) {
+        emit(`[search] Step 1 (youtube)   ✗ search "${q}" failed — HTTP ${res.status}`);
+        continue;
+      }
+      const data = (await res.json()) as { items?: { id?: { videoId?: string } }[] };
+      const ids = (data.items ?? []).map((it) => it.id?.videoId).filter((v): v is string => !!v);
+      videoIds.push(...ids);
+      emit(`[search] Step 1 (youtube)   ✓ "${q}" → ${ids.length} videos`);
+    } catch (err) {
+      emit(`[search] Step 1 (youtube)   ✗ search "${q}" errored — ${(err as { message?: string })?.message ?? "unknown"}`);
+    }
+  }
+
+  const uniqueIds = Array.from(new Set(videoIds)).slice(0, 50); // videos.list accepts up to 50 ids
+  if (uniqueIds.length === 0) {
+    emit(`[search] Step 1 (youtube): no videos found`);
+    return [];
+  }
+
+  // 2) videos.list (1 quota unit) → full titles + descriptions
+  let videosText = "";
+  try {
+    const vidUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${uniqueIds.join(",")}&key=${apiKey}`;
+    const res = await fetch(vidUrl, { signal: activeSignal ?? undefined });
+    if (!res.ok) {
+      emit(`[search] Step 1 (youtube): videos.list failed — HTTP ${res.status}`);
+      return [];
+    }
+    const data = (await res.json()) as { items?: { snippet?: { title?: string; description?: string; channelTitle?: string } }[] };
+    videosText = (data.items ?? [])
+      .map((it) => {
+        const s = it.snippet ?? {};
+        return `TITLE: ${s.title ?? ""}\nCHANNEL: ${s.channelTitle ?? ""}\nDESCRIPTION: ${(s.description ?? "").slice(0, 1500)}`;
+      })
+      .join("\n\n---\n\n");
+  } catch (err) {
+    emit(`[search] Step 1 (youtube): videos.list errored — ${(err as { message?: string })?.message ?? "unknown"}`);
+    return [];
+  }
+  emit(`[search] Step 1 (youtube): read ${uniqueIds.length} video(s), extracting brands…`);
+
+  const knownBlock =
+    knownNames.length > 0
+      ? `\n\nCompanies we ALREADY have (do NOT return these):\n${knownNames.join(", ")}`
+      : "";
+
+  const stream = await client.messages.stream({
+    model: "claude-sonnet-5",
+    max_tokens: 8000,
+    messages: [
+      {
+        role: "user",
+        content: `Below are titles and descriptions of YouTube videos about supplements. Extract the supplement COMPANY or BRAND names mentioned (brands being reviewed, compared, or promoted).
+
+Important rules:
+- Extract COMPANY or BRAND names, not product names and not the video creators/influencers.
+- EXCLUDE Aker BioMarine, Lysoveta, and Superba.
+- Use the shortest canonical company name — omit legal suffixes (GmbH, Ltd, Inc, etc.) and parentheticals.
+- Only finished-brand supplement companies — not ingredient suppliers, not retailers (Amazon, iHerb), not pure distributors.
+- Ignore the YouTube channel/creator name itself unless the channel IS a supplement brand.${knownBlock}
+
+Videos:
+${videosText}
+
+Return ONLY a raw JSON array, no markdown:
+[{"name":"Company Name","source_name":"${sourceName}"}]`,
+      },
+    ],
+  }, { signal: activeSignal ?? undefined });
+
+  const response = await stream.finalMessage();
+  const discovered = parseJsonArray<DiscoveredCompany>(response);
+  emit(`[search] Step 1 (youtube): discovered ${discovered.length} companies`);
+  emit(`[search] Step 1 (youtube) tokens: ${response.usage.input_tokens} input, ${response.usage.output_tokens} output`);
+  return discovered;
 }
 
 // Step 1 (page path): read specific "web page" sources once via web_fetch and extract company

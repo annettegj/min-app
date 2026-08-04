@@ -99,7 +99,7 @@ const reqStyle: React.CSSProperties = { color: "var(--danger-text)", fontWeight:
 const optStyle: React.CSSProperties = { fontSize: 10, fontWeight: 400, color: "var(--text-dim)", textTransform: "none", letterSpacing: 0, marginLeft: 6 };
 
 // --- Search-configuration draft types (edit mode edits a local draft; Save commits the diff) ---
-type SourceFields = { name: string; type: "web site" | "web page"; url: string; search_prefix: string; note: string };
+type SourceFields = { name: string; type: "web site" | "web page" | "youtube"; url: string; search_prefix: string; note: string };
 type SourceRecord = SourceFields & { id: number };
 type DraftTerm = { key: string; id: number | null; term: string; is_default: boolean };
 type DraftSource = SourceFields & { key: string; id: number | null };
@@ -226,7 +226,7 @@ export default function Home() {
     ]);
     if (srcs) {
       const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null }) => ({
-        id: s.id, name: s.name, type: (s.type ?? "web site") as "web site" | "web page",
+        id: s.id, name: s.name, type: (s.type ?? "web site") as "web site" | "web page" | "youtube",
         url: s.url ?? "", search_prefix: s.search_prefix ?? "", note: s.note ?? "",
       }));
       setSourceRecords(recs);
@@ -271,7 +271,8 @@ export default function Home() {
     if (!name) { setConfigError("Name is required."); return; }
     if (newSource.type === "web site" && !newSource.search_prefix.trim()) { setConfigError("A website source needs a search prefix (e.g. nutraingredients.com)."); return; }
     if (newSource.type === "web page" && !newSource.url.trim()) { setConfigError("A single-page source needs a URL."); return; }
-    const fields: SourceFields = { name, type: newSource.type, url: newSource.url.trim(), search_prefix: newSource.type === "web site" ? newSource.search_prefix.trim() : "", note: newSource.note.trim() };
+    const keepPrefix = newSource.type === "web site" || newSource.type === "youtube";
+    const fields: SourceFields = { name, type: newSource.type, url: newSource.type === "youtube" ? "" : newSource.url.trim(), search_prefix: keepPrefix ? newSource.search_prefix.trim() : "", note: newSource.note.trim() };
     if (editingSourceKey) setDraftSources(prev => prev.map(s => s.key === editingSourceKey ? { ...s, ...fields } : s));
     else setDraftSources(prev => [...prev, { key: nextKey(), id: null, ...fields }]);
     setSourceModalOpen(false); setConfigError("");
@@ -295,7 +296,7 @@ export default function Home() {
       const termInserts = terms.filter(t => t.id == null).map(t => ({ term: t.term, is_default: t.is_default }));
       const termUpdates = terms.filter(t => t.id != null).filter(t => { const o = termRecords.find(r => r.id === t.id); return o && o.term !== t.term; });
       // SOURCES diff
-      const toRow = (s: SourceFields) => ({ type: s.type, name: s.name.trim(), url: s.url.trim() || null, search_prefix: s.type === "web site" ? (s.search_prefix.trim() || null) : null, note: s.note.trim() || null });
+      const toRow = (s: SourceFields) => ({ type: s.type, name: s.name.trim(), url: s.url.trim() || null, search_prefix: (s.type === "web site" || s.type === "youtube") ? (s.search_prefix.trim() || null) : null, note: s.note.trim() || null });
       const draftSrcIds = new Set(srcs.filter(s => s.id != null).map(s => s.id));
       const srcDeletes = sourceRecords.filter(r => !draftSrcIds.has(r.id)).map(r => r.id);
       const srcInserts = srcs.filter(s => s.id == null).map(toRow);
@@ -303,7 +304,7 @@ export default function Home() {
         const o = sourceRecords.find(r => r.id === s.id);
         if (!o) return false;
         return o.name !== s.name.trim() || o.type !== s.type || o.url !== s.url.trim()
-          || o.search_prefix !== (s.type === "web site" ? s.search_prefix.trim() : "") || o.note !== s.note.trim();
+          || o.search_prefix !== ((s.type === "web site" || s.type === "youtube") ? s.search_prefix.trim() : "") || o.note !== s.note.trim();
       });
 
       // Deletes first, so a rename/re-add can reuse a freed unique name.
@@ -1255,9 +1256,9 @@ export default function Home() {
                                   style={{ flex: 1, textAlign: "left", background: "var(--surface-input)", border: "1px solid var(--border-input)", borderRadius: 4, padding: "8px 10px", cursor: "pointer", color: "var(--navy)" }}>
                                   <span style={{ fontSize: 13, fontWeight: 600 }}>{s.name || "(unnamed source)"}</span>
                                   <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 2, wordBreak: "break-all" }}>
-                                    {s.type === "web page" ? "Single page" : "Website"}
+                                    {s.type === "web page" ? "Single page" : s.type === "youtube" ? "YouTube" : "Website"}
                                     {s.type === "web page" && s.url ? ` · ${s.url.replace(/^https?:\/\//, "")}` : ""}
-                                    {s.type === "web site" && s.search_prefix ? ` · ${s.search_prefix}` : ""}
+                                    {(s.type === "web site" || s.type === "youtube") && s.search_prefix ? ` · ${s.search_prefix}` : ""}
                                     <span style={{ color: "var(--accent)", fontWeight: 700 }}> · Edit ✎</span>
                                   </span>
                                 </button>
@@ -1273,8 +1274,9 @@ export default function Home() {
                         <>
                           <div style={{ maxHeight: sourcesExpanded ? "none" : 232, overflowY: sourcesExpanded ? "visible" : "auto", paddingRight: 6 }}>
                           {[
-                            { heading: "Website", items: sourceOptions.filter(s => s.type !== "web page") },
+                            { heading: "Website", items: sourceOptions.filter(s => (s.type ?? "web site") === "web site") },
                             { heading: "Single page", items: sourceOptions.filter(s => s.type === "web page") },
+                            { heading: "YouTube", items: sourceOptions.filter(s => s.type === "youtube") },
                           ].map(group => group.items.length === 0 ? null : (
                             <div key={group.heading} style={{ marginTop: 10 }}>
                               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 4 }}>{group.heading}</p>
@@ -1887,9 +1889,10 @@ export default function Home() {
               </div>
               <div>
                 <label style={labelStyle}>Type <span style={reqStyle}>*</span></label>
-                <select value={newSource.type} onChange={e => setNewSource({ ...newSource, type: e.target.value as "web site" | "web page" })} style={inputStyle}>
+                <select value={newSource.type} onChange={e => setNewSource({ ...newSource, type: e.target.value as "web site" | "web page" | "youtube" })} style={inputStyle}>
                   <option value="web site">Website</option>
                   <option value="web page">Single page</option>
+                  <option value="youtube">YouTube search</option>
                 </select>
               </div>
               {newSource.type === "web site" ? (
@@ -1906,6 +1909,13 @@ export default function Home() {
                       placeholder="https://www.nutraingredients.com" style={inputStyle} />
                   </div>
                 </>
+              ) : newSource.type === "youtube" ? (
+                <div>
+                  <label style={labelStyle}>Query bias <span style={optStyle}>optional</span></label>
+                  <input type="text" value={newSource.search_prefix} onChange={e => setNewSource({ ...newSource, search_prefix: e.target.value })}
+                    placeholder="e.g. supplement review" style={inputStyle} />
+                  <p style={hintStyle}>Optional words added in front of each term when searching YouTube, e.g. <em>supplement review longevity</em>. Leave blank to search the term alone. (Requires the server’s YouTube API key.)</p>
+                </div>
               ) : (
                 <div>
                   <label style={labelStyle}>Page URL <span style={reqStyle}>*</span></label>
