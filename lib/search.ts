@@ -108,6 +108,46 @@ function parseJsonObject(response: Anthropic.Message): Record<string, unknown> |
   }
 }
 
+// Bumps the per-source performance counters after a discovery run: +1 `times_used` for every
+// source that took part, and +N `companies_found` for each source that contributed N new companies
+// to the queue. Read-modify-write (safe here — one search runs at a time). Best-effort: a failure
+// only loses a stat, never the search. `foundByName` keys are the source_name values the model
+// returned; if one doesn't match a real source row the update simply affects nothing.
+async function bumpSourceStats(
+  supabase: SupabaseClient,
+  usedNames: string[],
+  foundByName: Map<string, number>
+): Promise<void> {
+  const names = Array.from(new Set([...usedNames, ...foundByName.keys()]));
+  if (names.length === 0) return;
+  const { data: rows, error } = await supabase
+    .from("sources")
+    .select("name, times_used, companies_found")
+    .in("name", names);
+  if (error) {
+    emit(`[search] Stats: could not read source counters — ${error.message}`);
+    return;
+  }
+  const cur = new Map(
+    (rows ?? []).map((r: { name: string; times_used: number | null; companies_found: number | null }) => [r.name, r])
+  );
+  const usedSet = new Set(usedNames);
+  await Promise.all(
+    names.map(async (name) => {
+      const row = cur.get(name);
+      if (!row) return; // no matching source row (e.g. a stray source_name) — skip
+      const times_used = (row.times_used ?? 0) + (usedSet.has(name) ? 1 : 0);
+      const companies_found = (row.companies_found ?? 0) + (foundByName.get(name) ?? 0);
+      const { error: upErr } = await supabase
+        .from("sources")
+        .update({ times_used, companies_found })
+        .eq("name", name);
+      if (upErr) emit(`[search] Stats: could not update "${name}" — ${upErr.message}`);
+    })
+  );
+  emit(`[search] Stats: updated counters for ${cur.size} source(s)`);
+}
+
 // ---- Logging ----
 // Every meaningful line goes to the terminal AND (when a background job is active) to the
 // search_logs table, so the UI can show a live log identical to the server log. Assumes one
@@ -587,6 +627,7 @@ async function enrichAll(
       const { error } = await supabase.from("companies").upsert(
         {
           name: result.name,
+          source_name: result.source_name,
           enriched_data: result,
           enriched_at: new Date().toISOString(),
           rejected: false,
@@ -867,6 +908,8 @@ export async function searchForCompanies(
     emit(`[search] Step 1: using ${sourcesForRun.length} of ${sources.length} sources`);
     const discovered = await discoverCompanies(client, sourcesForRun, knownNames, conceptsForRun, targetMarket);
     step1Discovered = discovered.length;
+    // New companies attributed to each source (source_name → count), for the companies_found counter.
+    const foundByName = new Map<string, number>();
 
     if (discovered.length > 0) {
       // Build exclusion set: companies already in DB, rejected, or already in queue
@@ -903,12 +946,18 @@ export async function searchForCompanies(
           emit(`[search] Failed to save to discovery_queue: ${insertError.message}`);
         } else {
           step1NewToQueue = fresh.length;
+          for (const c of fresh) foundByName.set(c.source_name, (foundByName.get(c.source_name) ?? 0) + 1);
           emit(`[search] Step 1: ${fresh.length} new companies added to queue`);
         }
       } else {
         emit(`[search] Step 1: all ${discovered.length} companies already known — nothing new`);
       }
     }
+
+    // Update per-source performance counters: every source used this run gets +1 used; sources that
+    // contributed new companies get +found. Done after the queue insert so found reflects only what
+    // was actually added.
+    await bumpSourceStats(supabase, sourcesForRun.map((s) => s.name), foundByName);
   } else {
     emit(`[search] Step 1: skipped — queue has ${pendingCount} pending companies`);
   }

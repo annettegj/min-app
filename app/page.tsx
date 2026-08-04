@@ -27,7 +27,7 @@ const SEARCH_TERM_OPTIONS = Array.from(new Set([
   ...((sourcesConfig as { keyword_bank?: string[] }).keyword_bank ?? []),
 ]));
 const SOURCE_OPTIONS = ((sourcesConfig as { sources?: { name: string; type?: string; url?: string; market?: string }[] }).sources ?? [])
-  .map(s => ({ name: s.name, type: s.type ?? "web site", url: s.url ?? "", market: s.market ?? "" }));
+  .map(s => ({ name: s.name, type: s.type ?? "web site", url: s.url ?? "", market: s.market ?? "", times_used: 0, companies_found: 0 }));
 
 type Company = {
   id: number;
@@ -160,7 +160,7 @@ function AuthScreen({ onLogin, onSignup }: { onLogin: (e: string, p: string) => 
 
 // --- Search-configuration draft types (edit mode edits a local draft; Save commits the diff) ---
 type SourceFields = { name: string; type: "web site" | "web page" | "youtube"; url: string; search_prefix: string; note: string; market: string };
-type SourceRecord = SourceFields & { id: number };
+type SourceRecord = SourceFields & { id: number; times_used: number; companies_found: number };
 type DraftTerm = { key: string; id: number | null; term: string; is_default: boolean };
 type DraftSource = SourceFields & { key: string; id: number | null };
 
@@ -322,6 +322,18 @@ export default function Home() {
     setAuthEmail(null);
   }
 
+  // Per-source count of approved companies in the database (Z in "Used X · Y queued · Z saved").
+  // Computed live from the loaded companies grouped by source_name — no stored counter, so it can
+  // never drift. Companies saved before source_name was tracked simply don't count.
+  const savedBySource = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of companies) {
+      if (!c.source_name) continue;
+      m.set(c.source_name, (m.get(c.source_name) ?? 0) + 1);
+    }
+    return m;
+  }, [companies]);
+
   // Loads the active company database — always excludes rejected companies.
   // Single source of truth so the database view can never accidentally include rejected rows.
   async function loadCompanies() {
@@ -338,12 +350,13 @@ export default function Home() {
       supabase.from("search_terms").select("id, term, is_default").eq("active", true).order("id"),
     ]);
     if (srcs) {
-      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null; market?: string | null }) => ({
+      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null; market?: string | null; times_used?: number | null; companies_found?: number | null }) => ({
         id: s.id, name: s.name, type: (s.type ?? "web site") as "web site" | "web page" | "youtube",
         url: s.url ?? "", search_prefix: s.search_prefix ?? "", note: s.note ?? "", market: s.market ?? "",
+        times_used: s.times_used ?? 0, companies_found: s.companies_found ?? 0,
       }));
       setSourceRecords(recs);
-      setSourceOptions(recs.map(s => ({ name: s.name, type: s.type, url: s.url, market: s.market })));
+      setSourceOptions(recs.map(s => ({ name: s.name, type: s.type, url: s.url, market: s.market, times_used: s.times_used, companies_found: s.companies_found })));
       setSelectedSources(prev => prev.filter(n => recs.some(r => r.name === n)));
     }
     if (terms) {
@@ -1445,6 +1458,11 @@ export default function Home() {
                                               {s.url.replace(/^https?:\/\//, "")}
                                             </a>
                                           )}
+                                          <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
+                                            {s.times_used > 0 || s.companies_found > 0 || (savedBySource.get(s.name) ?? 0) > 0
+                                              ? `Used ${s.times_used} · ${s.companies_found} queued · ${savedBySource.get(s.name) ?? 0} saved`
+                                              : "Not used yet"}
+                                          </span>
                                         </span>
                                       </label>
                                     );
