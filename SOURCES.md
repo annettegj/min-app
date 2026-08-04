@@ -65,6 +65,24 @@ suppliers, exactly what the ICP excludes. Only **EHPM** exposes a small, static,
 | **CPHI Europe** | ⏸️ Reject | Exhibitors are pharma **API / excipient / CDMO / packaging** suppliers — excluded by the ICP. Directory is JavaScript (`exhibitors.cphi.com`); aggregators blocked. |
 | **PharmaSynergy** | ❌ Can't mine | Private OTC/consumer-health **partnering event** (meeting-mojo platform); no public company directory. Audience (OTC brands adding supplements) is relevant, but there's nothing to extract. |
 
+## Evaluated — Consumer & trend media (from a Perplexity list, tested 2026-08)
+
+**General finding:** consumer "best supplements" media *do* name brands, so they're extractable — but
+the brands are overwhelmingly **US** (Nature Made, Thorne, NOW, Garden of Life, OLLY…), so the
+Europe-focused ICP rejects most (same lesson as Healthline). The higher-value use of these is as a
+source of **trending ingredients → new search terms**, run against our European trade media. One
+genuine new *company* source stood out: SupplySide Supplement Journal (trade media, not consumer).
+
+| Source | Verdict | Why |
+|---|---|---|
+| **SupplySide Supplement Journal** (`supplysidesj.com`) | ✅ Candidate — Website | Real trade publication covering brand launches, founders, product news — names companies, incl. European brands. Same profile as our other trade-media sources. |
+| **mindbodygreen** | ⏸️ Hold as company source | Names brands (e.g. "10 Best Omega-3 Supplements" — on-topic!) but US-skewed, and it's a supplement brand itself. Better mined for trending ingredients → search terms. |
+| **Well+Good / Everyday Health / Prevention / Verywell Health** | ⏸️ Hold | US consumer "best of" round-ups → mostly US brands, low EU match. Use for trend terms, not as sources. |
+| **Examine / NIH Office of Dietary Supplements** | ❌ Not a source | Ingredient/evidence references only — no company names to extract. |
+| **ConsumerLab / Consumer Reports** | ❌ Paywalled | Brand testing behind subscription; not readable. |
+| **Google Trends / Spate / Glimpse** | ⛔ Trend platforms | Paid/JS dashboards, no company list. Inspiration for search terms only (Google Trends excluded per request). |
+| **TikTok / Instagram / YouTube** | ⛔ Excluded (for now) | Social signal, not validated company data. |
+
 ## If trade shows underperform
 
 If the two trials yield few/no matches, the honest conclusion is that **trade shows don't fit the
