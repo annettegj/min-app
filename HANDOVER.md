@@ -159,7 +159,8 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - `config/sources.json` — now a **fallback** for the two tables (used if the DB read fails), plus
   `enrichment_model` (still read from here). `keyword_bank` was the old term pool, superseded by the
   `search_terms` table.
-- `config/icp.md` — the ICP definition (price threshold is currency-agnostic: ~60 in own currency).
+- `config/icp.md` — the **European** ICP definition (price threshold is currency-agnostic: ~60 in own currency).
+- `config/icp_us.md` — the **US** ICP. Placeholder until real criteria are pasted in; Step 3 routes US companies to it by geography once it's real (see SEARCH_PIPELINE.md → Step 3).
 - `config/mock-results.json` — demo data (only used if `DEMO_MODE = true` in `page.tsx`).
 - `db/migrations/*.sql` — DB schema + seed (001 = sources/search_terms tables; 002 = trade-show sources).
 - [SOURCES.md](SOURCES.md) — running log of every source evaluated for discovery: works / held / rejected, and why.

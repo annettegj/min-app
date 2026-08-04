@@ -601,16 +601,36 @@ async function enrichAll(
 // Builds the manual evaluation prompt — no API call. User pastes this into Claude Chat.
 
 export function buildStep3Prompt(companies: EnrichedCompany[]): string {
-  const icpContent = fs.readFileSync(
-    path.join(process.cwd(), "config", "icp.md"),
-    "utf-8"
-  );
+  const dir = path.join(process.cwd(), "config");
+  const icpEu = fs.readFileSync(path.join(dir, "icp.md"), "utf-8");
+  let icpUs = "";
+  try { icpUs = fs.readFileSync(path.join(dir, "icp_us.md"), "utf-8"); } catch { /* optional */ }
+  // The US ICP is used only once real content replaces the placeholder — until then, everything is
+  // scored against the European ICP (unchanged behaviour), so US companies are never mis-scored
+  // against a placeholder.
+  const usReady = icpUs.trim().length > 0 && !icpUs.includes("US_ICP_PLACEHOLDER");
 
-  return `You are evaluating supplement companies as potential B2B customers for Aker BioMarine's Lysoveta ingredient. Use the ICP document below to guide your evaluation.
+  const icpBlock = usReady
+    ? `You have TWO ICP documents — apply the one that matches each company's primary market.
+
+=== EUROPEAN ICP (use for EU / UK / other European companies; also the default for Global or APAC) ===
+${icpEu}
+
+=== US ICP (use ONLY when the company's primary market is the United States) ===
+${icpUs}`
+    : icpEu;
+
+  const routingNote = usReady
+    ? `
+
+IMPORTANT — choosing the ICP: for each company, first decide its primary market from european_markets and distribution_channels. If that market is the United States, evaluate the company against the US ICP; otherwise use the European ICP. Apply the chosen ICP's hard exclusions and scoring.`
+    : "";
+
+  return `You are evaluating supplement companies as potential B2B customers for Aker BioMarine's Lysoveta ingredient. Use the ICP document${usReady ? "s" : ""} below to guide your evaluation.
 
 ---
-${icpContent}
----
+${icpBlock}
+---${routingNote}
 
 Enriched company data to evaluate:
 ${JSON.stringify(companies, null, 2)}

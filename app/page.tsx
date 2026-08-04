@@ -107,7 +107,8 @@ type DraftSource = SourceFields & { key: string; id: number | null };
 export default function Home() {
   const [tab, setTab] = useState<"database" | "search" | "icp" | "prospectus" | "about">("database");
   const [aboutSection, setAboutSection] = useState("overview");
-  const [icpContent, setIcpContent] = useState<string | null>(null);
+  const [icpDocs, setIcpDocs] = useState<{ eu: string; us: string } | null>(null);
+  const [icpRegion, setIcpRegion] = useState<"eu" | "us">("eu");
 
   // --- Database tab state ---
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -348,7 +349,7 @@ export default function Home() {
 
   useEffect(() => {
     loadCompanies();
-    fetch("/api/icp").then(r => r.json()).then(d => setIcpContent(d.content));
+    fetch("/api/icp").then(r => r.json()).then(d => setIcpDocs({ eu: d.eu ?? d.content ?? "", us: d.us ?? "" }));
     loadSearchConfig();
     loadPendingCount();
   }, []);
@@ -1729,13 +1730,25 @@ export default function Home() {
                 ✎ Edit Criteria
               </button>
             </div>
-            <div style={{ padding: "20px 40px", borderBottom: "1px solid var(--border-light)", background: "var(--surface-tint)" }}>
+            <div style={{ display: "flex", gap: 4, padding: "10px 20px", borderBottom: "1px solid var(--border-light)", background: "var(--surface-tint)" }}>
+              {([{ key: "eu", label: "European ICP" }, { key: "us", label: "US ICP" }] as const).map(r => (
+                <button key={r.key} type="button" onClick={() => setIcpRegion(r.key)}
+                  style={{ padding: "7px 16px", borderRadius: 4, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
+                    background: icpRegion === r.key ? "var(--accent)" : "transparent",
+                    color: icpRegion === r.key ? "var(--white)" : "var(--text-slate)" }}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ padding: "16px 40px", borderBottom: "1px solid var(--border-light)", background: "var(--surface-tint)" }}>
               <p style={{ color: "var(--text-body)", fontSize: 13, lineHeight: 1.6, fontStyle: "italic" }}>
-                This document defines the Ideal Customer Profile (ICP) for Lysoveta in Europe. It is used during Step 3 of the enrichment pipeline, where the AI agent evaluates each discovered company against these criteria to assign a priority tier (Early Mover, Follower, or Enabler) and an ICP fit score.
+                {icpRegion === "eu"
+                  ? "The Ideal Customer Profile (ICP) for Lysoveta in Europe. In Step 3 the AI scores each company whose primary market is European against these criteria, assigning a priority tier (Early Mover, Follower, or Enabler) and an ICP fit score."
+                  : "The US Ideal Customer Profile. Once it holds real criteria (not the placeholder), Step 3 automatically scores companies whose primary market is the United States against it instead of the European ICP."}
               </p>
             </div>
             <div style={{ padding: "32px 48px", maxWidth: 820 }}>
-              {!icpContent ? (
+              {!icpDocs ? (
                 <p style={{ color: "var(--text-faint)", fontSize: 14 }}>Loading…</p>
               ) : (() => {
                 const toLabel = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
@@ -1743,7 +1756,7 @@ export default function Home() {
                 const isTableRow = (l: string) => l.trim().startsWith("|");
                 const isSeparatorRow = (l: string) => /^\|[-| :]+\|$/.test(l.trim());
 
-                const lines = icpContent.split("\n");
+                const lines = (icpDocs[icpRegion] || "").split("\n");
                 const elements: React.ReactNode[] = [];
                 let i = 0;
 
@@ -1872,6 +1885,7 @@ export default function Home() {
             { key: "scoring", label: "How scoring works (ICP)", content: (
               <>
                 <p style={ps}>After a company is researched, the AI scores it against the <strong>Lysoveta ICP Criteria</strong> (see that tab). It assigns an ICP fit score and a priority tier (Early Mover, Follower, or Enabler).</p>
+                <p style={ps}>There are separate profiles for <strong>Europe</strong> and the <strong>US</strong> (both on the ICP Criteria tab). Each company is scored against the profile that matches its primary market.</p>
                 <p style={ps}>Only companies that <strong>pass</strong> the ICP are shown for you to save. The rest are set aside — kept internally so they aren&apos;t re-discovered in future searches.</p>
               </>
             ) },

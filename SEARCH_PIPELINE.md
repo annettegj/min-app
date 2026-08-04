@@ -164,9 +164,15 @@ shape — merged in with the other paths.
 
 - **Model:** `claude-sonnet-5`, **no `web_search`** (pure reasoning over already-gathered data →
   cheap and fast), `max_tokens` **16000**.
-- **Prompt** (`buildStep3Prompt`) embeds `config/icp.md` + the enriched JSON, and asks the model to
+- **Prompt** (`buildStep3Prompt`) embeds the ICP document(s) + the enriched JSON, and asks the model to
   apply hard exclusions, compute an ICP fit score, assign a priority tier, and write a short
   justification.
+- **Per-geography ICP:** `config/icp.md` is the **European** ICP; `config/icp_us.md` is the **US**
+  ICP. When `icp_us.md` holds real criteria (not the `US_ICP_PLACEHOLDER`), the prompt includes both
+  and instructs the model to score each company against the ICP matching its primary market (US → US
+  ICP, otherwise European). While the placeholder is in place, everything uses the European ICP —
+  so US companies are never scored against a placeholder, and routing turns on automatically once
+  the real US ICP is pasted in.
 - **Output per company** (`EvaluatedCompany`): `name`, `website_url`, `description`,
   `priority_tier`, `icp_score`, `geography`, `product_category`, `max_price_eur`, `price_currency`.
 - **Only companies that pass are returned** (stored in `search_jobs.results`). Enriched companies
