@@ -133,8 +133,15 @@ so you can see which sources are actually worth keeping:
 
 A source that hasn't run yet shows **"Not used yet"**. The numbers **start from zero and build up**
 as you keep searching, so give a new source a few runs before judging it — and companies you saved
-before this feature existed don't count toward *saved*. For now these are just the raw counts; a
-"this source rarely finds anything" warning may be added later.
+before this feature existed don't count toward *saved*.
+
+**Low-performing sources get a warning.** Click **Source performance** at the top of the Search
+Configuration panel to open a table of every source with its **hit rate** — how many companies it
+finds per search (companies found ÷ times used). A source whose hit rate falls below a threshold
+(default **1%**), once it's been used a few times, is flagged with a **⚠ Low hit rate** warning —
+both in that table and under the source in the main list — so you know to edit or remove it. You can
+change the threshold (and the minimum number of uses before a source can be flagged) in that same
+window; it's a shared setting that affects the warnings everyone sees.
 
 > Each search uses Sprint's Anthropic account, which has limited usage, so it's worth being a little
 > deliberate with test runs.

@@ -264,6 +264,15 @@ export default function Home() {
   const [pendingQueueCount, setPendingQueueCount] = useState<number | null>(null);
   const [queueModalOpen, setQueueModalOpen] = useState(false);
   const [clearingQueue, setClearingQueue] = useState(false);
+  // Source-performance warning thresholds (shared, from app_settings). A source is flagged when its
+  // hit rate (companies found ÷ times used) falls below warnThresholdPct %, once it has been used at
+  // least warnMinUses times. Editable in the Source performance modal.
+  const [warnThresholdPct, setWarnThresholdPct] = useState(1);
+  const [warnMinUses, setWarnMinUses] = useState(5);
+  const [perfModalOpen, setPerfModalOpen] = useState(false);
+  const [perfDraftPct, setPerfDraftPct] = useState("1");
+  const [perfDraftMin, setPerfDraftMin] = useState("5");
+  const [perfSaving, setPerfSaving] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -464,11 +473,51 @@ export default function Home() {
     setClearingQueue(false);
   }
 
+  // --- Source-performance settings (shared thresholds in app_settings) ---
+  async function loadSettings() {
+    const { data } = await supabase.from("app_settings").select("key, value");
+    if (!data) return;
+    const map = new Map(data.map((r: { key: string; value: string }) => [r.key, r.value]));
+    const pct = Number(map.get("source_warn_threshold_pct"));
+    const min = Number(map.get("source_warn_min_uses"));
+    if (Number.isFinite(pct)) { setWarnThresholdPct(pct); setPerfDraftPct(String(pct)); }
+    if (Number.isFinite(min)) { setWarnMinUses(min); setPerfDraftMin(String(min)); }
+  }
+  async function saveSettings() {
+    const pct = Math.max(0, Number(perfDraftPct));
+    const min = Math.max(0, Math.round(Number(perfDraftMin)));
+    if (!Number.isFinite(pct) || !Number.isFinite(min)) return;
+    setPerfSaving(true);
+    await supabase.from("app_settings").upsert([
+      { key: "source_warn_threshold_pct", value: String(pct), updated_at: new Date().toISOString() },
+      { key: "source_warn_min_uses", value: String(min), updated_at: new Date().toISOString() },
+    ], { onConflict: "key" });
+    setWarnThresholdPct(pct); setWarnMinUses(min);
+    setPerfSaving(false);
+  }
+
+  // Hit rate = companies found ÷ times used (as a fraction; ×100 for a %). null until the source has
+  // been used. A source is "low" once it has enough uses and its hit rate is below the threshold.
+  const sourceHitRate = (times_used: number, companies_found: number): number | null =>
+    times_used > 0 ? companies_found / times_used : null;
+  const sourceIsLow = (times_used: number, companies_found: number): boolean => {
+    if (times_used < warnMinUses) return false;
+    const hr = sourceHitRate(times_used, companies_found);
+    return hr !== null && hr * 100 < warnThresholdPct;
+  };
+  const fmtHitRate = (times_used: number, companies_found: number): string => {
+    const hr = sourceHitRate(times_used, companies_found);
+    if (hr === null) return "—";
+    const pct = hr * 100;
+    return pct >= 10 ? `${Math.round(pct)}%` : `${pct.toFixed(1)}%`;
+  };
+
   useEffect(() => {
     loadCompanies();
     fetch("/api/icp").then(r => r.json()).then(d => setIcpDocs({ eu: d.eu ?? d.content ?? "", us: d.us ?? "" }));
     loadSearchConfig();
     loadPendingCount();
+    loadSettings();
   }, []);
 
   // Refresh the queue count whenever we return to an idle/finished state (e.g. after a search).
@@ -1336,10 +1385,16 @@ export default function Home() {
                   <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
                     {!configEditMode && (
-                      <button type="button" onClick={enterConfigEdit}
-                        style={{ background: "var(--accent)", color: "var(--white)", border: "none", borderRadius: 4, padding: "6px 16px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
-                        Edit
-                      </button>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <button type="button" onClick={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfModalOpen(true); }}
+                          style={{ background: "transparent", color: "var(--white)", border: "1px solid rgba(255,255,255,0.5)", borderRadius: 4, padding: "6px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
+                          Source performance
+                        </button>
+                        <button type="button" onClick={enterConfigEdit}
+                          style={{ background: "var(--accent)", color: "var(--white)", border: "none", borderRadius: 4, padding: "6px 16px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
+                          Edit
+                        </button>
+                      </div>
                     )}
                   </div>
                   {configEditMode && (
@@ -1463,6 +1518,11 @@ export default function Home() {
                                               ? `used ${s.times_used} · queued ${s.companies_found} · saved ${savedBySource.get(s.name) ?? 0}`
                                               : "Not used yet"}
                                           </span>
+                                          {sourceIsLow(s.times_used, s.companies_found) && (
+                                            <span style={{ display: "block", fontSize: 10.5, color: "var(--danger-text)", fontWeight: 700, marginTop: 2 }}>
+                                              ⚠ Low hit rate ({fmtHitRate(s.times_used, s.companies_found)}) — consider editing or removing
+                                            </span>
+                                          )}
                                         </span>
                                       </label>
                                     );
@@ -2035,7 +2095,10 @@ export default function Home() {
                   <li style={lis}><strong>queued</strong> — how many new companies it has added to the waiting list over time.</li>
                   <li style={lis}><strong>saved</strong> — how many of its companies ended up approved in your database.</li>
                 </ul>
-                <p style={muted}>These numbers start from zero and build up as you search — a brand-new source shows “Not used yet”. Companies saved before this feature existed don&apos;t count toward <em>saved</em>. For now it&apos;s just the raw counts; a “this source rarely finds anything” warning can be added later.</p>
+                <p style={muted}>These numbers start from zero and build up as you search — a brand-new source shows “Not used yet”. Companies saved before this feature existed don&apos;t count toward <em>saved</em>.</p>
+                <p style={{ fontWeight: 700, color: "var(--navy)", margin: "16px 0 6px" }}>Low-performing sources get a warning</p>
+                <p style={ps}>Click <strong>Source performance</strong> (top of the Search Configuration panel) to open a table of every source with its <strong>hit rate</strong> — how many companies it finds per search (companies found ÷ times used). A source whose hit rate drops below a threshold (default <strong>1%</strong>), once it&apos;s been used a few times, is flagged with a <strong style={{ color: "var(--danger-text)" }}>⚠ Low hit rate</strong> warning — both in that table and under the source in the main list — suggesting you edit or remove it.</p>
+                <p style={muted}>You can change the threshold (and how many uses a source needs before it can be flagged) right in that window — it&apos;s a shared setting, so it affects the warnings everyone sees.</p>
               </>
             ) },
             { key: "queue", label: "The waiting list", content: (
@@ -2214,6 +2277,88 @@ export default function Home() {
                 style={{ background: "var(--surface)", color: "var(--text-slate)", border: "1px solid var(--border)", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: clearingQueue ? "default" : "pointer", borderRadius: 4 }}>
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Source-performance modal — opened by "Source performance" in the Search Configuration panel */}
+      {perfModalOpen && (
+        <div onClick={() => { if (!perfSaving) setPerfModalOpen(false); }}
+          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 760, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <div style={{ background: "var(--header)", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p style={{ color: "var(--white)", fontSize: 16, fontWeight: 700 }}>Source performance</p>
+              <button type="button" onClick={() => { if (!perfSaving) setPerfModalOpen(false); }}
+                style={{ background: "transparent", color: "var(--white)", border: "none", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: "20px 24px", overflowY: "auto" }}>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 16 }}>
+                <strong>Hit rate</strong> = companies found ÷ times used — how many new companies a source turns up per search (a source that never finds anything trends toward 0%). Sources below the threshold are flagged here and in the source list so you can edit or remove them.
+              </p>
+
+              {/* Threshold editor */}
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border-card)", borderRadius: 4, padding: "14px 16px", marginBottom: 20 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "var(--navy)", marginBottom: 10 }}>Warning rule</p>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)" }}>
+                  <span>Warn when hit rate is below</span>
+                  <input type="number" min={0} step={0.5} value={perfDraftPct} onChange={e => setPerfDraftPct(e.target.value)}
+                    style={{ width: 70, padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13 }} />
+                  <span>%, once the source has been used at least</span>
+                  <input type="number" min={0} step={1} value={perfDraftMin} onChange={e => setPerfDraftMin(e.target.value)}
+                    style={{ width: 60, padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13 }} />
+                  <span>times.</span>
+                  <button type="button" onClick={saveSettings} disabled={perfSaving}
+                    style={{ ...btnPrimary, padding: "7px 18px", marginLeft: "auto", opacity: perfSaving ? 0.6 : 1 }}>{perfSaving ? "Saving…" : "Save"}</button>
+                </div>
+                <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8 }}>Shared setting — affects the warnings everyone sees. The minimum-uses guard stops brand-new sources from being flagged before they&apos;ve had a fair chance.</p>
+              </div>
+
+              {/* Per-source table */}
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ textAlign: "left", color: "var(--text-muted)", borderBottom: "1px solid var(--border-card)" }}>
+                      <th style={{ padding: "6px 8px", fontWeight: 700 }}>Source</th>
+                      <th style={{ padding: "6px 8px", fontWeight: 700, textAlign: "right" }}>Used</th>
+                      <th style={{ padding: "6px 8px", fontWeight: 700, textAlign: "right" }}>Queued</th>
+                      <th style={{ padding: "6px 8px", fontWeight: 700, textAlign: "right" }}>Saved</th>
+                      <th style={{ padding: "6px 8px", fontWeight: 700, textAlign: "right" }}>Hit rate</th>
+                      <th style={{ padding: "6px 8px", fontWeight: 700 }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const hrVal = (s: { times_used: number; companies_found: number }) => {
+                        const hr = sourceHitRate(s.times_used, s.companies_found);
+                        return hr === null ? Infinity : hr;
+                      };
+                      return [...sourceOptions].sort((a, b) => {
+                        const la = sourceIsLow(a.times_used, a.companies_found) ? 0 : 1;
+                        const lb = sourceIsLow(b.times_used, b.companies_found) ? 0 : 1;
+                        if (la !== lb) return la - lb;
+                        return hrVal(a) - hrVal(b);
+                      }).map(s => {
+                        const low = sourceIsLow(s.times_used, s.companies_found);
+                        const unused = s.times_used === 0;
+                        return (
+                          <tr key={s.name} style={{ borderBottom: "1px solid var(--border-card)", background: low ? "var(--banner-warn-bg)" : "transparent" }}>
+                            <td style={{ padding: "7px 8px" }}>{s.name}<MarketBadge market={s.market} /></td>
+                            <td style={{ padding: "7px 8px", textAlign: "right" }}>{s.times_used}</td>
+                            <td style={{ padding: "7px 8px", textAlign: "right" }}>{s.companies_found}</td>
+                            <td style={{ padding: "7px 8px", textAlign: "right" }}>{savedBySource.get(s.name) ?? 0}</td>
+                            <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{fmtHitRate(s.times_used, s.companies_found)}</td>
+                            <td style={{ padding: "7px 8px", color: low ? "var(--danger-text)" : "var(--text-muted)", fontWeight: low ? 700 : 400 }}>
+                              {unused ? "Not used yet" : low ? "⚠ Low" : "OK"}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>

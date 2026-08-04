@@ -154,11 +154,15 @@ switch buttons back up (there's a comment in the code explaining exactly how).
   **"used X · queued Y · saved Z"** line under each source. See
   [SEARCH_PIPELINE.md → Source performance counters](SEARCH_PIPELINE.md#source-performance-counters).
 - **`app_users`** — the pilot login table (`email`, `password` in plaintext), migration 011. See §10.
+- **`app_settings`** — shared key/value settings (migration 013). Currently holds the source-warning
+  thresholds `source_warn_threshold_pct` (default `1`) and `source_warn_min_uses` (default `5`),
+  edited from the **Source performance** modal.
 
 > **Migration notes:**
 > - `results` column on `search_jobs` (automatic Step 3): `alter table search_jobs add column results jsonb;`
 > - Source stats (migration 012): `times_used` / `companies_found` on `sources`, `source_name` on
 >   `companies`. Forward-looking — counters start at 0 and accumulate from the next search.
+> - Source warning (migration 013): `app_settings` table with the editable hit-rate thresholds.
 
 ## 7. Key files
 
@@ -188,7 +192,7 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - `config/mock-results.json` — demo data (only used if `DEMO_MODE = true` in `page.tsx`).
 - `db/migrations/*.sql` — DB schema + seed (001 = sources/search_terms tables; 002+ = added sources;
   008 = source `market` tags; 011 = `app_users` login; 012 = source performance counters +
-  `companies.source_name`).
+  `companies.source_name`; 013 = `app_settings` for the source-warning thresholds).
 - [SOURCES.md](SOURCES.md) — running log of every source evaluated for discovery: works / held / rejected, and why.
 
 ## 8. Running locally
@@ -245,9 +249,10 @@ Open http://localhost:3000. You need a `.env.local` with the Supabase vars + `AN
      (`discoverViaFetch` — reads a fixed page and extracts companies); YouTube discovery
      (`discoverViaYouTube`, Data API v3); per-geography ICP (EU + US) with automatic routing;
      target-market discovery steer + source `market` tags; adaptive per-source language handling;
-     pilot login (`app_users`); **per-source performance counts** ("used · queued · saved").
+     pilot login (`app_users`); **per-source performance counts** ("used · queued · saved") with a
+     **hit-rate low-performer warning** (editable, shared thresholds in `app_settings`).
 6. **ICP validation** — compare the tool's ICP scores against AKBM's Excel of ~100 companies.
-7. **Source-performance v2** — layer a yield/ratio and a "this source rarely finds anything" warning
-   on top of today's raw counts (needs a bit of accumulated data first).
+7. **Source-performance v2 (optional)** — the modal shows hit rate (found ÷ used) with a ⚠ warning
+   today; a future step could add a quality signal (saved ÷ queued) or auto-deactivate dead sources.
 8. **Softer rejection** — un-reject / review rejected companies.
 8. **AKBM handover** — ownership of repo/hosting/API keys, security, data residency, auth.

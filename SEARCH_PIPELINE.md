@@ -160,9 +160,23 @@ the UI can show how productive each source is — rendered under every source as
   `source_name` that doesn't match a real source row simply updates nothing.
 - **Forward-looking:** counters start at 0 and accumulate from the next search onward. Companies
   saved before `source_name` was tracked don't count toward **saved**.
-- **Deliberately just counts** — no yield/ratio and no "dead source" warning yet. Those can be
-  layered on later (e.g. flag `times_used ≥ 5` with a low found-rate); the raw counts are the
-  foundation. Added in [`db/migrations/012_source_stats.sql`](db/migrations/012_source_stats.sql).
+- Added in [`db/migrations/012_source_stats.sql`](db/migrations/012_source_stats.sql).
+
+#### Hit rate & the low-performer warning
+
+The **Source performance** modal (button at the top of the Search Configuration panel) shows every
+source with a **hit rate = `companies_found` ÷ `times_used`** (rendered as a %), and flags weak ones:
+
+- A source is **low** when `times_used ≥ warnMinUses` **and** `hit rate < warnThresholdPct %`. The
+  `times_used` guard stops brand-new sources from being flagged before they've had a fair chance.
+- Low sources get a **⚠ Low hit rate** warning both in the modal's table and under the source in the
+  main source list, suggesting the user edit or remove them.
+- **Thresholds are UI-editable and shared** — stored in the `app_settings` table
+  (`source_warn_threshold_pct` default `1`, `source_warn_min_uses` default `5`), saved from the
+  modal via upsert, and loaded on mount (`loadSettings`). Added in
+  [`db/migrations/013_app_settings.sql`](db/migrations/013_app_settings.sql).
+- **saved** in the modal is the same live `savedBySource` count as the main list; hit rate uses the
+  discovery counters, not `saved`, so it measures whether a source finds anything at all.
 
 ---
 
