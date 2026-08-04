@@ -145,11 +145,11 @@ shape — merged in with the other paths.
 
 After discovery runs, `bumpSourceStats()` updates two per-source counters on the `sources` table so
 the UI can show how productive each source is — rendered under every source as
-**"Used X · queued Y · saved Z"**:
+**"used X · queued Y · saved Z"**:
 
 | Metric | Column / origin | Bumped when | Meaning |
 |---|---|---|---|
-| **Used (X)** | `sources.times_used` | +1 for **every source that took part** in a discovery run (all of `sourcesForRun`, whether or not it found anything) | How many searches this source has participated in. Only counts runs where Step 1 actually ran (not backlog-only runs). |
+| **used (X)** | `sources.times_used` | +1 for **every source that took part** in a discovery run (all of `sourcesForRun`, whether or not it found anything) | How many searches this source has participated in. Only counts runs where Step 1 actually ran (not backlog-only runs). |
 | **queued (Y)** | `sources.companies_found` | +N for each source that contributed **N new companies to the queue** (grouped from `fresh` by `source_name`, after the queue insert succeeds) | Cumulative new companies the source has surfaced. |
 | **saved (Z)** | live count of `companies.source_name` | not a stored counter — computed on the fly in the UI (`savedBySource`) from approved companies grouped by `source_name` | How many of the source's companies were approved into the database. |
 

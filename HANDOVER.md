@@ -84,7 +84,7 @@ a **Log out** button + the signed-in email sit top-right. See §10.
    before filtering/clearing/exporting.
 2. **Find New Companies** — runs the search (see pipeline below). Includes the **Search
    Configuration** panel (draft-based edit mode for terms & sources — up to 3 terms / 4 sources, each
-   source showing its **EU/US/Global** market badge and its **"Used · queued · saved"** performance
+   source showing its **EU/US/Global** market badge and its **"used · queued · saved"** performance
    line), a **Target market** selector (Europe / US / No preference — a *soft* discovery steer, not a
    hard filter), a queue pop-up when ≥ 5 companies are waiting, and a **Step 3 decision** switch
    (currently **locked on Automatic**).
@@ -151,7 +151,7 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - **`search_logs`** — `job_id`, `message`, `created_at` (one row per log line). Drives the log panel.
 - **`sources`** — UI-editable search config, plus per-source performance counters `times_used` and
   `companies_found` (migration 012). With `companies.source_name`, these drive the
-  **"Used X · queued Y · saved Z"** line under each source. See
+  **"used X · queued Y · saved Z"** line under each source. See
   [SEARCH_PIPELINE.md → Source performance counters](SEARCH_PIPELINE.md#source-performance-counters).
 - **`app_users`** — the pilot login table (`email`, `password` in plaintext), migration 011. See §10.
 
@@ -245,7 +245,7 @@ Open http://localhost:3000. You need a `.env.local` with the Supabase vars + `AN
      (`discoverViaFetch` — reads a fixed page and extracts companies); YouTube discovery
      (`discoverViaYouTube`, Data API v3); per-geography ICP (EU + US) with automatic routing;
      target-market discovery steer + source `market` tags; adaptive per-source language handling;
-     pilot login (`app_users`); **per-source performance counts** ("Used · queued · saved").
+     pilot login (`app_users`); **per-source performance counts** ("used · queued · saved").
 6. **ICP validation** — compare the tool's ICP scores against AKBM's Excel of ~100 companies.
 7. **Source-performance v2** — layer a yield/ratio and a "this source rarely finds anything" warning
    on top of today's raw counts (needs a bit of accumulated data first).

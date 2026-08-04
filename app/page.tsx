@@ -322,7 +322,7 @@ export default function Home() {
     setAuthEmail(null);
   }
 
-  // Per-source count of approved companies in the database (Z in "Used X · Y queued · Z saved").
+  // Per-source count of approved companies in the database (Z in "used X · queued Y · saved Z").
   // Computed live from the loaded companies grouped by source_name — no stored counter, so it can
   // never drift. Companies saved before source_name was tracked simply don't count.
   const savedBySource = useMemo(() => {
@@ -1460,7 +1460,7 @@ export default function Home() {
                                           )}
                                           <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
                                             {s.times_used > 0 || s.companies_found > 0 || (savedBySource.get(s.name) ?? 0) > 0
-                                              ? `Used ${s.times_used} · queued ${s.companies_found} · saved ${savedBySource.get(s.name) ?? 0}`
+                                              ? `used ${s.times_used} · queued ${s.companies_found} · saved ${savedBySource.get(s.name) ?? 0}`
                                               : "Not used yet"}
                                           </span>
                                         </span>
@@ -2029,9 +2029,9 @@ export default function Home() {
                 </ul>
                 <p style={ps}>You can pick up to 3 terms and 4 sources per search. The limit isn&apos;t arbitrary: a search runs <em>terms × sources</em> web searches with a budget of 12, and 3 × 4 = 12 fills it exactly — picking more can&apos;t all run.</p>
                 <p style={{ fontWeight: 700, color: "var(--navy)", margin: "16px 0 6px" }}>How well is each source doing?</p>
-                <p style={ps}>Under every source you&apos;ll see a small line — for example <strong>“Used 5 · queued 12 · saved 2”</strong> — so you can tell which sources actually pull their weight:</p>
+                <p style={ps}>Under every source you&apos;ll see a small line — for example <strong>“used 5 · queued 12 · saved 2”</strong> — so you can tell which sources actually pull their weight:</p>
                 <ul style={uls}>
-                  <li style={lis}><strong>Used</strong> — how many searches this source has taken part in.</li>
+                  <li style={lis}><strong>used</strong> — how many searches this source has taken part in.</li>
                   <li style={lis}><strong>queued</strong> — how many new companies it has added to the waiting list over time.</li>
                   <li style={lis}><strong>saved</strong> — how many of its companies ended up approved in your database.</li>
                 </ul>

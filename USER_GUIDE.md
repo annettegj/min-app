@@ -124,10 +124,10 @@ whole draft.
 
 #### How well is each source doing?
 
-Under every source (outside edit mode) there's a small line like **"Used 5 · queued 12 · saved 2"**,
+Under every source (outside edit mode) there's a small line like **"used 5 · queued 12 · saved 2"**,
 so you can see which sources are actually worth keeping:
 
-- **Used** — how many searches this source has taken part in.
+- **used** — how many searches this source has taken part in.
 - **queued** — how many new companies it has added to the waiting list over time.
 - **saved** — how many of its companies ended up approved in your Company Database.
 
