@@ -111,7 +111,7 @@ function MarketBadge({ market }: { market?: string | null }) {
 }
 
 // --- Search-configuration draft types (edit mode edits a local draft; Save commits the diff) ---
-type SourceFields = { name: string; type: "web site" | "web page" | "youtube"; url: string; search_prefix: string; note: string; market: string; language: string };
+type SourceFields = { name: string; type: "web site" | "web page" | "youtube"; url: string; search_prefix: string; note: string; market: string };
 type SourceRecord = SourceFields & { id: number };
 type DraftTerm = { key: string; id: number | null; term: string; is_default: boolean };
 type DraftSource = SourceFields & { key: string; id: number | null };
@@ -189,7 +189,7 @@ export default function Home() {
   const keyRef = useRef(0);
   const nextKey = () => `k${keyRef.current++}`;
   // Add/edit-source modal — edits the DRAFT, not the DB. editingSourceKey === null means "add new".
-  const [newSource, setNewSource] = useState<SourceFields>({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "", language: "en" });
+  const [newSource, setNewSource] = useState<SourceFields>({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "" });
   const [editingSourceKey, setEditingSourceKey] = useState<string | null>(null);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [sourceInfoOpen, setSourceInfoOpen] = useState(false);
@@ -248,9 +248,9 @@ export default function Home() {
       supabase.from("search_terms").select("id, term, is_default").eq("active", true).order("id"),
     ]);
     if (srcs) {
-      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null; market?: string | null; language?: string | null }) => ({
+      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null; market?: string | null }) => ({
         id: s.id, name: s.name, type: (s.type ?? "web site") as "web site" | "web page" | "youtube",
-        url: s.url ?? "", search_prefix: s.search_prefix ?? "", note: s.note ?? "", market: s.market ?? "", language: s.language ?? "en",
+        url: s.url ?? "", search_prefix: s.search_prefix ?? "", note: s.note ?? "", market: s.market ?? "",
       }));
       setSourceRecords(recs);
       setSourceOptions(recs.map(s => ({ name: s.name, type: s.type, url: s.url, market: s.market })));
@@ -267,7 +267,7 @@ export default function Home() {
   // --- Draft editing (local until "Save changes") ---
   function enterConfigEdit() {
     setDraftTerms(termRecords.map(t => ({ key: nextKey(), id: t.id, term: t.term, is_default: t.is_default })));
-    setDraftSources(sourceRecords.map(s => ({ key: nextKey(), id: s.id, name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market, language: s.language })));
+    setDraftSources(sourceRecords.map(s => ({ key: nextKey(), id: s.id, name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market })));
     setConfigError("");
     setConfigEditMode(true);
   }
@@ -281,11 +281,11 @@ export default function Home() {
   const addDraftTerm = () => setDraftTerms(prev => [...prev, { key: nextKey(), id: null, term: "", is_default: false }]);
   const removeDraftSource = (key: string) => setDraftSources(prev => prev.filter(s => s.key !== key));
   function openAddSource() {
-    setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "", language: "en" });
+    setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "" });
     setEditingSourceKey(null); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true);
   }
   function openEditSource(s: DraftSource) {
-    setNewSource({ name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market, language: s.language });
+    setNewSource({ name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market });
     setEditingSourceKey(s.key); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true);
   }
   // Modal "Done" — validate the single source and write it into the draft (no DB call).
@@ -295,7 +295,7 @@ export default function Home() {
     if (newSource.type === "web site" && !newSource.search_prefix.trim()) { setConfigError("A website source needs a search prefix (e.g. nutraingredients.com)."); return; }
     if (newSource.type === "web page" && !newSource.url.trim()) { setConfigError("A single-page source needs a URL."); return; }
     const keepPrefix = newSource.type === "web site" || newSource.type === "youtube";
-    const fields: SourceFields = { name, type: newSource.type, url: newSource.type === "youtube" ? "" : newSource.url.trim(), search_prefix: keepPrefix ? newSource.search_prefix.trim() : "", note: newSource.note.trim(), market: newSource.market, language: newSource.language };
+    const fields: SourceFields = { name, type: newSource.type, url: newSource.type === "youtube" ? "" : newSource.url.trim(), search_prefix: keepPrefix ? newSource.search_prefix.trim() : "", note: newSource.note.trim(), market: newSource.market };
     if (editingSourceKey) setDraftSources(prev => prev.map(s => s.key === editingSourceKey ? { ...s, ...fields } : s));
     else setDraftSources(prev => [...prev, { key: nextKey(), id: null, ...fields }]);
     setSourceModalOpen(false); setConfigError("");
@@ -319,7 +319,7 @@ export default function Home() {
       const termInserts = terms.filter(t => t.id == null).map(t => ({ term: t.term, is_default: t.is_default }));
       const termUpdates = terms.filter(t => t.id != null).filter(t => { const o = termRecords.find(r => r.id === t.id); return o && o.term !== t.term; });
       // SOURCES diff
-      const toRow = (s: SourceFields) => ({ type: s.type, name: s.name.trim(), url: s.url.trim() || null, search_prefix: (s.type === "web site" || s.type === "youtube") ? (s.search_prefix.trim() || null) : null, note: s.note.trim() || null, market: s.market.trim() || null, language: s.language.trim() || "en" });
+      const toRow = (s: SourceFields) => ({ type: s.type, name: s.name.trim(), url: s.url.trim() || null, search_prefix: (s.type === "web site" || s.type === "youtube") ? (s.search_prefix.trim() || null) : null, note: s.note.trim() || null, market: s.market.trim() || null });
       const draftSrcIds = new Set(srcs.filter(s => s.id != null).map(s => s.id));
       const srcDeletes = sourceRecords.filter(r => !draftSrcIds.has(r.id)).map(r => r.id);
       const srcInserts = srcs.filter(s => s.id == null).map(toRow);
@@ -327,7 +327,7 @@ export default function Home() {
         const o = sourceRecords.find(r => r.id === s.id);
         if (!o) return false;
         return o.name !== s.name.trim() || o.type !== s.type || o.url !== s.url.trim()
-          || o.search_prefix !== ((s.type === "web site" || s.type === "youtube") ? s.search_prefix.trim() : "") || o.note !== s.note.trim() || o.market !== s.market.trim() || (o.language || "en") !== (s.language.trim() || "en");
+          || o.search_prefix !== ((s.type === "web site" || s.type === "youtube") ? s.search_prefix.trim() : "") || o.note !== s.note.trim() || o.market !== s.market.trim();
       });
 
       // Deletes first, so a rename/re-add can reuse a freed unique name.

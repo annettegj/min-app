@@ -16,7 +16,6 @@ type Source = {
   url: string;
   search_prefix?: string; // "web site": prepended to each query. "youtube": optional query bias. "web page": absent.
   note?: string;
-  language?: string; // ISO code (en/fr/de/it/es…). Search terms are translated into this language when querying the source. Default "en".
 };
 
 type DiscoveredCompany = {
