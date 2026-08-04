@@ -1291,9 +1291,11 @@ export default function Home() {
                                       <span>
                                         {s.name}
                                         {isPage && s.url && (
-                                          <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all" }}>
+                                          <a href={/^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
+                                            onClick={e => e.stopPropagation()}
+                                            style={{ display: "block", fontSize: 11, color: "var(--accent)", marginTop: 1, wordBreak: "break-all", textDecoration: "underline" }}>
                                             {s.url.replace(/^https?:\/\//, "")}
-                                          </span>
+                                          </a>
                                         )}
                                       </span>
                                     </label>
