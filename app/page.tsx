@@ -1267,11 +1267,10 @@ export default function Home() {
                     </div>
                     {/* Sources — spans 3 of the 4 columns so the type groups sit side by side */}
                     <div className="md:col-span-3" style={{ display: "flex", flexDirection: "column" }}>
-                      <label style={labelStyle}>{configEditMode ? "Sources" : "Sources (choose up to 4)"}</label>
-                      <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -2, marginBottom: 6, lineHeight: 1.6 }}>
-                        <strong>Website</strong> = a whole site<br />
-                        <strong>Single page</strong> = one specific URL
-                      </p>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", marginBottom: 6 }}>
+                        <label style={{ ...labelStyle, marginBottom: 0 }}>{configEditMode ? "Sources" : "Sources (choose up to 4)"}</label>
+                        <span style={{ fontSize: 11, color: "var(--text-muted)" }}><strong>Website</strong> = a whole site · <strong>Single page</strong> = one specific URL</span>
+                      </div>
                       {configEditMode ? (
                         <>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto", paddingRight: 6 }}>
@@ -1375,7 +1374,6 @@ export default function Home() {
                       })}
                     </div>
                   </div>
-                  <p style={{ fontSize: 15, fontWeight: 600, color: "var(--navy)", marginBottom: 8 }}>Search for new prospects</p>
                   <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 28 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
 
                   <button onClick={() => { if (SEARCH_DISABLED) return; if (pendingQueueCount != null && pendingQueueCount >= 5) setQueueModalOpen(true); else handleAgentSearch(); }} disabled={SEARCH_DISABLED}
