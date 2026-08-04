@@ -1840,8 +1840,14 @@ export default function Home() {
             ) },
             { key: "finding", label: "Finding new companies", content: (
               <>
-                <p style={ps}>On <strong>Find New Companies</strong>, pick up to 3 search terms and up to 4 sources (or leave them unticked to use the defaults), then click <strong>Search for New Companies</strong>.</p>
-                <p style={ps}>A search runs in three steps — find companies, research each one, score against the ICP. It takes about <strong>15 minutes</strong> (times out at 30). While it runs you&apos;ll see “Step X of 3”, a timer, and an expandable <strong>Search Log</strong>. When it finishes, you get a list of companies that passed the ICP — tick the ones to keep and save them.</p>
+                <p style={ps}>On <strong>Find New Companies</strong>, pick up to 3 search terms and up to 4 sources (or leave them unticked to use the defaults), then click <strong>Search for New Companies</strong>. A search takes about <strong>15 minutes</strong> and stops automatically after 30. While it runs you&apos;ll see “Step X of 3”, a timer, and an expandable <strong>Search Log</strong> that mirrors exactly what the app is doing.</p>
+                <p style={{ fontWeight: 700, color: "var(--navy)", margin: "16px 0 6px" }}>What happens behind the scenes — three steps</p>
+                <ul style={uls}>
+                  <li style={lis}><strong>1. Discovery</strong> — the AI runs web searches (and reads any single-page or YouTube sources you picked) using your terms, and extracts supplement company/brand names it hasn&apos;t seen before. Anything already in your database, rejected, or already waiting is filtered out. New names go into the waiting list.</li>
+                  <li style={lis}><strong>2. Research</strong> — for the next few waiting companies (5 at a time), the AI does its own web searches to gather details: their website, what they sell, whether they do omega-3/krill, how they describe themselves, price level, which European markets, and sales channels. Each company is saved the moment its research finishes, so nothing is lost partway.</li>
+                  <li style={lis}><strong>3. Scoring (ICP)</strong> — the AI reads everything gathered for the batch and scores each company against the Lysoveta ICP, giving a fit score, a priority tier (Early Mover / Follower / Enabler), and a short reason. Only companies that pass are shown for you to review and save.</li>
+                </ul>
+                <p style={ps}>Discovery only runs when the waiting list is below 5 — otherwise a run just researches what&apos;s already waiting (see <em>The waiting list</em>).</p>
                 <p style={muted}>The first search after a quiet period can take ~30 seconds to start (the server “wakes up” after being idle). That&apos;s normal.</p>
               </>
             ) },
@@ -1869,13 +1875,26 @@ export default function Home() {
                 <p style={ps}>Only companies that <strong>pass</strong> the ICP are shown for you to save. The rest are set aside — kept internally so they aren&apos;t re-discovered in future searches.</p>
               </>
             ) },
+            { key: "exceptions", label: "When something goes wrong", content: (
+              <>
+                <p style={ps}>The app is built to fail safely. Here&apos;s what the different situations and messages mean:</p>
+                <ul style={uls}>
+                  <li style={lis}><strong>“No new companies found”</strong> — everything found was already in your database, rejected, or waiting. The sources may not have published anything new, or the terms keep hitting the same companies. Try again later, or adjust/add sources and terms.</li>
+                  <li style={lis}><strong>“A previous search didn&apos;t finish”</strong> — if a company got stuck while being researched, the app stops the run and puts those companies back in the waiting list so nothing is lost. You can remove one that keeps hanging, or just search again to retry them.</li>
+                  <li style={lis}><strong>A source can&apos;t be read</strong> — some pages block automated reading (paywalls, robots rules) or are JavaScript-only (e.g. many trade-show exhibitor lists). Those are simply skipped, and the run continues with the others.</li>
+                  <li style={lis}><strong>A fixed list adds nothing new</strong> — single-page and “best of” sources give the same names each time, so after the first harvest they stop producing new companies. That&apos;s expected — deactivate or remove them once mined.</li>
+                  <li style={lis}><strong>The 30-minute limit</strong> — if a run ever stalls, it&apos;s stopped automatically after 30 minutes so it can never hang forever. Anything already researched and saved is kept.</li>
+                  <li style={lis}><strong>You closed or reloaded the page</strong> — research is saved company-by-company as it completes, so finished work is never lost; those companies are reused (for free) on the next search.</li>
+                  <li style={lis}><strong>An error screen</strong> — if something fails (e.g. a service or configuration problem), you get a message explaining what you can do, usually with a <em>Try again</em> button.</li>
+                </ul>
+              </>
+            ) },
             { key: "tips", label: "Tips & good to know", content: (
               <>
                 <ul style={uls}>
                   <li style={lis}>Best viewed on a <strong>laptop or desktop</strong> — the layout isn&apos;t designed for mobile.</li>
                   <li style={lis}>There&apos;s <strong>no login</strong> — anyone with the link can open the app, so please don&apos;t share it more widely than intended.</li>
                   <li style={lis}>Your actions are <strong>live</strong>: saving or removing companies changes the real database.</li>
-                  <li style={lis}>Searches use Sprint&apos;s Anthropic account, which has limited usage — so it&apos;s worth being a little deliberate with test runs.</li>
                 </ul>
               </>
             ) },
