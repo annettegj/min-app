@@ -308,6 +308,9 @@ async function discoverViaYouTube(
     emit(`[search] Step 1 (youtube): skipped — no search terms`);
     return [];
   }
+  // Masked key sanity check — a valid Google API key is ~39 chars starting "AIzaSy". If the length
+  // looks off here, the value in .env.local is wrong/truncated (not a code problem).
+  emit(`[search] Step 1 (youtube): key length ${apiKey.length}, starts "${apiKey.slice(0, 6)}"`);
 
   const REGION = "GB";   // nudge toward European/English content (not a hard filter)
   const LANG = "en";

@@ -687,7 +687,7 @@ export default function Home() {
           stopPolling();
           setAgentError({
             title: "No new companies found",
-            detail: "The search found no companies that aren't already in the database, rejected, or in the queue. This may mean the sources haven't published anything new, or the search terms keep hitting the same companies. Consider adjusting the sources or search terms in config/sources.json, or try again later.",
+            detail: "The search found no companies that aren't already in the database, rejected, or in the queue. This may mean the sources haven't published anything new, or the search terms keep hitting the same companies. Consider adjusting the sources or search terms in the Search Configuration panel (Edit), or try again later.",
             canRetry: false,
           });
           setAgentState("error");
@@ -1455,7 +1455,7 @@ export default function Home() {
                 <div style={{ padding: "24px 24px 20px" }}>
                   <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.6, marginBottom: 20 }}>{agentError.detail}</p>
                   <div style={{ background: "var(--surface-danger)", border: "1px solid var(--border-danger)", padding: "12px 16px", marginBottom: 20 }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-strong)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Hva kan du gjøre?</p>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-strong)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>What you can do</p>
                     {agentError.canRetry ? (
                       <ul style={{ margin: 0, paddingLeft: 18 }}>
                         <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Try the search again — companies that were mid-processing are reset automatically</li>
@@ -1465,7 +1465,7 @@ export default function Home() {
                     ) : (
                       <ul style={{ margin: 0, paddingLeft: 18 }}>
                         <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Wait a few days and try again — trade media publish new articles regularly</li>
-                        <li style={{ fontSize: 13, color: "var(--text)" }}>Consider adding new search terms in <code style={{ background: "var(--surface-danger-hover)", padding: "1px 4px", fontSize: 12 }}>config/sources.json</code></li>
+                        <li style={{ fontSize: 13, color: "var(--text)" }}>Consider adding new sources or search terms via <strong>Edit</strong> in the Search Configuration panel</li>
                       </ul>
                     )}
                   </div>
