@@ -16,6 +16,7 @@ type Source = {
   url: string;
   search_prefix?: string; // "web site": prepended to each query. "youtube": optional query bias. "web page": absent.
   note?: string;
+  language?: string; // ISO code (en/fr/de/it/es…). Search terms are translated into this language when querying the source. Default "en".
 };
 
 type DiscoveredCompany = {
@@ -185,6 +186,38 @@ function logSearchOutcome(response: Anthropic.Message): void {
 // primarily active (usually two sides of the same coin in this case). There is NO code-level region
 // filter — off-region companies that turn up anyway are kept and queued (and scored against the
 // matching ICP in Step 3).
+// Translate the search phrases into each requested non-English language (one Claude call), so a
+// source can be queried in its own language. Returns { lang: [phrases in same order] }. On any
+// failure or shape mismatch a language is simply omitted — callers then fall back to English.
+async function translateConcepts(client: Anthropic, concepts: string[], languages: string[]): Promise<Record<string, string[]>> {
+  const langs = Array.from(new Set(languages.map(l => l.toLowerCase()).filter(l => l && l !== "en")));
+  if (langs.length === 0 || concepts.length === 0) return {};
+  try {
+    const stream = await client.messages.stream({
+      model: "claude-sonnet-5",
+      max_tokens: 1500,
+      messages: [{ role: "user", content: `Translate each supplement search phrase below into these languages (ISO codes): ${langs.join(", ")}. Keep them as natural search phrases someone would type. Return ONLY a raw JSON object keyed by language code; each value an array of the translations in the SAME order as the input.
+
+Phrases:
+${concepts.map((c, i) => `${i + 1}. ${c}`).join("\n")}
+
+Example: {"fr":["…","…"],"de":["…","…"]}` }],
+    }, { signal: activeSignal ?? undefined });
+    const obj = parseJsonObject(await stream.finalMessage());
+    const out: Record<string, string[]> = {};
+    for (const lang of langs) {
+      const arr = obj?.[lang];
+      if (Array.isArray(arr) && arr.length === concepts.length && arr.every((x) => typeof x === "string" && x.trim())) {
+        out[lang] = arr as string[];
+      }
+    }
+    if (Object.keys(out).length > 0) emit(`[search] Step 1: translated terms into ${Object.keys(out).join(", ")}`);
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 function marketSteer(targetMarket?: "eu" | "us" | "both"): string {
   if (targetMarket === "eu") return `\n- Focus on companies in Europe (EU / UK) — based in or primarily active in the region.`;
   if (targetMarket === "us") return `\n- Focus on companies in the United States — based in or primarily active there.`;
@@ -223,7 +256,15 @@ async function discoverCompanies(
   // Build the narrow queries from concepts × sources: one concept per query, as an explicit numbered
   // list so the model runs them as separate searches rather than combining them.
   emit(`[search] Step 1: using ${searchConcepts.length} search terms: ${searchConcepts.join(", ")}`);
-  const allQueries = siteSources.flatMap((s) => searchConcepts.map((c) => `${s.search_prefix} ${c}`));
+  // Query each source in its own language: translate the concepts into every non-English source
+  // language (one call), then build per-source queries. Falls back to English on any failure.
+  const neededLangs = siteSources.map((s) => (s.language ?? "en").toLowerCase());
+  const translated = await translateConcepts(client, searchConcepts, neededLangs);
+  const conceptsFor = (lang?: string) => {
+    const l = (lang ?? "en").toLowerCase();
+    return l !== "en" && translated[l] ? translated[l] : searchConcepts;
+  };
+  const allQueries = siteSources.flatMap((s) => conceptsFor(s.language).map((c) => `${s.search_prefix} ${c}`));
   const queryList = allQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n");
   emit(`[search] Step 1 technique: web_search — ${siteSources.length} website source(s) × ${searchConcepts.length} term(s) = ${allQueries.length} queries`);
   emit(`[search] Step 1 queries:\n${queryList}`);
@@ -321,17 +362,23 @@ async function discoverViaYouTube(
     return [];
   }
 
-  const REGION = "GB";   // nudge toward European/English content (not a hard filter)
-  const LANG = "en";
+  // Region/language follow the youtube source's language (default English/UK).
+  const lang = (youtubeSources[0]?.language ?? "en").toLowerCase();
+  const REGION_BY_LANG: Record<string, string> = { en: "GB", fr: "FR", de: "DE", it: "IT", es: "ES" };
+  const REGION = REGION_BY_LANG[lang] ?? "GB";
+  const LANG = lang || "en";
   const PER_TERM = 8;    // videos fetched per term
+  // Translate the concepts into the source's language when it isn't English.
+  let ytConcepts = concepts;
+  if (lang !== "en") { const t = await translateConcepts(client, concepts, [lang]); ytConcepts = t[lang] ?? concepts; }
   // A youtube source may carry a search_prefix to bias the query (e.g. "supplement review").
   const prefix = youtubeSources.map((s) => s.search_prefix?.trim()).find(Boolean) ?? "";
   const sourceName = youtubeSources[0]?.name ?? "YouTube";
-  emit(`[search] Step 1 (youtube) technique: YouTube search on ${concepts.length} term(s)${prefix ? ` (bias: "${prefix}")` : ""}`);
+  emit(`[search] Step 1 (youtube) technique: YouTube search on ${ytConcepts.length} term(s) [${LANG}/${REGION}]${prefix ? ` (bias: "${prefix}")` : ""}`);
 
   // 1) search.list per concept → collect video ids
   const videoIds: string[] = [];
-  for (const concept of concepts) {
+  for (const concept of ytConcepts) {
     const q = `${prefix} ${concept}`.trim();
     const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${PER_TERM}&regionCode=${REGION}&relevanceLanguage=${LANG}&q=${encodeURIComponent(q)}&key=${apiKey}`;
     try {
@@ -731,7 +778,7 @@ async function getSearchConfig(
   try {
     const [{ data: sourceRows, error: srcErr }, { data: termRows, error: termErr }] =
       await Promise.all([
-        supabase.from("sources").select("type, name, url, search_prefix, note").eq("active", true).order("id"),
+        supabase.from("sources").select("*").eq("active", true).order("id"),
         supabase.from("search_terms").select("term, is_default").eq("active", true).order("id"),
       ]);
     if (srcErr) throw srcErr;

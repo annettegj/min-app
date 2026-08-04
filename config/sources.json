@@ -141,7 +141,8 @@
       "url": "https://www.darwin-nutrition.fr",
       "search_prefix": "darwin-nutrition.fr",
       "note": "French/European consumer nutrition media (editorial buying guides; English edition available). Names European supplement brands (e.g. Cuure, Novoma, Dynveo, Aime). Good EU brand source.",
-      "market": "EU"
+      "market": "EU",
+      "language": "fr"
     },
     {
       "type": "web site",

@@ -89,6 +89,12 @@ worked down.
   from the database (`search_terms` / `sources` tables) and are chosen in the UI; if the user ticks
   none, the worker uses the default terms / all active sources. `config/sources.json` is the
   fallback if the DB read fails.
+- **Per-source language:** each source has a `language` (default `en`). Before building queries the
+  worker translates the terms into every non-English source language via one Claude call
+  (`translateConcepts`) and queries each source in **its own language** (e.g. a `fr` source is
+  searched with French terms). On any translation failure it falls back to English — no regression.
+  YouTube sources use their language for `regionCode` / `relevanceLanguage` too; `web_fetch` sources
+  read the page directly, so language doesn't apply to them.
 - Only **"web site"** sources produce queries here. **"web page"** sources are read once via
   `web_fetch` (`discoverViaFetch`), and **"youtube"** sources go through the YouTube Data API
   (`discoverViaYouTube`) — neither consumes the 12-search web budget.
