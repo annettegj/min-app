@@ -298,7 +298,8 @@ async function discoverViaYouTube(
   concepts: string[],
   knownNames: string[] = []
 ): Promise<DiscoveredCompany[]> {
-  const apiKey = process.env.YOUTUBE_API_KEY;
+  // Defensive: trim whitespace and strip accidental surrounding quotes from the env value.
+  const apiKey = process.env.YOUTUBE_API_KEY?.trim().replace(/^["']|["']$/g, "");
   if (!apiKey) {
     emit(`[search] Step 1 (youtube): skipped — YOUTUBE_API_KEY not set on the server`);
     return [];
@@ -324,7 +325,9 @@ async function discoverViaYouTube(
     try {
       const res = await fetch(searchUrl, { signal: activeSignal ?? undefined });
       if (!res.ok) {
-        emit(`[search] Step 1 (youtube)   ✗ search "${q}" failed — HTTP ${res.status}`);
+        const body = await res.text().catch(() => "");
+        const reason = (() => { try { return (JSON.parse(body) as { error?: { message?: string; errors?: { reason?: string }[] } }).error; } catch { return null; } })();
+        emit(`[search] Step 1 (youtube)   ✗ search "${q}" failed — HTTP ${res.status}: ${reason?.message ?? body.slice(0, 300)}${reason?.errors?.[0]?.reason ? ` [${reason.errors[0].reason}]` : ""}`);
         continue;
       }
       const data = (await res.json()) as { items?: { id?: { videoId?: string } }[] };
@@ -348,7 +351,8 @@ async function discoverViaYouTube(
     const vidUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${uniqueIds.join(",")}&key=${apiKey}`;
     const res = await fetch(vidUrl, { signal: activeSignal ?? undefined });
     if (!res.ok) {
-      emit(`[search] Step 1 (youtube): videos.list failed — HTTP ${res.status}`);
+      const body = await res.text().catch(() => "");
+      emit(`[search] Step 1 (youtube): videos.list failed — HTTP ${res.status}: ${body.slice(0, 300)}`);
       return [];
     }
     const data = (await res.json()) as { items?: { snippet?: { title?: string; description?: string; channelTitle?: string } }[] };
