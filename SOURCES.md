@@ -19,6 +19,12 @@ and that anyone can see the reasoning behind the current source list.
    ingredient suppliers, contract manufacturers and distributors. A source packed with ingredient
    suppliers extracts fine but produces almost no *matches*.
 
+> **Geography is NOT a source filter (policy, 2026-08).** US-focused sources are welcome — the ICP
+> step filters results to European finished brands downstream, so casting wider costs a little
+> extra research but never hurts coverage. Sources are judged only on **extractability** and whether
+> they list **companies** (not ingredient suppliers, not pure trend/ingredient data). Earlier
+> "low EU relevance" notes below are kept as context, not as reasons to exclude.
+
 ## In use
 
 | Source | Type | Status | Notes |
@@ -27,12 +33,13 @@ and that anyone can see the reasoning behind the current source list.
 | Nutrition Insight | Website | ✅ Working | Core trade media. |
 | Nutraceutical Business Review | Website | ✅ Working | Many articles paywalled — extract names from titles/snippets. |
 | Nutritional Outlook | Website | ✅ Working | Core trade media. |
-| Healthline — Best Vitamin Brands | Single page | ⚠️ Works, low EU relevance | `web_fetch` reads it fine (13 companies in test), but the list is **US-skewed** (Ritual, HUM, Seed, Nature Made…), so few pass the Europe-focused ICP. Delete if it keeps yielding nothing that matches. |
+| Healthline — Best Vitamin Brands | Single page | ✅ Working | `web_fetch` reads it fine (13 companies in test). US-leaning list (Ritual, HUM, Seed, Nature Made…) — that's fine under the geography policy above; the ICP filters. Fixed list, so nothing new on re-runs. |
 | Vitafoods Europe | Website | 🧪 Trial (2026-08) | See trade-show findings below. Added via migration 002. |
 | In-Vitality | Website | 🧪 Trial (2026-08) | See trade-show findings below. Added via migration 002. |
 | EHPM — Member Companies | Single page | 🧪 Trial (2026-08) | Small static member list (~18 companies). Added via migration 003. Note skips associations + ingredient suppliers. Fixed list — nothing new on re-runs. |
 | SupplySide Supplement Journal | Website | 🧪 Trial (2026-08) | Trade media, names companies (incl. European launches). Added via migration 004. |
 | mindbodygreen — Best Omega-3 / Memory / Nootropics | Single page (×3) | 🧪 Trial (2026-08) | Editorial "best of" round-ups (multi-brand, static). Added via migration 004. US-leaning; ICP filters. Omega-3 list includes a krill brand (Kori). |
+| Well+Good, Everyday Health, Prevention, Verywell Health | Website (×4) | 🧪 Trial (2026-08) | US consumer health media that publish supplement brand round-ups. Added via migration 005. Domain-scoped search; ICP filters to European brands. |
 
 ## Evaluated — Events & trade shows (from Viola's list, tested 2026-08)
 
@@ -79,7 +86,7 @@ genuine new *company* source stood out: SupplySide Supplement Journal (trade med
 |---|---|---|
 | **SupplySide Supplement Journal** (`supplysidesj.com`) | ✅ Added — Website (migration 004) | Real trade publication covering brand launches, founders, product news — names companies, incl. European brands. Same profile as our other trade-media sources. |
 | **mindbodygreen** | ✅ Added — 3 editorial round-ups as Single page (migration 004) | Its **shop** pages are single-brand + JavaScript (rejected). Its **editorial** "best of" articles are static and multi-brand — added best-omega-3 (incl. Kori Krill), best-memory, best-nootropics. US-leaning but on-topic; ICP filters. Decision (2026-08): stop excluding US sources — the ICP handles EU filtering. |
-| **Well+Good / Everyday Health / Prevention / Verywell Health** | ⏸️ Available if wanted | Same pattern as mindbodygreen — US consumer "best of" round-ups with static multi-brand lists. Add specific editorial round-up pages as Single-page sources if we want more volume. |
+| **Well+Good / Everyday Health / Prevention / Verywell Health** | ✅ Added — Website ×4 (migration 005) | US consumer "best of" media. Added as domain-scoped Website sources (ongoing, catches new round-ups). If a domain search proves thin, swap to a specific editorial round-up page as Single page (as done for mindbodygreen). |
 | **Examine / NIH Office of Dietary Supplements** | ❌ Not a source | Ingredient/evidence references only — no company names to extract. |
 | **ConsumerLab / Consumer Reports** | ❌ Paywalled | Brand testing behind subscription; not readable. |
 | **Google Trends / Spate / Glimpse** | ⛔ Trend platforms | Paid/JS dashboards, no company list. Inspiration for search terms only (Google Trends excluded per request). |

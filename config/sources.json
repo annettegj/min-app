@@ -91,6 +91,34 @@
       "name": "mindbodygreen — Best Nootropics",
       "url": "https://www.mindbodygreen.com/articles/best-nootropics",
       "note": "Editorial round-up of ~6 nootropic/focus supplement brands (US-leaning; ICP filters). One-time harvest of a fixed list."
+    },
+    {
+      "type": "web site",
+      "name": "Well+Good",
+      "url": "https://www.wellandgood.com",
+      "search_prefix": "wellandgood.com supplements",
+      "note": "US consumer wellness media — publishes supplement brand round-ups and trend pieces. Extract finished-brand supplement companies; the ICP filters to European brands."
+    },
+    {
+      "type": "web site",
+      "name": "Everyday Health",
+      "url": "https://www.everydayhealth.com",
+      "search_prefix": "everydayhealth.com supplements",
+      "note": "US consumer health media — nutrition/supplement product coverage and round-ups. Extract finished-brand supplement companies; the ICP filters to European brands."
+    },
+    {
+      "type": "web site",
+      "name": "Prevention",
+      "url": "https://www.prevention.com",
+      "search_prefix": "prevention.com best supplements",
+      "note": "US consumer health/nutrition media — 'best supplements' round-ups. Extract finished-brand supplement companies; the ICP filters to European brands."
+    },
+    {
+      "type": "web site",
+      "name": "Verywell Health",
+      "url": "https://www.verywellhealth.com",
+      "search_prefix": "verywellhealth.com best supplements",
+      "note": "US medically-reviewed consumer health media — some supplement 'best of' reviews. Extract finished-brand supplement companies; the ICP filters to European brands."
     }
   ]
 }
