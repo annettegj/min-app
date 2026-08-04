@@ -26,8 +26,8 @@ const SEARCH_TERM_OPTIONS = Array.from(new Set([
   ...((sourcesConfig as { search_concepts?: string[] }).search_concepts ?? []),
   ...((sourcesConfig as { keyword_bank?: string[] }).keyword_bank ?? []),
 ]));
-const SOURCE_OPTIONS = ((sourcesConfig as { sources?: { name: string; type?: string; url?: string }[] }).sources ?? [])
-  .map(s => ({ name: s.name, type: s.type ?? "web site", url: s.url ?? "" }));
+const SOURCE_OPTIONS = ((sourcesConfig as { sources?: { name: string; type?: string; url?: string; market?: string }[] }).sources ?? [])
+  .map(s => ({ name: s.name, type: s.type ?? "web site", url: s.url ?? "", market: s.market ?? "" }));
 
 type Company = {
   id: number;
@@ -98,8 +98,20 @@ const hintStyle: React.CSSProperties = { fontSize: 11, color: "var(--text-muted)
 const reqStyle: React.CSSProperties = { color: "var(--danger-text)", fontWeight: 700, marginLeft: 3 };
 const optStyle: React.CSSProperties = { fontSize: 10, fontWeight: 400, color: "var(--text-dim)", textTransform: "none", letterSpacing: 0, marginLeft: 6 };
 
+// Small EU / US / Global tag shown next to a source so the user knows which market it leans toward.
+function MarketBadge({ market }: { market?: string | null }) {
+  if (!market) return null;
+  const m = market.toUpperCase();
+  const isEU = m === "EU", isUS = m === "US";
+  return (
+    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", padding: "1px 5px", borderRadius: 3, marginLeft: 6, textTransform: "uppercase", whiteSpace: "nowrap",
+      background: isEU ? "var(--badge-green-bg)" : isUS ? "var(--banner-info-bg)" : "var(--surface-hover)",
+      color: isEU ? "var(--success)" : isUS ? "var(--banner-info-text)" : "var(--text-muted)" }}>{market}</span>
+  );
+}
+
 // --- Search-configuration draft types (edit mode edits a local draft; Save commits the diff) ---
-type SourceFields = { name: string; type: "web site" | "web page" | "youtube"; url: string; search_prefix: string; note: string };
+type SourceFields = { name: string; type: "web site" | "web page" | "youtube"; url: string; search_prefix: string; note: string; market: string };
 type SourceRecord = SourceFields & { id: number };
 type DraftTerm = { key: string; id: number | null; term: string; is_default: boolean };
 type DraftSource = SourceFields & { key: string; id: number | null };
@@ -177,7 +189,7 @@ export default function Home() {
   const keyRef = useRef(0);
   const nextKey = () => `k${keyRef.current++}`;
   // Add/edit-source modal — edits the DRAFT, not the DB. editingSourceKey === null means "add new".
-  const [newSource, setNewSource] = useState<SourceFields>({ name: "", type: "web site", url: "", search_prefix: "", note: "" });
+  const [newSource, setNewSource] = useState<SourceFields>({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "" });
   const [editingSourceKey, setEditingSourceKey] = useState<string | null>(null);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [sourceInfoOpen, setSourceInfoOpen] = useState(false);
@@ -232,16 +244,16 @@ export default function Home() {
   // wipes the list. Stale selections (renamed/removed items) are pruned.
   async function loadSearchConfig() {
     const [{ data: srcs }, { data: terms }] = await Promise.all([
-      supabase.from("sources").select("id, name, type, url, search_prefix, note").eq("active", true).order("id"),
+      supabase.from("sources").select("*").eq("active", true).order("id"),
       supabase.from("search_terms").select("id, term, is_default").eq("active", true).order("id"),
     ]);
     if (srcs) {
-      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null }) => ({
+      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null; market?: string | null }) => ({
         id: s.id, name: s.name, type: (s.type ?? "web site") as "web site" | "web page" | "youtube",
-        url: s.url ?? "", search_prefix: s.search_prefix ?? "", note: s.note ?? "",
+        url: s.url ?? "", search_prefix: s.search_prefix ?? "", note: s.note ?? "", market: s.market ?? "",
       }));
       setSourceRecords(recs);
-      setSourceOptions(recs.map(s => ({ name: s.name, type: s.type, url: s.url })));
+      setSourceOptions(recs.map(s => ({ name: s.name, type: s.type, url: s.url, market: s.market })));
       setSelectedSources(prev => prev.filter(n => recs.some(r => r.name === n)));
     }
     if (terms) {
@@ -255,7 +267,7 @@ export default function Home() {
   // --- Draft editing (local until "Save changes") ---
   function enterConfigEdit() {
     setDraftTerms(termRecords.map(t => ({ key: nextKey(), id: t.id, term: t.term, is_default: t.is_default })));
-    setDraftSources(sourceRecords.map(s => ({ key: nextKey(), id: s.id, name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note })));
+    setDraftSources(sourceRecords.map(s => ({ key: nextKey(), id: s.id, name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market })));
     setConfigError("");
     setConfigEditMode(true);
   }
@@ -269,11 +281,11 @@ export default function Home() {
   const addDraftTerm = () => setDraftTerms(prev => [...prev, { key: nextKey(), id: null, term: "", is_default: false }]);
   const removeDraftSource = (key: string) => setDraftSources(prev => prev.filter(s => s.key !== key));
   function openAddSource() {
-    setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "" });
+    setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "" });
     setEditingSourceKey(null); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true);
   }
   function openEditSource(s: DraftSource) {
-    setNewSource({ name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note });
+    setNewSource({ name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market });
     setEditingSourceKey(s.key); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true);
   }
   // Modal "Done" — validate the single source and write it into the draft (no DB call).
@@ -283,7 +295,7 @@ export default function Home() {
     if (newSource.type === "web site" && !newSource.search_prefix.trim()) { setConfigError("A website source needs a search prefix (e.g. nutraingredients.com)."); return; }
     if (newSource.type === "web page" && !newSource.url.trim()) { setConfigError("A single-page source needs a URL."); return; }
     const keepPrefix = newSource.type === "web site" || newSource.type === "youtube";
-    const fields: SourceFields = { name, type: newSource.type, url: newSource.type === "youtube" ? "" : newSource.url.trim(), search_prefix: keepPrefix ? newSource.search_prefix.trim() : "", note: newSource.note.trim() };
+    const fields: SourceFields = { name, type: newSource.type, url: newSource.type === "youtube" ? "" : newSource.url.trim(), search_prefix: keepPrefix ? newSource.search_prefix.trim() : "", note: newSource.note.trim(), market: newSource.market };
     if (editingSourceKey) setDraftSources(prev => prev.map(s => s.key === editingSourceKey ? { ...s, ...fields } : s));
     else setDraftSources(prev => [...prev, { key: nextKey(), id: null, ...fields }]);
     setSourceModalOpen(false); setConfigError("");
@@ -307,7 +319,7 @@ export default function Home() {
       const termInserts = terms.filter(t => t.id == null).map(t => ({ term: t.term, is_default: t.is_default }));
       const termUpdates = terms.filter(t => t.id != null).filter(t => { const o = termRecords.find(r => r.id === t.id); return o && o.term !== t.term; });
       // SOURCES diff
-      const toRow = (s: SourceFields) => ({ type: s.type, name: s.name.trim(), url: s.url.trim() || null, search_prefix: (s.type === "web site" || s.type === "youtube") ? (s.search_prefix.trim() || null) : null, note: s.note.trim() || null });
+      const toRow = (s: SourceFields) => ({ type: s.type, name: s.name.trim(), url: s.url.trim() || null, search_prefix: (s.type === "web site" || s.type === "youtube") ? (s.search_prefix.trim() || null) : null, note: s.note.trim() || null, market: s.market.trim() || null });
       const draftSrcIds = new Set(srcs.filter(s => s.id != null).map(s => s.id));
       const srcDeletes = sourceRecords.filter(r => !draftSrcIds.has(r.id)).map(r => r.id);
       const srcInserts = srcs.filter(s => s.id == null).map(toRow);
@@ -315,7 +327,7 @@ export default function Home() {
         const o = sourceRecords.find(r => r.id === s.id);
         if (!o) return false;
         return o.name !== s.name.trim() || o.type !== s.type || o.url !== s.url.trim()
-          || o.search_prefix !== ((s.type === "web site" || s.type === "youtube") ? s.search_prefix.trim() : "") || o.note !== s.note.trim();
+          || o.search_prefix !== ((s.type === "web site" || s.type === "youtube") ? s.search_prefix.trim() : "") || o.note !== s.note.trim() || o.market !== s.market.trim();
       });
 
       // Deletes first, so a rename/re-add can reuse a freed unique name.
@@ -1290,6 +1302,7 @@ export default function Home() {
                                     {s.type === "web page" ? "Single page" : s.type === "youtube" ? "YouTube" : "Website"}
                                     {s.type === "web page" && s.url ? ` · ${s.url.replace(/^https?:\/\//, "")}` : ""}
                                     {(s.type === "web site" || s.type === "youtube") && s.search_prefix ? ` · ${s.search_prefix}` : ""}
+                                    {s.market ? ` · ${s.market}` : ""}
                                     <span style={{ color: "var(--accent)", fontWeight: 700 }}> · Edit ✎</span>
                                   </span>
                                 </button>
@@ -1324,7 +1337,7 @@ export default function Home() {
                                           onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
                                           style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
                                         <span>
-                                          {s.name}
+                                          {s.name}<MarketBadge market={s.market} />
                                           {isPage && s.url && (
                                             <a href={/^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
                                               onClick={e => e.stopPropagation()}
@@ -2108,6 +2121,16 @@ export default function Home() {
                   <option value="web page">Single page</option>
                   <option value="youtube">YouTube search</option>
                 </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Market <span style={optStyle}>optional</span></label>
+                <select value={newSource.market} onChange={e => setNewSource({ ...newSource, market: e.target.value })} style={inputStyle}>
+                  <option value="">Unspecified</option>
+                  <option value="EU">EU</option>
+                  <option value="US">US</option>
+                  <option value="Global">Global</option>
+                </select>
+                <p style={hintStyle}>Which market this source leans toward — shown as a tag in the list. Informational; it doesn&apos;t affect scoring or discovery.</p>
               </div>
               {newSource.type === "web site" ? (
                 <>
