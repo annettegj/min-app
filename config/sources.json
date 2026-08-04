@@ -132,7 +132,24 @@
       "name": "TikTok Shop",
       "url": "https://shop.tiktok.com",
       "search_prefix": "shop.tiktok.com",
-      "note": "Domain-scoped web_search of TikTok Shop supplement listings. Category-relevant brands (nootropics/longevity, e.g. Simply Nootropics) do surface, but it skews US and mass-market (beauty/gummy/collagen) — the ICP filters. Extract finished-brand supplement companies only."
+      "note": "Domain-scoped web_search of TikTok Shop supplement listings. Category-relevant brands (nootropics/longevity, e.g. Simply Nootropics) do surface, but it skews US and mass-market (beauty/gummy/collagen) — the ICP filters. Extract finished-brand supplement companies only.",
+      "market": "US"
+    },
+    {
+      "type": "web site",
+      "name": "Darwin Nutrition",
+      "url": "https://www.darwin-nutrition.fr",
+      "search_prefix": "darwin-nutrition.fr",
+      "note": "French/European consumer nutrition media (editorial buying guides; English edition available). Names European supplement brands (e.g. Cuure, Novoma, Dynveo, Aime). Good EU brand source.",
+      "market": "EU"
+    },
+    {
+      "type": "web site",
+      "name": "Which?",
+      "url": "https://www.which.co.uk",
+      "search_prefix": "which.co.uk supplements",
+      "note": "UK consumer-review organisation — supplement 'best of' reviews name UK/EU brands (Vitabiotics, Higher Nature, Boots, Holland & Barrett). Full results are paywalled, so extract company names from titles/snippets.",
+      "market": "EU"
     }
   ]
 }

@@ -43,6 +43,8 @@ and that anyone can see the reasoning behind the current source list.
 | Well+Good, Everyday Health, Prevention, Verywell Health | Website (×4) | 🧪 Trial (2026-08) | US consumer health media that publish supplement brand round-ups. Added via migration 005. Domain-scoped search; ICP filters to European brands. |
 | YouTube — Supplement Reviews | YouTube | 🧪 Trial (2026-08) | Searches YouTube for the terms, extracts brands from video titles/descriptions. Added via migration 006. Experimental — noisier, US/English-leaning. Needs `YOUTUBE_API_KEY` on Render (skipped if unset). |
 | TikTok Shop | Website | 🧪 Trial (2026-08) | Domain-scoped search (`shop.tiktok.com`). Added via migration 007. Category-relevant brands surface (e.g. Simply Nootropics / NMN / longevity); US + mass-market skew, ICP filters. No VPN needed (search index is global). |
+| Darwin Nutrition | Website (EU) | 🧪 Trial (2026-08) | FR/EU consumer nutrition media (English edition). Names European brands (Cuure, Novoma, Dynveo, Aime). Migration 009. |
+| Which? | Website (EU) | 🧪 Trial (2026-08) | UK consumer-review org; names UK/EU brands (Vitabiotics, Higher Nature…). Paywalled → titles/snippets. Migration 009. |
 
 ## Evaluated — Events & trade shows (from Viola's list, tested 2026-08)
 
@@ -95,6 +97,23 @@ genuine new *company* source stood out: SupplySide Supplement Journal (trade med
 | **Google Trends / Spate / Glimpse** | ⛔ Trend platforms | Paid/JS dashboards, no company list. Inspiration for search terms only (Google Trends excluded per request). |
 | **TikTok Shop** | ✅ Added — Website (migration 007) | The catch: search *about* TikTok Shop returns mass-market beauty/gummy brands, but a search **scoped to the `shop.tiktok.com` domain** returns real Shop listings incl. category-relevant nootropic/longevity brands (Simply Nootropics, etc.). No VPN needed — the search index is global. US/mass-market skew; ICP filters. |
 | **Instagram / general TikTok / YouTube channels** | ⛔ Not pursued (YouTube has its own type) | Social feeds are signal, not validated company data. YouTube is covered via the dedicated `youtube` source type; Instagram not pursued. |
+
+## Evaluated — European sources (from a Perplexity EU list, tested 2026-08)
+
+**General finding:** strong EU *consumer* sources exist, but most are **country-specific and
+non-English** (German/French/Italian). Since our search terms are English, a domain-scoped search
+against a German/French site surfaces little — so the biggest untapped lever is **localized search
+terms** (per-language), a candidate feature. The two EU sources that work with English terms today
+were added.
+
+| Source | Verdict | Why |
+|---|---|---|
+| **NutraIngredients Europe** | ✅ Already in use | Core EU trade media (launches, companies, ingredients). |
+| **Darwin Nutrition** (`darwin-nutrition.fr`) | ✅ Added — Website EU (migration 009) | FR/EU consumer nutrition media with an English edition; editorial buying guides name European brands (Cuure, Novoma, Dynveo, Aime). |
+| **Which?** (UK) | ✅ Added — Website EU (migration 009) | UK consumer reviews naming UK/EU brands; English (matches our terms). Paywalled → extract names from titles/snippets. |
+| **Stiftung Warentest** (DE) | ⏸️ Hold | Names strong EU brands (Doppelherz, Orthomol) but paywalled **and** German — English-term searches surface little. Needs localized (German) terms. |
+| **Que Choisir (FR) / Test Achats (BE) / Altroconsumo (IT)** | ⏸️ Hold | Consumer orgs naming EU brands, but paywalled + non-English. Same localized-terms blocker. |
+| **Food Supplements Europe / AESGP** | ❌ Not a source | EU trade associations — publish consumer/market **survey data**, not company/brand lists. |
 
 ## If trade shows underperform
 
