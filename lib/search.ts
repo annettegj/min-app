@@ -181,13 +181,13 @@ function logSearchOutcome(response: Anthropic.Message): void {
 // ---- Step 1: Discovery ----
 // Searches trade media sources using predefined search strings and extracts company names.
 
-// A location steer for Step 1 discovery, by where the company is BASED (HQ / country), not where it
-// sells. Phrased as a firm instruction, but there is NO code-level region filter — so if an
-// off-region company slips in anyway it is still kept and queued (and scored against the matching
-// ICP in Step 3).
+// A soft region steer for Step 1 discovery. Region here loosely means where the company is based or
+// primarily active (usually two sides of the same coin in this case). There is NO code-level region
+// filter — off-region companies that turn up anyway are kept and queued (and scored against the
+// matching ICP in Step 3).
 function marketSteer(targetMarket?: "eu" | "us" | "both"): string {
-  if (targetMarket === "eu") return `\n- Only return companies located in Europe — i.e. based or headquartered in an EU country or the UK (judge by where the company is based, not where it sells).`;
-  if (targetMarket === "us") return `\n- Only return companies located in the United States — i.e. based or headquartered in the US (judge by where the company is based, not where it sells).`;
+  if (targetMarket === "eu") return `\n- Focus on companies in Europe (EU / UK) — based in or primarily active in the region.`;
+  if (targetMarket === "us") return `\n- Focus on companies in the United States — based in or primarily active there.`;
   return "";
 }
 
