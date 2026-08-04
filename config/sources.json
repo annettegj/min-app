@@ -60,6 +60,12 @@
       "url": "https://www.in-vitality.it",
       "search_prefix": "in-vitality.it exhibitors",
       "note": "Italian nutraceutical trade show — raw-materials heavy, so expect many ingredient suppliers to skip. Extract ONLY finished-brand supplement companies; skip ingredient suppliers, contract manufacturers and distributors (excluded by the ICP)."
+    },
+    {
+      "type": "web page",
+      "name": "EHPM — Member Companies",
+      "url": "https://ehpm.org/members-list-2/",
+      "note": "European federation of health-product manufacturers. Extract ONLY finished-brand supplement companies from the member list; skip the national trade associations and ingredient suppliers (excluded by the ICP)."
     }
   ]
 }

@@ -30,6 +30,7 @@ and that anyone can see the reasoning behind the current source list.
 | Healthline — Best Vitamin Brands | Single page | ⚠️ Works, low EU relevance | `web_fetch` reads it fine (13 companies in test), but the list is **US-skewed** (Ritual, HUM, Seed, Nature Made…), so few pass the Europe-focused ICP. Delete if it keeps yielding nothing that matches. |
 | Vitafoods Europe | Website | 🧪 Trial (2026-08) | See trade-show findings below. Added via migration 002. |
 | In-Vitality | Website | 🧪 Trial (2026-08) | See trade-show findings below. Added via migration 002. |
+| EHPM — Member Companies | Single page | 🧪 Trial (2026-08) | Small static member list (~18 companies). Added via migration 003. Note skips associations + ingredient suppliers. Fixed list — nothing new on re-runs. |
 
 ## Evaluated — Events & trade shows (from Viola's list, tested 2026-08)
 
@@ -58,7 +59,7 @@ suppliers, exactly what the ICP excludes. Only **EHPM** exposes a small, static,
 
 | Source | Verdict | Why |
 |---|---|---|
-| **EHPM** (Fed. of Health Product Manufacturers) | 🧪 Candidate — small Single-page trial | `ehpm.org/members-list-2/` is a **static** list of ~18 corporate members — a mix of finished-supplement brands (BioGaia, Lifeplus, Forever Living), multinationals (Nestlé, Unilever) and ingredient suppliers (Sabinsa, Barentz) to skip. Small volume, but clean and relevant. Also lists ~15 national associations (not companies). |
+| **EHPM** (Fed. of Health Product Manufacturers) | ✅ Added — Single page (migration 003) | `ehpm.org/members-list-2/` is a **static** list of ~18 corporate members — a mix of finished-supplement brands (BioGaia, Lifeplus, Forever Living), multinationals (Nestlé, Unilever) and ingredient suppliers (Sabinsa, Barentz) to skip. Small volume, but clean and relevant. Also lists ~15 national associations (not companies). |
 | **NutraFood (Poland)** | ⏸️ Hold | Only ~9 **featured** exhibitor logos are static (incl. Aker BioMarine itself, KSM-66, Sirio); the full ~113-exhibitor list is behind a JavaScript catalogue (`catalogue.worldfood.pl`). Low fetchable yield, mixed audience. |
 | **euroPLX** | ❌ Can't mine | Private pharma **partnering conference** (pre-arranged 1-on-1 meetings); no public participant list. Focus is drug developers/CDMOs/licensing → off-ICP. |
 | **CPHI Europe** | ⏸️ Reject | Exhibitors are pharma **API / excipient / CDMO / packaging** suppliers — excluded by the ICP. Directory is JavaScript (`exhibitors.cphi.com`); aggregators blocked. |
