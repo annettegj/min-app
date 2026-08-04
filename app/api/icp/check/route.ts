@@ -51,22 +51,45 @@ Draft ICP to review:
 ${content}
 ---
 
-Return ONLY a raw JSON object, no markdown:
-{"ok": true, "summary": "one short sentence overall verdict", "issues": [{"severity":"critical","text":"..."},{"severity":"minor","text":"..."}]}
-Set "ok" to true if there are no critical issues (minor issues are fine), false otherwise. Use an empty issues array if the document is clear and complete.`;
+Report your assessment by calling the report_review tool. Set "ok" to true if there are no critical issues (minor issues are fine), false otherwise. Use an empty issues array if the document is clear and complete.`;
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    // Force a structured tool call so the result is always valid JSON — no fragile text parsing.
     const response = await client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 1500,
+      max_tokens: 2000,
+      tools: [
+        {
+          name: "report_review",
+          description: "Report the result of reviewing the ICP document.",
+          input_schema: {
+            type: "object",
+            properties: {
+              ok: { type: "boolean", description: "true if there are no critical issues" },
+              summary: { type: "string", description: "one short sentence overall verdict" },
+              issues: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    severity: { type: "string", enum: ["critical", "minor"] },
+                    text: { type: "string" },
+                  },
+                  required: ["severity", "text"],
+                },
+              },
+            },
+            required: ["ok", "summary", "issues"],
+          },
+        },
+      ],
+      tool_choice: { type: "tool", name: "report_review" },
       messages: [{ role: "user", content: prompt }],
     });
-    const textBlock = response.content.findLast((b) => b.type === "text");
-    const raw = textBlock && textBlock.type === "text" ? textBlock.text : "";
-    const match = raw.replace(/```(?:json)?\s*/g, "").replace(/```/g, "").match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("no JSON in response");
-    const parsed = JSON.parse(match[0]) as { ok?: boolean; summary?: string; issues?: Issue[] };
+    const toolUse = response.content.find((b) => b.type === "tool_use");
+    if (!toolUse || toolUse.type !== "tool_use") throw new Error("no structured result");
+    const parsed = toolUse.input as { ok?: boolean; summary?: string; issues?: Issue[] };
     const issues = Array.isArray(parsed.issues) ? parsed.issues.filter((i) => i && typeof i.text === "string") : [];
     const ok = typeof parsed.ok === "boolean" ? parsed.ok : !issues.some((i) => i.severity === "critical");
     return NextResponse.json(
