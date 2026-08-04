@@ -704,7 +704,7 @@ async function getSearchConfig(
     const defaultConcepts = (termRows ?? [])
       .filter((t: { is_default: boolean }) => t.is_default)
       .map((t: { term: string }) => t.term);
-    emit(`[search] Config: ${sources.length} sources, ${defaultConcepts.length} default terms (from DB)`);
+    emit(`[search] Config: ${sources.length} sources (from DB); ${defaultConcepts.length} terms flagged as defaults (used only when the user selects none)`);
     return { sources, defaultConcepts };
   } catch (err) {
     emit(`[search] Config: DB read failed — falling back to sources.json (${err instanceof Error ? err.message : String(err)})`);

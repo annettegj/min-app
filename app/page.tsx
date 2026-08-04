@@ -191,6 +191,8 @@ export default function Home() {
   // Pending companies in the discovery queue. If >= 5, Step 1 (discovery) is skipped, so a run
   // won't search newly selected sources/terms — surfaced as a warning in the UI.
   const [pendingQueueCount, setPendingQueueCount] = useState<number | null>(null);
+  const [queueModalOpen, setQueueModalOpen] = useState(false);
+  const [clearingQueue, setClearingQueue] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -331,6 +333,14 @@ export default function Home() {
   async function loadPendingCount() {
     const { count } = await supabase.from("discovery_queue").select("*", { count: "exact", head: true }).eq("status", "pending");
     setPendingQueueCount(count ?? 0);
+  }
+  // Empties the pending waiting list so the next search runs discovery on the user's selected
+  // sources/terms. Discards not-yet-researched discoveries (they may be found again later).
+  async function clearQueue() {
+    setClearingQueue(true);
+    await supabase.from("discovery_queue").delete().eq("status", "pending");
+    await loadPendingCount();
+    setClearingQueue(false);
   }
 
   useEffect(() => {
@@ -1364,18 +1374,7 @@ export default function Home() {
                   <p style={{ fontSize: 15, fontWeight: 600, color: "var(--navy)", marginBottom: 8 }}>Search for new prospects</p>
                   <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 28 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
 
-                  {pendingQueueCount != null && pendingQueueCount >= 5 && (
-                    <div style={{ background: "var(--banner-warn-bg)", border: "1px solid var(--banner-warn-border)", borderRadius: 4, padding: "14px 16px", margin: "0 auto 24px", maxWidth: 640, textAlign: "left" }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "var(--banner-warn-text)", marginBottom: 5 }}>
-                        {pendingQueueCount} companies are still waiting to be researched
-                      </p>
-                      <p style={{ fontSize: 12.5, color: "var(--banner-warn-text)", lineHeight: 1.55 }}>
-                        This search will only research those. Your selected sources and terms will <strong>not</strong> be searched in this run — the app searches for new companies only once the waiting list drops below 5. Run the search a few times to work through the list first.
-                      </p>
-                    </div>
-                  )}
-
-                  <button onClick={() => { if (!SEARCH_DISABLED) handleAgentSearch(); }} disabled={SEARCH_DISABLED}
+                  <button onClick={() => { if (SEARCH_DISABLED) return; if (pendingQueueCount != null && pendingQueueCount >= 5) setQueueModalOpen(true); else handleAgentSearch(); }} disabled={SEARCH_DISABLED}
                     style={{ background: SEARCH_DISABLED ? "var(--border-light)" : "var(--accent)", color: SEARCH_DISABLED ? "var(--text-dim)" : "var(--white)", border: SEARCH_DISABLED ? "1px solid var(--border-grey)" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer", borderRadius: 4 }}>
                     {SEARCH_DISABLED ? "Search Disabled (Demo)" : "Search for New Companies →"}
                   </button>
@@ -1878,6 +1877,38 @@ export default function Home() {
               </button>
               <button type="button" onClick={() => setPendingExport(false)} style={{ ...btnPrimary }}>
                 Keep editing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Queue warning — pops up when the user clicks Search while >= 5 companies are still waiting */}
+      {queueModalOpen && (
+        <div onClick={() => { if (!clearingQueue) setQueueModalOpen(false); }}
+          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 520, width: "100%", padding: "26px 28px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <p style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>{pendingQueueCount} companies are still waiting to be researched</p>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 20 }}>
+              If you search now, the app will only research this waiting list — your selected sources and terms will <strong>not</strong> be searched, because it looks for new companies only once the list is below 5. Choose what to do:
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button type="button" disabled={clearingQueue} onClick={() => { setQueueModalOpen(false); handleAgentSearch(); }}
+                style={{ textAlign: "left", background: "var(--white)", color: "var(--navy)", border: "1px solid var(--border)", borderRadius: 4, padding: "14px 16px", cursor: clearingQueue ? "default" : "pointer" }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Research the waiting list</span>
+                <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>Runs the search on the {pendingQueueCount} waiting companies. Your selected sources/terms are searched on a later run.</span>
+              </button>
+              <button type="button" disabled={clearingQueue} onClick={async () => { await clearQueue(); setQueueModalOpen(false); handleAgentSearch(); }}
+                style={{ textAlign: "left", background: "var(--white)", color: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 4, padding: "14px 16px", cursor: clearingQueue ? "default" : "pointer" }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{clearingQueue ? "Clearing…" : "Clear the list & search my selections"}</span>
+                <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>Removes the waiting companies (not yet researched; may be found again later), then searches your selected sources and terms.</span>
+              </button>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <button type="button" disabled={clearingQueue} onClick={() => setQueueModalOpen(false)}
+                style={{ background: "var(--surface)", color: "var(--text-slate)", border: "1px solid var(--border)", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: clearingQueue ? "default" : "pointer", borderRadius: 4 }}>
+                Cancel
               </button>
             </div>
           </div>

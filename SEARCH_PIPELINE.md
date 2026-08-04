@@ -64,8 +64,9 @@ worked down.
 
 > **Consequence to be aware of:** if you select new sources or search terms but the queue is **≥ 5**,
 > that run will **only enrich the backlog** — your new sources/terms are **not searched yet**. They
-> take effect on the first run where the queue is below 5. The UI shows a warning with the pending
-> count so this isn't surprising, and the search log prints `Step 1: skipped — queue has X pending`.
+> take effect on the first run where the queue is below 5. Clicking Search while the queue is ≥ 5
+> pops up a dialog that explains this and offers to **clear the waiting list** (so the run uses your
+> selections) or proceed with the backlog. The search log also prints `Step 1: skipped — queue has X pending`.
 
 ## Before Step 1: queue housekeeping
 

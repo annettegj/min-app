@@ -69,8 +69,11 @@ This is where you run a search.
 > small batches. Each search first works through a waiting list of already-found companies (5 at a
 > time). It only goes looking for *new* companies — using your selected sources and terms — once that
 > waiting list drops **below 5**. So if the list is long, a run just researches what's waiting, and
-> your newly added sources/terms are searched on a later run. The page shows a warning with the
-> current count when this is the case — just run the search a few times to work through the list.
+> your newly added sources/terms are searched on a later run. When you click **Search for New
+> Companies** and the list is still 5 or more, a pop-up explains this and lets you choose: **research
+> the waiting list** (the normal batch), or **clear the list & search your selections** (empties the
+> waiting list — those companies aren't researched yet and may be found again later — then searches
+> your chosen sources/terms right away).
 
 #### Managing search terms & sources
 
