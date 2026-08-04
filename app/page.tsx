@@ -1464,7 +1464,7 @@ export default function Home() {
                       </ul>
                     ) : (
                       <ul style={{ margin: 0, paddingLeft: 18 }}>
-                        <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Wait a few days and try again — trade media publish new articles regularly</li>
+                        <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Wait a few days and try again</li>
                         <li style={{ fontSize: 13, color: "var(--text)" }}>Consider adding new sources or search terms via <strong>Edit</strong> in the Search Configuration panel</li>
                       </ul>
                     )}
