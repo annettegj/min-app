@@ -178,7 +178,6 @@ export default function Home() {
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [sourceInfoOpen, setSourceInfoOpen] = useState(false);
   const [termsExpanded, setTermsExpanded] = useState(false);
-  const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [configBusy, setConfigBusy] = useState(false);
   const [configError, setConfigError] = useState("");
 
@@ -1180,7 +1179,7 @@ export default function Home() {
         {/* ── TAB 2: Find New Companies ── */}
         {/* Narrower, centered column for this tab only — the top bar stays full-width. */}
         {tab === "search" && (
-          <div style={{ maxWidth: 960, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
+          <div style={{ maxWidth: 1180, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
             {/* Live search log — mirrors the server log, so no need to open the Render dashboard */}
             {activeSearchJobId != null && logLines.length > 0 && (
               <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
@@ -1217,7 +1216,7 @@ export default function Home() {
                       </p>
                     </div>
                   )}
-                  <div className="grid grid-cols-1 md:grid-cols-2" style={{ padding: "20px", gap: 32 }}>
+                  <div className="grid grid-cols-1 md:grid-cols-4" style={{ padding: "20px", gap: 32 }}>
                     {/* Search terms */}
                     <div style={{ display: "flex", flexDirection: "column" }}>
                       <label style={labelStyle}>{configEditMode ? "Search terms" : "Search terms (choose up to 3)"}</label>
@@ -1263,8 +1262,8 @@ export default function Home() {
                         </>
                       )}
                     </div>
-                    {/* Sources */}
-                    <div style={{ display: "flex", flexDirection: "column" }}>
+                    {/* Sources — spans 3 of the 4 columns so the type groups sit side by side */}
+                    <div className="md:col-span-3" style={{ display: "flex", flexDirection: "column" }}>
                       <label style={labelStyle}>{configEditMode ? "Sources" : "Sources (choose up to 4)"}</label>
                       <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -2, marginBottom: 6, lineHeight: 1.6 }}>
                         <strong>Website</strong> = a whole site<br />
@@ -1296,15 +1295,14 @@ export default function Home() {
                           </div>
                         </>
                       ) : (
-                        <>
-                          <div style={{ maxHeight: sourcesExpanded ? "none" : 232, overflowY: sourcesExpanded ? "visible" : "auto", paddingRight: 6 }}>
+                        <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 20, marginTop: 4 }}>
                           {[
                             { heading: "Website", items: sourceOptions.filter(s => (s.type ?? "web site") === "web site") },
                             { heading: "Single page", items: sourceOptions.filter(s => s.type === "web page") },
                             { heading: "YouTube", items: sourceOptions.filter(s => s.type === "youtube") },
                           ].map(group => group.items.length === 0 ? null : (
-                            <div key={group.heading} style={{ marginTop: 10 }}>
-                              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 4 }}>{group.heading}</p>
+                            <div key={group.heading}>
+                              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{group.heading}</p>
                               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                                 {group.items.map(s => {
                                   const isPage = s.type === "web page";
@@ -1320,7 +1318,7 @@ export default function Home() {
                                         {isPage && s.url && (
                                           <a href={/^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
                                             onClick={e => e.stopPropagation()}
-                                            style={{ display: "block", fontSize: 11, color: "var(--accent)", marginTop: 1, wordBreak: "break-all", textDecoration: "underline" }}>
+                                            style={{ display: "block", fontSize: 10, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all", textDecoration: "underline" }}>
                                             {s.url.replace(/^https?:\/\//, "")}
                                           </a>
                                         )}
@@ -1331,14 +1329,7 @@ export default function Home() {
                               </div>
                             </div>
                           ))}
-                          </div>
-                          {sourceOptions.length > 6 && (
-                            <button type="button" onClick={() => setSourcesExpanded(v => !v)}
-                              style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 0", marginTop: 4, textAlign: "left" }}>
-                              {sourcesExpanded ? "Show fewer ▴" : `Show all ${sourceOptions.length} ▾`}
-                            </button>
-                          )}
-                        </>
+                        </div>
                       )}
                     </div>
                   </div>
