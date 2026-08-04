@@ -66,6 +66,31 @@
       "name": "EHPM — Member Companies",
       "url": "https://ehpm.org/members-list-2/",
       "note": "European federation of health-product manufacturers. Extract ONLY finished-brand supplement companies from the member list; skip the national trade associations and ingredient suppliers (excluded by the ICP)."
+    },
+    {
+      "type": "web site",
+      "name": "SupplySide Supplement Journal",
+      "url": "https://www.supplysidesj.com",
+      "search_prefix": "supplysidesj.com",
+      "note": "Supplement trade media (US-based, global coverage) — names companies in launch/news articles. Extract finished-brand supplement companies; skews US, so prioritise European brands."
+    },
+    {
+      "type": "web page",
+      "name": "mindbodygreen — Best Omega-3 Supplements",
+      "url": "https://www.mindbodygreen.com/articles/best-omega-3-supplements",
+      "note": "Editorial round-up of ~10 omega-3 supplement brands (US-leaning; ICP filters to European finished brands). One-time harvest of a fixed list. On-topic for Lysoveta (omega-3/krill)."
+    },
+    {
+      "type": "web page",
+      "name": "mindbodygreen — Best Memory Supplements",
+      "url": "https://www.mindbodygreen.com/articles/best-memory-supplements",
+      "note": "Editorial round-up of ~16 memory/cognitive supplement brands (US-leaning; ICP filters). One-time harvest of a fixed list."
+    },
+    {
+      "type": "web page",
+      "name": "mindbodygreen — Best Nootropics",
+      "url": "https://www.mindbodygreen.com/articles/best-nootropics",
+      "note": "Editorial round-up of ~6 nootropic/focus supplement brands (US-leaning; ICP filters). One-time harvest of a fixed list."
     }
   ]
 }

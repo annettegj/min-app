@@ -31,6 +31,8 @@ and that anyone can see the reasoning behind the current source list.
 | Vitafoods Europe | Website | 🧪 Trial (2026-08) | See trade-show findings below. Added via migration 002. |
 | In-Vitality | Website | 🧪 Trial (2026-08) | See trade-show findings below. Added via migration 002. |
 | EHPM — Member Companies | Single page | 🧪 Trial (2026-08) | Small static member list (~18 companies). Added via migration 003. Note skips associations + ingredient suppliers. Fixed list — nothing new on re-runs. |
+| SupplySide Supplement Journal | Website | 🧪 Trial (2026-08) | Trade media, names companies (incl. European launches). Added via migration 004. |
+| mindbodygreen — Best Omega-3 / Memory / Nootropics | Single page (×3) | 🧪 Trial (2026-08) | Editorial "best of" round-ups (multi-brand, static). Added via migration 004. US-leaning; ICP filters. Omega-3 list includes a krill brand (Kori). |
 
 ## Evaluated — Events & trade shows (from Viola's list, tested 2026-08)
 
@@ -75,9 +77,9 @@ genuine new *company* source stood out: SupplySide Supplement Journal (trade med
 
 | Source | Verdict | Why |
 |---|---|---|
-| **SupplySide Supplement Journal** (`supplysidesj.com`) | ✅ Candidate — Website | Real trade publication covering brand launches, founders, product news — names companies, incl. European brands. Same profile as our other trade-media sources. |
-| **mindbodygreen** | ⏸️ Hold as company source | Names brands (e.g. "10 Best Omega-3 Supplements" — on-topic!) but US-skewed, and it's a supplement brand itself. Better mined for trending ingredients → search terms. |
-| **Well+Good / Everyday Health / Prevention / Verywell Health** | ⏸️ Hold | US consumer "best of" round-ups → mostly US brands, low EU match. Use for trend terms, not as sources. |
+| **SupplySide Supplement Journal** (`supplysidesj.com`) | ✅ Added — Website (migration 004) | Real trade publication covering brand launches, founders, product news — names companies, incl. European brands. Same profile as our other trade-media sources. |
+| **mindbodygreen** | ✅ Added — 3 editorial round-ups as Single page (migration 004) | Its **shop** pages are single-brand + JavaScript (rejected). Its **editorial** "best of" articles are static and multi-brand — added best-omega-3 (incl. Kori Krill), best-memory, best-nootropics. US-leaning but on-topic; ICP filters. Decision (2026-08): stop excluding US sources — the ICP handles EU filtering. |
+| **Well+Good / Everyday Health / Prevention / Verywell Health** | ⏸️ Available if wanted | Same pattern as mindbodygreen — US consumer "best of" round-ups with static multi-brand lists. Add specific editorial round-up pages as Single-page sources if we want more volume. |
 | **Examine / NIH Office of Dietary Supplements** | ❌ Not a source | Ingredient/evidence references only — no company names to extract. |
 | **ConsumerLab / Consumer Reports** | ❌ Paywalled | Brand testing behind subscription; not readable. |
 | **Google Trends / Spate / Glimpse** | ⛔ Trend platforms | Paid/JS dashboards, no company list. Inspiration for search terms only (Google Trends excluded per request). |
