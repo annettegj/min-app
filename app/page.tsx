@@ -2132,19 +2132,6 @@ export default function Home() {
                 </select>
                 <p style={hintStyle}>Which market this source leans toward — shown as a tag in the list. Informational; it doesn&apos;t affect scoring or discovery.</p>
               </div>
-              {newSource.type !== "web page" && (
-                <div>
-                  <label style={labelStyle}>Language <span style={optStyle}>optional</span></label>
-                  <select value={newSource.language} onChange={e => setNewSource({ ...newSource, language: e.target.value })} style={inputStyle}>
-                    <option value="en">English</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                    <option value="it">Italian</option>
-                    <option value="es">Spanish</option>
-                  </select>
-                  <p style={hintStyle}>The site&apos;s language. Search terms are automatically translated into this language when searching the source (English needs no translation). Single-page sources are read directly, so language doesn&apos;t apply.</p>
-                </div>
-              )}
               {newSource.type === "web site" ? (
                 <>
                   <div>

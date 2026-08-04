@@ -186,32 +186,36 @@ function logSearchOutcome(response: Anthropic.Message): void {
 // primarily active (usually two sides of the same coin in this case). There is NO code-level region
 // filter — off-region companies that turn up anyway are kept and queued (and scored against the
 // matching ICP in Step 3).
-// Translate the search phrases into each requested non-English language (one Claude call), so a
-// source can be queried in its own language. Returns { lang: [phrases in same order] }. On any
-// failure or shape mismatch a language is simply omitted — callers then fall back to English.
-async function translateConcepts(client: Anthropic, concepts: string[], languages: string[]): Promise<Record<string, string[]>> {
-  const langs = Array.from(new Set(languages.map(l => l.toLowerCase()).filter(l => l && l !== "en")));
-  if (langs.length === 0 || concepts.length === 0) return {};
+// Auto-detects each website's language (from its domain/name) and returns the search phrases
+// translated into that language, keyed by the EXACT source name. English sites return the phrases
+// unchanged. One Claude call per search; on failure/shape mismatch a source is omitted and the
+// caller falls back to the original English phrases — so there is never a regression.
+async function localizeConcepts(client: Anthropic, sources: { name: string; url: string }[], concepts: string[]): Promise<Record<string, string[]>> {
+  if (concepts.length === 0 || sources.length === 0) return {};
   try {
+    const list = sources.map((s) => `- ${s.name} (${s.url})`).join("\n");
     const stream = await client.messages.stream({
       model: "claude-sonnet-5",
-      max_tokens: 1500,
-      messages: [{ role: "user", content: `Translate each supplement search phrase below into these languages (ISO codes): ${langs.join(", ")}. Keep them as natural search phrases someone would type. Return ONLY a raw JSON object keyed by language code; each value an array of the translations in the SAME order as the input.
+      max_tokens: 2000,
+      messages: [{ role: "user", content: `For each website below, work out the primary language of that site from its domain and name, then translate the search phrases into that language. If the site is English, return the phrases unchanged. Keep them as natural search phrases someone would type.
 
-Phrases:
+Websites:
+${list}
+
+Search phrases:
 ${concepts.map((c, i) => `${i + 1}. ${c}`).join("\n")}
 
-Example: {"fr":["…","…"],"de":["…","…"]}` }],
+Return ONLY a raw JSON object keyed by the EXACT website name, each value an array of the phrases in the SAME order as the input. Example: {"Darwin Nutrition":["longévité …","…"],"NutraIngredients Europe":["longevity …","…"]}` }],
     }, { signal: activeSignal ?? undefined });
     const obj = parseJsonObject(await stream.finalMessage());
     const out: Record<string, string[]> = {};
-    for (const lang of langs) {
-      const arr = obj?.[lang];
+    for (const s of sources) {
+      const arr = obj?.[s.name];
       if (Array.isArray(arr) && arr.length === concepts.length && arr.every((x) => typeof x === "string" && x.trim())) {
-        out[lang] = arr as string[];
+        out[s.name] = arr as string[];
       }
     }
-    if (Object.keys(out).length > 0) emit(`[search] Step 1: translated terms into ${Object.keys(out).join(", ")}`);
+    if (Object.keys(out).length > 0) emit(`[search] Step 1: auto-localized search terms per source language`);
     return out;
   } catch {
     return {};
@@ -256,15 +260,11 @@ async function discoverCompanies(
   // Build the narrow queries from concepts × sources: one concept per query, as an explicit numbered
   // list so the model runs them as separate searches rather than combining them.
   emit(`[search] Step 1: using ${searchConcepts.length} search terms: ${searchConcepts.join(", ")}`);
-  // Query each source in its own language: translate the concepts into every non-English source
-  // language (one call), then build per-source queries. Falls back to English on any failure.
-  const neededLangs = siteSources.map((s) => (s.language ?? "en").toLowerCase());
-  const translated = await translateConcepts(client, searchConcepts, neededLangs);
-  const conceptsFor = (lang?: string) => {
-    const l = (lang ?? "en").toLowerCase();
-    return l !== "en" && translated[l] ? translated[l] : searchConcepts;
-  };
-  const allQueries = siteSources.flatMap((s) => conceptsFor(s.language).map((c) => `${s.search_prefix} ${c}`));
+  // Query each source in its OWN language: the AI auto-detects each site's language and translates
+  // the terms accordingly (one call), then we build per-source queries. Falls back to English on any
+  // failure — no manual language setting needed.
+  const localized = await localizeConcepts(client, siteSources.map((s) => ({ name: s.name, url: s.url })), searchConcepts);
+  const allQueries = siteSources.flatMap((s) => (localized[s.name] ?? searchConcepts).map((c) => `${s.search_prefix} ${c}`));
   const queryList = allQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n");
   emit(`[search] Step 1 technique: web_search — ${siteSources.length} website source(s) × ${searchConcepts.length} term(s) = ${allQueries.length} queries`);
   emit(`[search] Step 1 queries:\n${queryList}`);
@@ -362,23 +362,17 @@ async function discoverViaYouTube(
     return [];
   }
 
-  // Region/language follow the youtube source's language (default English/UK).
-  const lang = (youtubeSources[0]?.language ?? "en").toLowerCase();
-  const REGION_BY_LANG: Record<string, string> = { en: "GB", fr: "FR", de: "DE", it: "IT", es: "ES" };
-  const REGION = REGION_BY_LANG[lang] ?? "GB";
-  const LANG = lang || "en";
+  const REGION = "GB";   // nudge toward European/English content (not a hard filter)
+  const LANG = "en";
   const PER_TERM = 8;    // videos fetched per term
-  // Translate the concepts into the source's language when it isn't English.
-  let ytConcepts = concepts;
-  if (lang !== "en") { const t = await translateConcepts(client, concepts, [lang]); ytConcepts = t[lang] ?? concepts; }
   // A youtube source may carry a search_prefix to bias the query (e.g. "supplement review").
   const prefix = youtubeSources.map((s) => s.search_prefix?.trim()).find(Boolean) ?? "";
   const sourceName = youtubeSources[0]?.name ?? "YouTube";
-  emit(`[search] Step 1 (youtube) technique: YouTube search on ${ytConcepts.length} term(s) [${LANG}/${REGION}]${prefix ? ` (bias: "${prefix}")` : ""}`);
+  emit(`[search] Step 1 (youtube) technique: YouTube search on ${concepts.length} term(s)${prefix ? ` (bias: "${prefix}")` : ""}`);
 
   // 1) search.list per concept → collect video ids
   const videoIds: string[] = [];
-  for (const concept of ytConcepts) {
+  for (const concept of concepts) {
     const q = `${prefix} ${concept}`.trim();
     const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${PER_TERM}&regionCode=${REGION}&relevanceLanguage=${LANG}&q=${encodeURIComponent(q)}&key=${apiKey}`;
     try {
@@ -553,6 +547,8 @@ async function enrichCompany(
 - price_currency: the currency of the price as a 3-letter code (GBP, EUR, USD, etc.). Write null if price_found is false.
 - european_markets: which European countries they sell in
 - distribution_channels: how they sell (pharmacy, online DTC, grocery retail, specialist retail, etc.)
+
+The company's own website and coverage may be in a non-English language (e.g. French, German, Italian) — read and use sources in ANY language, and write the field values in English.
 
 Be efficient — prioritize speed over exhaustiveness: Use as few web searches as possible (ideally 1-2). If a specific field is not easy to find, write "NOT_FOUND" (for price) or a brief best-effort answer and move on — do NOT keep searching repeatedly for the same detail. It is fine to return partial information; do not exhaust your search budget chasing minor fields.
 
