@@ -74,37 +74,41 @@ Calculate a raw score for each company based on the dimensions below. Sum the po
 
 | Dimension | Option | Points |
 |---|---|---|
-| **Region** | EU country | 3 |
-| | UK | 3 |
+| **Region** | US | 4 |
+| | EU country | 3 |
 | | APAC | 3 |
-| | US | 4 |
-| **Customer Pool** | Premium science-driven brand / start-up / founder-led / single-product | 3 |
-| | Pharma Rx company | 2 |
+| | UK | 2 |
+| **Customer Pool** | Premium science-driven brand / start-up | 3 |
 | | Practitioner channel | 2 |
-| | Established large CHC company | 1 |
+| | Pharma Rx company | 2 |
+| | Established (large CHC) brand | 1 |
 | **Lysoveta Fit** | Early Mover | 2 |
 | | Follower | 1 |
 | | Enabler | 0 |
-| **Category Match** | Brain/cognitive, Longevity/NAD+, Women's hormonal, Pharma Rx specialty | +2 |
-| **Competitor Ingredients** | Confirmed use of Citicoline, PS, Alpha-GPC, NR, NMN, PQQ, Urolithin A, or Spermidine | +1 |
-| **Max price (own currency)** | Yes — confirmed at ~60 or above in its own currency (£60 / €60 / $60, no conversion) | +1 |
-| | No — confirmed below ~60 in its own currency | −2 |
+| **Category Match** | Brain/cognitive, Longevity/NAD+, Women's hormonal, or Pharma Rx specialty | +2 |
+| **Price** | Max/average product price below ~€60 (own currency) | −2 (decisive penalty) |
+| | ~€60 or above | 0 |
 | | Not found | 0 (flag for manual review) |
+
+Maximum raw score is ~11 (US region) — a European company tops out at ~10 (EU region = 3).
+
+**Competitor / adjacent ingredients** (Citicoline, PS, Alpha-GPC, NR, NMN, PQQ, Urolithin A, Spermidine) are a strong **qualitative** positive signal — note them explicitly in the description, but they do not add points.
 
 ### Star Conversion
 
 | Raw Score | Stars | Priority |
 |---|---|---|
-| 10 or above | ★★★★★ (5) | Top priority — early mover, right category, premium price, strong region |
+| 10–11 | ★★★★★ (5) | Top priority — early mover, right category, premium price, strong region |
 | 8–9 | ★★★★☆ (4) | High priority — strong fit with one weaker dimension |
 | 6–7 | ★★★☆☆ (3) | Medium — worth nurturing, not yet top priority |
 | 4–5 | ★★☆☆☆ (2) | Lower fit — mass market or wrong category/region |
 | 0–3 | ★☆☆☆☆ (1) | Weak fit — price too low, wrong pool, no category match |
 
 ### Price notes
-- If max price is confirmed at ~60 or above in the product's own currency (£60 / €60 / $60 — do NOT convert between currencies): add 1 point
-- If max price is confirmed below ~60 in its own currency: deduct 2 points — this is a decisive weakness factor
-- If `price_found` is false: do not deduct points. Explicitly flag this in the description with a recommendation for manual verification — especially if the company presents itself as premium or science-driven, as it may still qualify despite unconfirmed pricing
+- The threshold is ~60 in the product's own currency (£60 / €60 — do NOT convert between currencies).
+- If max/average price is confirmed **below ~60**: deduct 2 points — a decisive weakness.
+- If confirmed at ~60 or above: no adjustment.
+- If `price_found` is false: do not deduct — flag it in the description with a recommendation for manual verification, especially if the company presents itself as premium or science-driven, as it may still qualify despite unconfirmed pricing.
 
 ---
 
@@ -136,6 +140,16 @@ Company size, revenue history, number of products, and track record length are N
 ---
 
 ## Price Threshold
-- **Early Mover:** a max price of roughly 60 or more in the product's own currency (£60 / €60 / $60, no conversion) is a strong positive signal. Prices below this level are a weakness — note it explicitly in the description, but do not exclude automatically.
+- **Early Mover:** a max price of roughly 60 or more in the product's own currency (£60 / €60, no conversion) is a strong positive signal. Prices below this level are a weakness — note it explicitly in the description, but do not exclude automatically.
 - **Follower and Enabler:** no specific price threshold.
 - If price was not found (price_found: false), note this in the description rather than assuming.
+
+---
+
+## Exclusions
+- **China** — market under exclusivity with an existing customer (Function); do not prospect. This is a **global** rule: a company whose primary market is China should be excluded regardless of category or fit.
+
+## Confidence level (note in the description)
+- **High** — public filings, official IR, recent earnings — verified.
+- **Medium** — reputable secondary sources (trade press, company website) — reasonable but unverified.
+- **Low** — AI estimate, indirect inference, or limited sources — must verify before action.

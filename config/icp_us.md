@@ -111,9 +111,6 @@ A company must meet ALL of the following to be included as early_mover or follow
 4. **Market reach** — sells in at least one of US, EU, UK, or APAC. If unconfirmed, include and flag ("market reach unconfirmed — verify before outreach"); only exclude if explicitly limited to a non-target market.
 5. **Company size and track record** — never grounds for exclusion.
 
-## Exclusions
-- **China** — market under exclusivity with an existing customer (Function); do not prospect.
-
 ---
 
 ## Confidence level (note in the description)
