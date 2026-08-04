@@ -9,7 +9,11 @@ It helps you find potential B2B customers for Lysoveta. It searches trade media 
 companies, researches each one, scores them against the Lysoveta Ideal Customer Profile (ICP), and
 lets you review and save the best matches to a database you can filter and export.
 
-## The three tabs
+> The app also has an in-app **How It Works** tab — a shorter version of this guide, with a
+> left-hand menu (Overview, Company Database, Finding new companies, Search terms & sources, The
+> waiting list, How scoring works, Tips). Handy for quick reference without leaving the app.
+
+## The tabs
 
 ### 1. Company Database
 

@@ -105,7 +105,8 @@ type DraftTerm = { key: string; id: number | null; term: string; is_default: boo
 type DraftSource = SourceFields & { key: string; id: number | null };
 
 export default function Home() {
-  const [tab, setTab] = useState<"database" | "search" | "icp" | "prospectus">("database");
+  const [tab, setTab] = useState<"database" | "search" | "icp" | "prospectus" | "about">("database");
+  const [aboutSection, setAboutSection] = useState("overview");
   const [icpContent, setIcpContent] = useState<string | null>(null);
 
   // --- Database tab state ---
@@ -865,10 +866,11 @@ export default function Home() {
               { key: "database", label: "Company Database", soon: false },
               { key: "search", label: "Find New Companies", soon: false },
               { key: "icp", label: "Lysoveta ICP Criteria", soon: false },
+              { key: "about", label: "How It Works", soon: false },
             ].map(t => (
               <button
                 key={t.key}
-                onClick={() => setTab(t.key as "database" | "search" | "icp" | "prospectus")}
+                onClick={() => setTab(t.key as "database" | "search" | "icp" | "prospectus" | "about")}
                 style={{
                   padding: "10px 20px", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
                   borderRadius: 4,
@@ -1734,7 +1736,7 @@ export default function Home() {
             </div>
             <div style={{ padding: "32px 48px", maxWidth: 820 }}>
               {!icpContent ? (
-                <p style={{ color: "var(--text-faint)", fontSize: 14 }}>Laster…</p>
+                <p style={{ color: "var(--text-faint)", fontSize: 14 }}>Loading…</p>
               ) : (() => {
                 const toLabel = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
                 const stripBold = (s: string) => s.replace(/\*\*(.*?)\*\*/g, "$1");
@@ -1805,6 +1807,103 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* ── TAB: How It Works ── */}
+        {tab === "about" && (() => {
+          const ps: React.CSSProperties = { marginBottom: 12 };
+          const uls: React.CSSProperties = { margin: "0 0 12px", paddingLeft: 20 };
+          const lis: React.CSSProperties = { marginBottom: 6 };
+          const muted: React.CSSProperties = { marginBottom: 12, color: "var(--text-muted)", fontSize: 13 };
+          const SECTIONS: { key: string; label: string; content: React.ReactNode }[] = [
+            { key: "overview", label: "Overview", content: (
+              <>
+                <p style={ps}>Customer Finder helps you build a list of potential B2B customers for Lysoveta. It searches trade media, industry sites and other sources for supplement companies, researches each one, scores it against Lysoveta&apos;s Ideal Customer Profile (ICP), and lets you review and save the best matches.</p>
+                <p style={ps}>There are four tabs:</p>
+                <ul style={uls}>
+                  <li style={lis}><strong>Company Database</strong> — the companies you&apos;ve saved.</li>
+                  <li style={lis}><strong>Find New Companies</strong> — run a search for new prospects.</li>
+                  <li style={lis}><strong>Lysoveta ICP Criteria</strong> — the profile companies are scored against.</li>
+                  <li style={lis}><strong>How It Works</strong> — this guide.</li>
+                </ul>
+              </>
+            ) },
+            { key: "database", label: "Company Database", content: (
+              <>
+                <p style={ps}>Your saved companies live here. Use the filters at the top (geography, category, price range, ICP fit, priority tier), then <strong>Find Companies</strong> to apply them — or <strong>Show All Companies</strong>. Click a row to expand its description.</p>
+                <ul style={uls}>
+                  <li style={lis}><strong>Export as Excel</strong> — downloads the companies currently shown (respects your filters and any hidden rows).</li>
+                  <li style={lis}><strong>Clear Results</strong> — empties the shown table; doesn&apos;t delete anything.</li>
+                  <li style={lis}><strong>Edit list</strong> — turns on edit mode. Each row gets a pencil (edit its fields) and an ✕ (choose <em>Remove from this view only</em> — hidden and restorable — or <em>Delete from the company database</em>).</li>
+                  <li style={lis}><strong>Restore hidden</strong> — brings back rows you hid.</li>
+                </ul>
+              </>
+            ) },
+            { key: "finding", label: "Finding new companies", content: (
+              <>
+                <p style={ps}>On <strong>Find New Companies</strong>, pick up to 3 search terms and up to 4 sources (or leave them unticked to use the defaults), then click <strong>Search for New Companies</strong>.</p>
+                <p style={ps}>A search runs in three steps — find companies, research each one, score against the ICP. It takes about <strong>15 minutes</strong> (times out at 30). While it runs you&apos;ll see “Step X of 3”, a timer, and an expandable <strong>Search Log</strong>. When it finishes, you get a list of companies that passed the ICP — tick the ones to keep and save them.</p>
+                <p style={muted}>The first search after a quiet period can take ~30 seconds to start (the server “wakes up” after being idle). That&apos;s normal.</p>
+              </>
+            ) },
+            { key: "config", label: "Search terms & sources", content: (
+              <>
+                <p style={ps}>Click <strong>Edit</strong> in the Search Configuration panel to add, change, or remove search terms and sources. Nothing is saved until you press <strong>Save changes</strong> (Cancel discards the draft).</p>
+                <p style={ps}>There are three source types:</p>
+                <ul style={uls}>
+                  <li style={lis}><strong>Website</strong> — a whole site, searched repeatedly (e.g. a trade-news site).</li>
+                  <li style={lis}><strong>Single page</strong> — one specific URL, read once (e.g. a “best supplements” list).</li>
+                  <li style={lis}><strong>YouTube</strong> — searches YouTube for your terms and pulls brand names from the videos.</li>
+                </ul>
+                <p style={ps}>You can pick up to 3 terms and 4 sources per search. The limit isn&apos;t arbitrary: a search runs <em>terms × sources</em> web searches with a budget of 12, and 3 × 4 = 12 fills it exactly — picking more can&apos;t all run.</p>
+              </>
+            ) },
+            { key: "queue", label: "The waiting list", content: (
+              <>
+                <p style={ps}>Companies are researched in small batches — <strong>5 at a time</strong> — because researching each one is the slow, costly step. Newly found companies wait in a list until they&apos;re researched.</p>
+                <p style={ps}>A search first works through this waiting list. It only looks for <em>new</em> companies (using your selected sources and terms) once the list drops <strong>below 5</strong>. If you click Search while the list is longer, a pop-up lets you either research the waiting list, or <strong>clear it and search your selections</strong> right away.</p>
+              </>
+            ) },
+            { key: "scoring", label: "How scoring works (ICP)", content: (
+              <>
+                <p style={ps}>After a company is researched, the AI scores it against the <strong>Lysoveta ICP Criteria</strong> (see that tab). It assigns an ICP fit score and a priority tier (Early Mover, Follower, or Enabler).</p>
+                <p style={ps}>Only companies that <strong>pass</strong> the ICP are shown for you to save. The rest are set aside — kept internally so they aren&apos;t re-discovered in future searches.</p>
+              </>
+            ) },
+            { key: "tips", label: "Tips & good to know", content: (
+              <>
+                <ul style={uls}>
+                  <li style={lis}>Best viewed on a <strong>laptop or desktop</strong> — the layout isn&apos;t designed for mobile.</li>
+                  <li style={lis}>There&apos;s <strong>no login</strong> — anyone with the link can open the app, so please don&apos;t share it more widely than intended.</li>
+                  <li style={lis}>Your actions are <strong>live</strong>: saving or removing companies changes the real database.</li>
+                  <li style={lis}>Searches use Sprint&apos;s Anthropic account, which has limited usage — so it&apos;s worth being a little deliberate with test runs.</li>
+                </ul>
+              </>
+            ) },
+          ];
+          const active = SECTIONS.find(s => s.key === aboutSection) ?? SECTIONS[0];
+          return (
+            <div style={{ display: "flex", gap: 24, alignItems: "flex-start", maxWidth: 1000, width: "100%", margin: "0 auto" }}>
+              <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                {SECTIONS.map(s => (
+                  <button key={s.key} type="button" onClick={() => setAboutSection(s.key)}
+                    style={{ textAlign: "left", padding: "10px 14px", borderRadius: 4, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
+                      background: active.key === s.key ? "var(--accent)" : "transparent",
+                      color: active.key === s.key ? "var(--white)" : "var(--text-slate)" }}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ flex: 1, background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ background: "var(--header)", padding: "12px 20px" }}>
+                  <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>{active.label}</p>
+                </div>
+                <div style={{ padding: "24px 28px", fontSize: 14, color: "var(--text)", lineHeight: 1.7 }}>
+                  {active.content}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       </div>
 
