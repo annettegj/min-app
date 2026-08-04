@@ -141,6 +141,29 @@ shape — merged in with the other paths.
 > `max_tokens` truncates the final JSON and parsing fails silently (returns 0 companies). Don't
 > lower 32000 casually.
 
+### Source performance counters
+
+After discovery runs, `bumpSourceStats()` updates two per-source counters on the `sources` table so
+the UI can show how productive each source is — rendered under every source as
+**"Used X · queued Y · saved Z"**:
+
+| Metric | Column / origin | Bumped when | Meaning |
+|---|---|---|---|
+| **Used (X)** | `sources.times_used` | +1 for **every source that took part** in a discovery run (all of `sourcesForRun`, whether or not it found anything) | How many searches this source has participated in. Only counts runs where Step 1 actually ran (not backlog-only runs). |
+| **queued (Y)** | `sources.companies_found` | +N for each source that contributed **N new companies to the queue** (grouped from `fresh` by `source_name`, after the queue insert succeeds) | Cumulative new companies the source has surfaced. |
+| **saved (Z)** | live count of `companies.source_name` | not a stored counter — computed on the fly in the UI (`savedBySource`) from approved companies grouped by `source_name` | How many of the source's companies were approved into the database. |
+
+- **Attribution is "first source wins":** dedup keeps the first source that returned a given company,
+  so a company found by two sources counts toward only one (no double-counting).
+- **Read-modify-write, best-effort:** `bumpSourceStats` reads the current counters and writes them
+  back (safe — one search runs at a time). A stat failure only loses a number, never the search. A
+  `source_name` that doesn't match a real source row simply updates nothing.
+- **Forward-looking:** counters start at 0 and accumulate from the next search onward. Companies
+  saved before `source_name` was tracked don't count toward **saved**.
+- **Deliberately just counts** — no yield/ratio and no "dead source" warning yet. Those can be
+  layered on later (e.g. flag `times_used ≥ 5` with a low found-rate); the raw counts are the
+  foundation. Added in [`db/migrations/012_source_stats.sql`](db/migrations/012_source_stats.sql).
+
 ---
 
 ## Step 2 — Enrichment (`enrichAll` / `enrichCompany`)
@@ -157,9 +180,10 @@ shape — merged in with the other paths.
   `omega3_or_krill`, `self_presentation`, `price_tier`, `price_found`, `price_currency`,
   `european_markets`, `distribution_channels`.
 - **Incremental save:** each company is written to `companies` (`added = false`,
-  `rejected = false`, `enriched_data`, `enriched_at`) **the moment its enrichment completes**. So a
-  company that hangs can never take down the others' work, and on a later search it becomes a cache
-  hit.
+  `rejected = false`, `source_name`, `enriched_data`, `enriched_at`) **the moment its enrichment
+  completes**. So a company that hangs can never take down the others' work, and on a later search it
+  becomes a cache hit. `source_name` is stored here (and again on Save) so each company records which
+  source found it — the basis for the per-source "saved" count (see [Source performance counters](#source-performance-counters)).
 - **Failures** (parse failure, abort, timeout) reset that company back to `pending` so it's retried
   on the next search; the rest proceed.
 
@@ -213,7 +237,7 @@ shape — merged in with the other paths.
 | Step | Input | Output type | Persisted to |
 |---|---|---|---|
 | 1 Discovery | selected terms + sources + known names | `DiscoveredCompany { name, source_name }` | `discovery_queue` (pending) |
-| 2 Enrichment | up to 5 pending companies | `EnrichedCompany` (9 research fields) | `companies` (added=false) |
+| 2 Enrichment | up to 5 pending companies | `EnrichedCompany` (9 research fields) | `companies` (added=false, + `source_name`) |
 | 3 ICP matching | enriched companies + `icp.md` | `EvaluatedCompany` (score, tier, geo, price…) | `search_jobs.results` |
 | Save (UI) | user-selected results | — | `companies` (added=true) |
 
@@ -222,9 +246,10 @@ shape — merged in with the other paths.
 The search terms and sources are stored in the **database** and edited from the app (no redeploy):
 
 - **`search_terms`** table — `term`, `is_default` (used when the user selects none), `active`.
-- **`sources`** table — `type` (`web site` | `web page`), `name`, `url`, `search_prefix`
-  (required for `web site`), `note` (free-text instruction handed to the model for that source),
-  `active`.
+- **`sources`** table — `type` (`web site` | `web page` | `youtube`), `name`, `url`,
+  `search_prefix` (required for `web site`), `note` (free-text instruction handed to the model for
+  that source), `market` (`EU` | `US` | `Global` tag), `active`, and the performance counters
+  `times_used` / `companies_found` (see [Source performance counters](#source-performance-counters)).
 - **`enrichment_model`** for Step 2 still comes from `config/sources.json` (defaults to
   `claude-sonnet-5`).
 

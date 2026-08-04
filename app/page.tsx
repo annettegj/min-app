@@ -1460,7 +1460,7 @@ export default function Home() {
                                           )}
                                           <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
                                             {s.times_used > 0 || s.companies_found > 0 || (savedBySource.get(s.name) ?? 0) > 0
-                                              ? `Used ${s.times_used} · ${s.companies_found} queued · ${savedBySource.get(s.name) ?? 0} saved`
+                                              ? `Used ${s.times_used} · queued ${s.companies_found} · saved ${savedBySource.get(s.name) ?? 0}`
                                               : "Not used yet"}
                                           </span>
                                         </span>
@@ -2028,6 +2028,14 @@ export default function Home() {
                   <li style={lis}><strong>YouTube</strong> — searches YouTube for your terms and pulls brand names from the videos.</li>
                 </ul>
                 <p style={ps}>You can pick up to 3 terms and 4 sources per search. The limit isn&apos;t arbitrary: a search runs <em>terms × sources</em> web searches with a budget of 12, and 3 × 4 = 12 fills it exactly — picking more can&apos;t all run.</p>
+                <p style={{ fontWeight: 700, color: "var(--navy)", margin: "16px 0 6px" }}>How well is each source doing?</p>
+                <p style={ps}>Under every source you&apos;ll see a small line — for example <strong>“Used 5 · queued 12 · saved 2”</strong> — so you can tell which sources actually pull their weight:</p>
+                <ul style={uls}>
+                  <li style={lis}><strong>Used</strong> — how many searches this source has taken part in.</li>
+                  <li style={lis}><strong>queued</strong> — how many new companies it has added to the waiting list over time.</li>
+                  <li style={lis}><strong>saved</strong> — how many of its companies ended up approved in your database.</li>
+                </ul>
+                <p style={muted}>These numbers start from zero and build up as you search — a brand-new source shows “Not used yet”. Companies saved before this feature existed don&apos;t count toward <em>saved</em>. For now it&apos;s just the raw counts; a “this source rarely finds anything” warning can be added later.</p>
               </>
             ) },
             { key: "queue", label: "The waiting list", content: (
@@ -2057,11 +2065,19 @@ export default function Home() {
                 </ul>
               </>
             ) },
+            { key: "login", label: "Signing in", content: (
+              <>
+                <p style={ps}>The first time you open the app you&apos;ll be asked to <strong>log in</strong> or <strong>create an account</strong> with an email and a password you choose. After that you stay signed in on that device for about <strong>two weeks</strong>, then you&apos;ll be asked to log in again. There&apos;s a <strong>Log out</strong> button at the top-right.</p>
+                <p style={{ ...ps, padding: "10px 14px", background: "var(--warn-bg, #fff8e6)", borderRadius: 4, border: "1px solid var(--border-card)" }}>
+                  <strong>This is a simple pilot log-in, not real security.</strong> Please <strong>don&apos;t reuse a password</strong> you use elsewhere — pick something throwaway like <em>Lysoveta123</em>. Proper security is handled by IT after handover.
+                </p>
+              </>
+            ) },
             { key: "tips", label: "Tips & good to know", content: (
               <>
                 <ul style={uls}>
                   <li style={lis}>Best viewed on a <strong>laptop or desktop</strong> — the layout isn&apos;t designed for mobile.</li>
-                  <li style={lis}>There&apos;s <strong>no login</strong> — anyone with the link can open the app, so please don&apos;t share it more widely than intended.</li>
+                  <li style={lis}>The log-in is a <strong>simple pilot gate</strong>, not real security (see <em>Signing in</em>) — please don&apos;t share the link more widely than intended.</li>
                   <li style={lis}>Your actions are <strong>live</strong>: saving or removing companies changes the real database.</li>
                 </ul>
               </>

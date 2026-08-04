@@ -71,7 +71,10 @@ on serverless functions.
 > ⚠️ Handover to-do: move repo, hosting, and API-key ownership from personal/Sprint accounts to
 > AKBM-owned accounts. Discuss with Tord (VP IT): ownership, security, data residency, auth.
 
-## 4. The three tabs
+## 4. The four tabs
+
+Before the tabs render, a **pilot login gate** (`AuthScreen`) requires log-in or account creation;
+a **Log out** button + the signed-in email sit top-right. See §10.
 
 1. **Company Database** — view/filter saved companies (those with `added = true` and
    `rejected = false`). **Export as Excel** (client-side `.xlsx` of the currently shown list) and
@@ -79,12 +82,18 @@ on serverless functions.
    form → Supabase `update`) and **remove** (✕ → "remove from this view only" = session hide, or
    "delete from the company database" = soft delete via `rejected`). Unsaved edits are guarded
    before filtering/clearing/exporting.
-2. **Find New Companies** — runs the search (see pipeline below). Includes a **Search terms**
-   selector (choose up to 3 from the keyword bank) and a **Step 3 decision** switch (currently
-   **locked on Automatic**).
-3. **Lysoveta ICP Criteria** — renders `config/icp.md` read-only. The "Edit" button is a disabled
-   placeholder.
-   Plus a disabled **Company Prospectus (Soon)** tab.
+2. **Find New Companies** — runs the search (see pipeline below). Includes the **Search
+   Configuration** panel (draft-based edit mode for terms & sources — up to 3 terms / 4 sources, each
+   source showing its **EU/US/Global** market badge and its **"Used · queued · saved"** performance
+   line), a **Target market** selector (Europe / US / No preference — a *soft* discovery steer, not a
+   hard filter), a queue pop-up when ≥ 5 companies are waiting, and a **Step 3 decision** switch
+   (currently **locked on Automatic**).
+3. **Lysoveta ICP Criteria** — renders the ICP read-only, on **two sub-tabs**: **European**
+   (`config/icp.md`) and **US** (`config/icp_us.md`). The "Edit" button is a disabled placeholder.
+4. **How It Works** — an in-app help guide (left-hand section menu) covering the pipeline, waiting
+   list, scoring, source stats, signing in, and exception states in plain language.
+
+Plus a disabled **Company Prospectus (Soon)** tab.
 
 ## 5. Search pipeline (background job + polling)
 
@@ -93,15 +102,23 @@ on serverless functions.
 > orient yourself.
 
 Kicked off by `POST {NEXT_PUBLIC_WORKER_URL}/api/search/start`, which creates a `search_jobs` row,
-fires `searchForCompanies(jobId, step3Mode, searchConcepts)` fire-and-forget, and returns the
-`jobId` immediately. The browser then polls `search_jobs` + `search_logs` every 3s and shows
-"Step X of 3", an elapsed timer, and a live log panel. Only works on an always-on server (Render /
-`next dev`), never serverless.
+fires `searchForCompanies(jobId, step3Mode, searchConcepts, sourceNames, targetMarket)`
+fire-and-forget, and returns the `jobId` immediately. The browser then polls `search_jobs` +
+`search_logs` every 3s and shows "Step X of 3", an elapsed timer, and a live log panel. Only works
+on an always-on server (Render / `next dev`), never serverless.
 
 - **Step 1 — Discovery** (`discoverCompanies`): `claude-sonnet-5`, `web_search` max 12 uses,
-  `max_tokens` 32000. Queries = **selected search terms × each source's `search_prefix`** (default
-  3 terms × 4 sources = 12 = the search budget). Passes known company names so it only returns NEW
-  ones; dedups; adds fresh ones to `discovery_queue`. Only runs if the queue has < 5 pending.
+  `max_tokens` 32000. Queries = **selected search terms × each _website_ source's `search_prefix`**
+  (default 3 terms × 4 sources = 12 = the search budget). Passes known company names so it only
+  returns NEW ones; dedups; adds fresh ones to `discovery_queue`. Only runs if the queue has < 5
+  pending. Two extra discovery paths run alongside: **`web page`** sources are read once via
+  `web_fetch` (`discoverViaFetch`) and **`youtube`** sources go through the YouTube Data API v3
+  (`discoverViaYouTube`) — neither consumes the 12-search budget. **Language is adaptive:** queries
+  start in English but the model re-searches non-English sources in their own language as it reads
+  (no manual language setting). `targetMarket` (from the selector) is a **soft steer** injected into
+  all three paths (`marketSteer`) — there is no code-level region filter, so off-region companies
+  that surface are still kept. After discovery, `bumpSourceStats` updates each source's
+  `times_used` / `companies_found` counters.
 - **Step 2 — Enrichment** (`enrichAll` / `enrichCompany`): `claude-sonnet-5`, `web_search` max 3
   uses, `max_tokens` 8000. Enriches up to 5 pending companies per run in parallel. Saves each to
   `companies` incrementally (`added = false`). Cache-checks `enriched_data` to avoid re-enriching.
@@ -132,9 +149,16 @@ switch buttons back up (there's a comment in the code explaining exactly how).
   `enriched` (jsonb), **`results` (jsonb — passing companies from automatic Step 3)**,
   `timed_out` (bool), `error`, timestamps. Drives polling.
 - **`search_logs`** — `job_id`, `message`, `created_at` (one row per log line). Drives the log panel.
+- **`sources`** — UI-editable search config, plus per-source performance counters `times_used` and
+  `companies_found` (migration 012). With `companies.source_name`, these drive the
+  **"Used X · queued Y · saved Z"** line under each source. See
+  [SEARCH_PIPELINE.md → Source performance counters](SEARCH_PIPELINE.md#source-performance-counters).
+- **`app_users`** — the pilot login table (`email`, `password` in plaintext), migration 011. See §10.
 
-> **Migration note:** the `results` column on `search_jobs` was added for automatic Step 3:
-> `alter table search_jobs add column results jsonb;`
+> **Migration notes:**
+> - `results` column on `search_jobs` (automatic Step 3): `alter table search_jobs add column results jsonb;`
+> - Source stats (migration 012): `times_used` / `companies_found` on `sources`, `source_name` on
+>   `companies`. Forward-looking — counters start at 0 and accumulate from the next search.
 
 ## 7. Key files
 
@@ -162,7 +186,9 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - `config/icp.md` — the **European** ICP definition (price threshold is currency-agnostic: ~60 in own currency).
 - `config/icp_us.md` — the **US** ICP. Placeholder until real criteria are pasted in; Step 3 routes US companies to it by geography once it's real (see SEARCH_PIPELINE.md → Step 3).
 - `config/mock-results.json` — demo data (only used if `DEMO_MODE = true` in `page.tsx`).
-- `db/migrations/*.sql` — DB schema + seed (001 = sources/search_terms tables; 002 = trade-show sources).
+- `db/migrations/*.sql` — DB schema + seed (001 = sources/search_terms tables; 002+ = added sources;
+  008 = source `market` tags; 011 = `app_users` login; 012 = source performance counters +
+  `companies.source_name`).
 - [SOURCES.md](SOURCES.md) — running log of every source evaluated for discovery: works / held / rejected, and why.
 
 ## 8. Running locally
@@ -216,7 +242,12 @@ Open http://localhost:3000. You need a `.env.local` with the Supabase vars + `AN
    - ✅ *Done:* source & term selection wired to the search; editable sources/terms (DB-backed,
      from the UI — draft edit mode with a single **Save changes** that diffs & applies); editable
      company database (edit fields + soft/hard delete); `web_fetch` for "web page" sources
-     (`discoverViaFetch` — reads a fixed page and extracts companies).
+     (`discoverViaFetch` — reads a fixed page and extracts companies); YouTube discovery
+     (`discoverViaYouTube`, Data API v3); per-geography ICP (EU + US) with automatic routing;
+     target-market discovery steer + source `market` tags; adaptive per-source language handling;
+     pilot login (`app_users`); **per-source performance counts** ("Used · queued · saved").
 6. **ICP validation** — compare the tool's ICP scores against AKBM's Excel of ~100 companies.
-7. **Softer rejection** — un-reject / review rejected companies.
+7. **Source-performance v2** — layer a yield/ratio and a "this source rarely finds anything" warning
+   on top of today's raw counts (needs a bit of accumulated data first).
+8. **Softer rejection** — un-reject / review rejected companies.
 8. **AKBM handover** — ownership of repo/hosting/API keys, security, data residency, auth.

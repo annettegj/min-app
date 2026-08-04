@@ -11,7 +11,17 @@ lets you review and save the best matches to a database you can filter and expor
 
 > The app also has an in-app **How It Works** tab — a shorter version of this guide, with a
 > left-hand menu (Overview, Company Database, Finding new companies, Search terms & sources, The
-> waiting list, How scoring works, Tips). Handy for quick reference without leaving the app.
+> waiting list, How scoring works, Signing in, Tips). Handy for quick reference without leaving the app.
+
+## Signing in
+
+The first time you open the app you'll be asked to **log in** or **create an account** with an email
+and a password you choose. After that you stay signed in on that device for about **two weeks**, then
+you'll be asked again. There's a **Log out** button at the top-right.
+
+> **This is a simple pilot log-in, not real security.** Please **don't reuse a password** you use
+> elsewhere — pick something throwaway like *Lysoveta123*. Proper security is handled by IT after
+> handover.
 
 ## The tabs
 
@@ -112,19 +122,35 @@ whole draft.
 > it finds nothing *new* on a re-run, since the page doesn't change. If a site blocks automated
 > reading, that page is simply skipped.
 
+#### How well is each source doing?
+
+Under every source (outside edit mode) there's a small line like **"Used 5 · queued 12 · saved 2"**,
+so you can see which sources are actually worth keeping:
+
+- **Used** — how many searches this source has taken part in.
+- **queued** — how many new companies it has added to the waiting list over time.
+- **saved** — how many of its companies ended up approved in your Company Database.
+
+A source that hasn't run yet shows **"Not used yet"**. The numbers **start from zero and build up**
+as you keep searching, so give a new source a few runs before judging it — and companies you saved
+before this feature existed don't count toward *saved*. For now these are just the raw counts; a
+"this source rarely finds anything" warning may be added later.
+
 > Each search uses Sprint's Anthropic account, which has limited usage, so it's worth being a little
 > deliberate with test runs.
 
 ### 3. Lysoveta ICP Criteria
 
-Shows the ICP definition the app uses to score companies (read-only for now). If you'd like changes
-to the criteria, note them down — editing from the app is planned but not built yet.
+Shows the ICP definition the app uses to score companies (read-only for now). There are **two
+profiles** on their own sub-tabs — **European** and **US** — because the ideal customer differs by
+market; each company is scored against the profile that matches its primary market. If you'd like
+changes to the criteria, note them down — editing from the app is planned but not built yet.
 
 ## Tips
 
 - Best viewed on a **laptop/desktop** — the layout isn't designed for mobile.
-- There's **no login** — anyone with the link can open the app, so please don't share the link more
-  widely than intended.
+- The log-in is a **simple pilot gate**, not real security (see *Signing in*) — please don't share
+  the link more widely than intended.
 - Your actions are **live**: saving or rejecting companies changes the real database.
 
 ## Questions / feedback

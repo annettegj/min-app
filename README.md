@@ -13,7 +13,8 @@ and letting a user review, save, and export the matches.
 - **[HANDOVER.md](HANDOVER.md)** — architecture, environment, pipeline, database, deployment,
   costs, security, and open to-dos (for whoever operates or takes ownership of the app).
 - **[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md)** — a detailed, step-by-step walkthrough of the
-  three-step search (discovery → enrichment → ICP matching).
+  three-step search (discovery → enrichment → ICP matching), incl. per-source performance counters.
+- **[SOURCES.md](SOURCES.md)** — the running log of every source evaluated, with verdicts and why.
 - **[DESIGN.md](DESIGN.md)** — the visual/design system: colour palette, button hierarchy, hover,
   and rounded corners, with a "how do I change X" reference.
 
@@ -45,7 +46,8 @@ Push to `main` — Vercel (UI) and Render (worker) both auto-deploy from `main`.
 - `app/layout.tsx` — page metadata
 - `lib/search.ts` — the three-step search pipeline
 - `app/api/search/start/route.ts` — starts the background search job
-- `sources` / `search_terms` DB tables — sources & search terms (UI-editable); `config/sources.json` is the fallback + `enrichment_model`
-- `config/icp.md` — the ICP definition
+- `sources` / `search_terms` DB tables — sources & search terms (UI-editable, with `market` tags and per-source performance counters); `config/sources.json` is the fallback + `enrichment_model`
+- `config/icp.md` / `config/icp_us.md` — the European and US ICP definitions (Step 3 routes by market)
+- `app_users` DB table — the simple pilot login (plaintext, not real security)
 
 A more complete file-by-file map is in [HANDOVER.md](HANDOVER.md).
