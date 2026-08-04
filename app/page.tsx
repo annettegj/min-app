@@ -188,6 +188,9 @@ export default function Home() {
   const [activeSearchJobId, setActiveSearchJobId] = useState<number | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [showLog, setShowLog] = useState(false);
+  // Pending companies in the discovery queue. If >= 5, Step 1 (discovery) is skipped, so a run
+  // won't search newly selected sources/terms — surfaced as a warning in the UI.
+  const [pendingQueueCount, setPendingQueueCount] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -324,11 +327,23 @@ export default function Home() {
     setConfigBusy(false);
   }
 
+  // How many companies are still queued for research (Step 1 is skipped while this is >= 5).
+  async function loadPendingCount() {
+    const { count } = await supabase.from("discovery_queue").select("*", { count: "exact", head: true }).eq("status", "pending");
+    setPendingQueueCount(count ?? 0);
+  }
+
   useEffect(() => {
     loadCompanies();
     fetch("/api/icp").then(r => r.json()).then(d => setIcpContent(d.content));
     loadSearchConfig();
+    loadPendingCount();
   }, []);
+
+  // Refresh the queue count whenever we return to an idle/finished state (e.g. after a search).
+  useEffect(() => {
+    if (agentState === "idle" || agentState === "done" || agentState === "stale_warning") loadPendingCount();
+  }, [agentState]);
 
   const results = useMemo(() => {
     if (!searchParams) return [];
@@ -1348,6 +1363,17 @@ export default function Home() {
                   </div>
                   <p style={{ fontSize: 15, fontWeight: 600, color: "var(--navy)", marginBottom: 8 }}>Search for new prospects</p>
                   <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 28 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
+
+                  {pendingQueueCount != null && pendingQueueCount >= 5 && (
+                    <div style={{ background: "var(--banner-warn-bg)", border: "1px solid var(--banner-warn-border)", borderRadius: 4, padding: "14px 16px", margin: "0 auto 24px", maxWidth: 640, textAlign: "left" }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "var(--banner-warn-text)", marginBottom: 5 }}>
+                        {pendingQueueCount} companies are still waiting to be researched
+                      </p>
+                      <p style={{ fontSize: 12.5, color: "var(--banner-warn-text)", lineHeight: 1.55 }}>
+                        This search will only research those. Your selected sources and terms will <strong>not</strong> be searched in this run — the app searches for new companies only once the waiting list drops below 5. Run the search a few times to work through the list first.
+                      </p>
+                    </div>
+                  )}
 
                   <button onClick={() => { if (!SEARCH_DISABLED) handleAgentSearch(); }} disabled={SEARCH_DISABLED}
                     style={{ background: SEARCH_DISABLED ? "var(--border-light)" : "var(--accent)", color: SEARCH_DISABLED ? "var(--text-dim)" : "var(--white)", border: SEARCH_DISABLED ? "1px solid var(--border-grey)" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer", borderRadius: 4 }}>

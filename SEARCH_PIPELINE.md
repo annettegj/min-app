@@ -42,6 +42,31 @@ A shared `AbortController` aborts all in-flight Anthropic calls after **30 minut
 steps 1+2+3. This guarantees a stalled `web_search` can never hang the job forever. Companies saved
 incrementally along the way are kept even if the run is aborted.
 
+## Why there's a queue (and why only 5 at a time)
+
+Discovery and enrichment have very different costs, so they're **decoupled** through the
+`discovery_queue` table:
+
+- **Discovery (Step 1)** is cheap — one batch of web searches returns many company *names*.
+- **Enrichment (Step 2)** is expensive — it's a separate `web_search` API call **per company**, and
+  it takes time.
+
+So Step 1 drops names into the queue, and Step 2 works the queue down **5 at a time**. Why 5:
+
+- Bounds **cost and time per run** (each enrichment is a paid call), keeping the whole job inside the
+  30-minute budget.
+- Stays within safe **concurrency** (5 in parallel) to avoid rate limits.
+
+And Step 1 **only runs when the queue has fewer than 5 pending** companies. Why the gate: if there's
+already a healthy backlog to enrich, discovering *more* would just pile up names we've paid to find
+but haven't processed — the queue would grow unbounded. So discovery pauses until the backlog is
+worked down.
+
+> **Consequence to be aware of:** if you select new sources or search terms but the queue is **≥ 5**,
+> that run will **only enrich the backlog** — your new sources/terms are **not searched yet**. They
+> take effect on the first run where the queue is below 5. The UI shows a warning with the pending
+> count so this isn't surprising, and the search log prints `Step 1: skipped — queue has X pending`.
+
 ## Before Step 1: queue housekeeping
 
 - Rows in `discovery_queue` stuck in `status = "processing"` for **> 10 min** are reset to

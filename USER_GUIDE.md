@@ -65,6 +65,13 @@ This is where you run a search.
 > The first search after a quiet period can take ~30 seconds just to start up — the server "wakes
 > up" after being idle. That's normal.
 
+> **Why a new source or term sometimes isn't searched right away.** The app researches companies in
+> small batches. Each search first works through a waiting list of already-found companies (5 at a
+> time). It only goes looking for *new* companies — using your selected sources and terms — once that
+> waiting list drops **below 5**. So if the list is long, a run just researches what's waiting, and
+> your newly added sources/terms are searched on a later run. The page shows a warning with the
+> current count when this is the case — just run the search a few times to work through the list.
+
 #### Managing search terms & sources
 
 The lists aren't fixed — you can change what's available to everyone. In the **Search Configuration**
