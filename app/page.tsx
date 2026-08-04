@@ -178,6 +178,9 @@ export default function Home() {
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [sourceInfoOpen, setSourceInfoOpen] = useState(false);
   const [termsExpanded, setTermsExpanded] = useState(false);
+  // Per source-type column (Website / Single page / YouTube) expand state, keyed by heading.
+  const [expandedSourceGroups, setExpandedSourceGroups] = useState<Record<string, boolean>>({});
+  const toggleSourceGroup = (h: string) => setExpandedSourceGroups(prev => ({ ...prev, [h]: !prev[h] }));
   const [configBusy, setConfigBusy] = useState(false);
   const [configError, setConfigError] = useState("");
 
@@ -1300,35 +1303,45 @@ export default function Home() {
                             { heading: "Website", items: sourceOptions.filter(s => (s.type ?? "web site") === "web site") },
                             { heading: "Single page", items: sourceOptions.filter(s => s.type === "web page") },
                             { heading: "YouTube", items: sourceOptions.filter(s => s.type === "youtube") },
-                          ].map(group => group.items.length === 0 ? null : (
-                            <div key={group.heading}>
-                              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{group.heading}</p>
-                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                {group.items.map(s => {
-                                  const isPage = s.type === "web page";
-                                  const checked = selectedSources.includes(s.name);
-                                  const atMax = selectedSources.length >= 4;
-                                  return (
-                                    <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
-                                      <input type="checkbox" checked={checked} disabled={!checked && atMax}
-                                        onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
-                                        style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
-                                      <span>
-                                        {s.name}
-                                        {isPage && s.url && (
-                                          <a href={/^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
-                                            onClick={e => e.stopPropagation()}
-                                            style={{ display: "block", fontSize: 10, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all", textDecoration: "underline" }}>
-                                            {s.url.replace(/^https?:\/\//, "")}
-                                          </a>
-                                        )}
-                                      </span>
-                                    </label>
-                                  );
-                                })}
+                          ].map(group => {
+                            if (group.items.length === 0) return null;
+                            const expanded = !!expandedSourceGroups[group.heading];
+                            return (
+                              <div key={group.heading}>
+                                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{group.heading}</p>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: expanded ? "none" : 200, overflowY: expanded ? "visible" : "auto", paddingRight: 4 }}>
+                                  {group.items.map(s => {
+                                    const isPage = s.type === "web page";
+                                    const checked = selectedSources.includes(s.name);
+                                    const atMax = selectedSources.length >= 4;
+                                    return (
+                                      <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
+                                        <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                                          onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
+                                          style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
+                                        <span>
+                                          {s.name}
+                                          {isPage && s.url && (
+                                            <a href={/^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
+                                              onClick={e => e.stopPropagation()}
+                                              style={{ display: "block", fontSize: 10, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all", textDecoration: "underline" }}>
+                                              {s.url.replace(/^https?:\/\//, "")}
+                                            </a>
+                                          )}
+                                        </span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                                {group.items.length > 4 && (
+                                  <button type="button" onClick={() => toggleSourceGroup(group.heading)}
+                                    style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 11.5, fontWeight: 700, padding: "6px 0 0", textAlign: "left" }}>
+                                    {expanded ? "Show fewer ▴" : `Show all ${group.items.length} ▾`}
+                                  </button>
+                                )}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
