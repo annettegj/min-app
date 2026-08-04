@@ -273,6 +273,9 @@ export default function Home() {
   const [perfDraftPct, setPerfDraftPct] = useState("1");
   const [perfDraftMin, setPerfDraftMin] = useState("5");
   const [perfSaving, setPerfSaving] = useState(false);
+  // The threshold is read-only by default; editing is revealed inline (no nested modal) by the
+  // "Edit hit rate threshold" button.
+  const [perfEditThreshold, setPerfEditThreshold] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -509,6 +512,13 @@ export default function Home() {
     const hr = sourceHitRate(times_used, companies_found);
     if (hr === null) return "—";
     const pct = hr * 100;
+    return pct >= 10 ? `${Math.round(pct)}%` : `${pct.toFixed(1)}%`;
+  };
+  // Saved rate = approved companies ÷ times used, as a % — a quality parameter only (NOT used for the
+  // warning). Guarded against divide-by-zero: returns "—" until the source has been used.
+  const fmtSavedRate = (times_used: number, saved: number): string => {
+    if (times_used <= 0) return "—";
+    const pct = (saved / times_used) * 100;
     return pct >= 10 ? `${Math.round(pct)}%` : `${pct.toFixed(1)}%`;
   };
 
@@ -1386,7 +1396,7 @@ export default function Home() {
                     <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
                     {!configEditMode && (
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <button type="button" onClick={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfModalOpen(true); }}
+                        <button type="button" onClick={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfEditThreshold(false); setPerfModalOpen(true); }}
                           style={{ background: "transparent", color: "var(--white)", border: "1px solid rgba(255,255,255,0.5)", borderRadius: 4, padding: "6px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
                           Source performance
                         </button>
@@ -2287,45 +2297,63 @@ export default function Home() {
         <div onClick={() => { if (!perfSaving) setPerfModalOpen(false); }}
           style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 760, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <div style={{ background: "var(--header)", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p style={{ color: "var(--white)", fontSize: 16, fontWeight: 700 }}>Source performance</p>
+            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 960, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <div style={{ background: "var(--header)", padding: "16px 30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p style={{ color: "var(--white)", fontSize: 19, fontWeight: 700 }}>Source performance</p>
               <button type="button" onClick={() => { if (!perfSaving) setPerfModalOpen(false); }}
-                style={{ background: "transparent", color: "var(--white)", border: "none", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+                style={{ background: "transparent", color: "var(--white)", border: "none", fontSize: 24, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
-            <div style={{ padding: "20px 24px", overflowY: "auto" }}>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 16 }}>
-                <strong>Hit rate</strong> = companies found ÷ times used — how many new companies a source turns up per search (a source that never finds anything trends toward 0%). Sources below the threshold are flagged here and in the source list so you can edit or remove them.
-              </p>
-
-              {/* Threshold editor */}
-              <div style={{ background: "var(--surface)", border: "1px solid var(--border-card)", borderRadius: 4, padding: "14px 16px", marginBottom: 20 }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: "var(--navy)", marginBottom: 10 }}>Warning rule</p>
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)" }}>
-                  <span>Warn when hit rate is below</span>
-                  <input type="number" min={0} step={0.5} value={perfDraftPct} onChange={e => setPerfDraftPct(e.target.value)}
-                    style={{ width: 70, padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13 }} />
-                  <span>%, once the source has been used at least</span>
-                  <input type="number" min={0} step={1} value={perfDraftMin} onChange={e => setPerfDraftMin(e.target.value)}
-                    style={{ width: 60, padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13 }} />
-                  <span>times.</span>
-                  <button type="button" onClick={saveSettings} disabled={perfSaving}
-                    style={{ ...btnPrimary, padding: "7px 18px", marginLeft: "auto", opacity: perfSaving ? 0.6 : 1 }}>{perfSaving ? "Saving…" : "Save"}</button>
-                </div>
-                <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8 }}>Shared setting — affects the warnings everyone sees. The minimum-uses guard stops brand-new sources from being flagged before they&apos;ve had a fair chance.</p>
+            <div style={{ padding: "26px 30px", overflowY: "auto" }}>
+              {/* Threshold — read-only by default; editing revealed inline (no nested pop-up).
+                  Left accent stripe + navy bold text so the active rule stands out from the grey notes. */}
+              <div style={{ marginBottom: 18, borderLeft: "3px solid var(--accent)", paddingLeft: 16 }}>
+                {!perfEditThreshold ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 14 }}>
+                    <span style={{ fontSize: 16.5, fontWeight: 600, color: "var(--navy)", lineHeight: 1.5 }}>Flag a source when its hit rate is below <strong>{warnThresholdPct}%</strong>, once it has been used at least <strong>{warnMinUses}</strong> times.</span>
+                    <button type="button" onClick={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfEditThreshold(true); }}
+                      style={{ ...btnSecondary, padding: "5px 12px", fontSize: 12, marginLeft: "auto" }}>Edit threshold</button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 600, color: "var(--navy)" }}>
+                      <span>Warn when hit rate is below</span>
+                      <input type="number" min={0} step={0.5} value={perfDraftPct} onChange={e => setPerfDraftPct(e.target.value)}
+                        style={{ width: 76, padding: "7px 9px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 15 }} />
+                      <span>%, once the source has been used at least</span>
+                      <input type="number" min={0} step={1} value={perfDraftMin} onChange={e => setPerfDraftMin(e.target.value)}
+                        style={{ width: 66, padding: "7px 9px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 15 }} />
+                      <span>times.</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                      <button type="button" onClick={async () => { await saveSettings(); setPerfEditThreshold(false); }} disabled={perfSaving}
+                        style={{ ...btnPrimary, padding: "8px 20px", opacity: perfSaving ? 0.6 : 1 }}>{perfSaving ? "Saving…" : "Save"}</button>
+                      <button type="button" onClick={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfEditThreshold(false); }} disabled={perfSaving}
+                        style={{ ...btnSecondary, padding: "8px 20px" }}>Cancel</button>
+                    </div>
+                  </>
+                )}
+                <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 10 }}>Shared setting — affects the warnings everyone sees. The minimum-uses guard stops brand-new sources from being flagged before they&apos;ve had a fair chance.</p>
               </div>
+
+              <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.65, marginBottom: 8 }}>
+                <strong>Hit rate</strong> = companies found ÷ times used — how many new companies a source turns up per search (a source that never finds anything trends toward 0%). This is what the warning is based on.
+              </p>
+              <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.65, marginBottom: 22 }}>
+                <strong>Saved rate</strong> = approved companies ÷ times used — a quality signal shown for reference only, not used for the warning.
+              </p>
 
               {/* Per-source table */}
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                   <thead>
                     <tr style={{ textAlign: "left", color: "var(--text-muted)", borderBottom: "1px solid var(--border-card)" }}>
-                      <th style={{ padding: "6px 8px", fontWeight: 700 }}>Source</th>
-                      <th style={{ padding: "6px 8px", fontWeight: 700, textAlign: "right" }}>Used</th>
-                      <th style={{ padding: "6px 8px", fontWeight: 700, textAlign: "right" }}>Queued</th>
-                      <th style={{ padding: "6px 8px", fontWeight: 700, textAlign: "right" }}>Saved</th>
-                      <th style={{ padding: "6px 8px", fontWeight: 700, textAlign: "right" }}>Hit rate</th>
-                      <th style={{ padding: "6px 8px", fontWeight: 700 }}>Status</th>
+                      <th style={{ padding: "9px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Source</th>
+                      <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Used</th>
+                      <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Queued</th>
+                      <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Saved</th>
+                      <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Hit rate</th>
+                      <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Saved rate</th>
+                      <th style={{ padding: "9px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2344,12 +2372,13 @@ export default function Home() {
                         const unused = s.times_used === 0;
                         return (
                           <tr key={s.name} style={{ borderBottom: "1px solid var(--border-card)", background: low ? "var(--banner-warn-bg)" : "transparent" }}>
-                            <td style={{ padding: "7px 8px" }}>{s.name}<MarketBadge market={s.market} /></td>
-                            <td style={{ padding: "7px 8px", textAlign: "right" }}>{s.times_used}</td>
-                            <td style={{ padding: "7px 8px", textAlign: "right" }}>{s.companies_found}</td>
-                            <td style={{ padding: "7px 8px", textAlign: "right" }}>{savedBySource.get(s.name) ?? 0}</td>
-                            <td style={{ padding: "7px 8px", textAlign: "right", fontWeight: 600 }}>{fmtHitRate(s.times_used, s.companies_found)}</td>
-                            <td style={{ padding: "7px 8px", color: low ? "var(--danger-text)" : "var(--text-muted)", fontWeight: low ? 700 : 400 }}>
+                            <td style={{ padding: "9px 12px", whiteSpace: "nowrap" }}>{s.name}<MarketBadge market={s.market} /></td>
+                            <td style={{ padding: "9px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{s.times_used}</td>
+                            <td style={{ padding: "9px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{s.companies_found}</td>
+                            <td style={{ padding: "9px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{savedBySource.get(s.name) ?? 0}</td>
+                            <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>{fmtHitRate(s.times_used, s.companies_found)}</td>
+                            <td style={{ padding: "9px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{fmtSavedRate(s.times_used, savedBySource.get(s.name) ?? 0)}</td>
+                            <td style={{ padding: "9px 12px", color: low ? "var(--danger-text)" : "var(--text-muted)", fontWeight: low ? 700 : 400, whiteSpace: "nowrap" }}>
                               {unused ? "Not used yet" : low ? "⚠ Low" : "OK"}
                             </td>
                           </tr>

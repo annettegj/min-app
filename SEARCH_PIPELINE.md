@@ -177,6 +177,10 @@ source with a **hit rate = `companies_found` ÷ `times_used`** (rendered as a %)
   [`db/migrations/013_app_settings.sql`](db/migrations/013_app_settings.sql).
 - **saved** in the modal is the same live `savedBySource` count as the main list; hit rate uses the
   discovery counters, not `saved`, so it measures whether a source finds anything at all.
+- The modal also shows a **saved rate** column = `saved ÷ times_used` (a quality signal, reference
+  only — **not** used for the warning), guarded against divide-by-zero (shows "—" until used).
+- The threshold is **read-only by default** — an "Edit threshold" button reveals the inputs inline
+  (progressive disclosure, no nested modal) with Save / Cancel.
 
 ---
 
