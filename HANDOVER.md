@@ -195,9 +195,12 @@ Open http://localhost:3000. You need a `.env.local` with the Supabase vars + `AN
 
 ## 10. Security & known gaps
 
-- **No authentication** — anyone with the URL can use the app and trigger (paid) searches. Only
-  share the production URL with trusted stakeholders; do not post it publicly. Auth is an open
-  handover item.
+- **Pilot login only — NOT real security.** There is a simple email+password gate (`app_users`
+  table, migration 011). Passwords are stored in **plaintext** and the table is open to the anon key,
+  exactly like the rest of the app. It only stops casual browser access — anyone could still hit the
+  Render worker API directly, and the anon key can read the users table. It's a deliberate throwaway
+  gate; **real authentication is an open handover item for IT.** Session is a `localStorage` entry
+  that auto-expires after 2 weeks. Users self-register from the login screen.
 - The **Supabase anon key is public** (it's a `NEXT_PUBLIC_` var, by design). All tables
   (`companies`, `sources`, `search_terms`, …) are currently open to the anon key — RLS is either off
   or fully permissive, so anyone with the URL can read/write the shared config and data. This is the
