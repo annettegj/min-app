@@ -186,42 +186,6 @@ function logSearchOutcome(response: Anthropic.Message): void {
 // primarily active (usually two sides of the same coin in this case). There is NO code-level region
 // filter — off-region companies that turn up anyway are kept and queued (and scored against the
 // matching ICP in Step 3).
-// Auto-detects each website's language (from its domain/name) and returns the search phrases
-// translated into that language, keyed by the EXACT source name. English sites return the phrases
-// unchanged. One Claude call per search; on failure/shape mismatch a source is omitted and the
-// caller falls back to the original English phrases — so there is never a regression.
-async function localizeConcepts(client: Anthropic, sources: { name: string; url: string }[], concepts: string[]): Promise<Record<string, string[]>> {
-  if (concepts.length === 0 || sources.length === 0) return {};
-  try {
-    const list = sources.map((s) => `- ${s.name} (${s.url})`).join("\n");
-    const stream = await client.messages.stream({
-      model: "claude-sonnet-5",
-      max_tokens: 2000,
-      messages: [{ role: "user", content: `For each website below, work out the primary language of that site from its domain and name, then translate the search phrases into that language. If the site is English, return the phrases unchanged. Keep them as natural search phrases someone would type.
-
-Websites:
-${list}
-
-Search phrases:
-${concepts.map((c, i) => `${i + 1}. ${c}`).join("\n")}
-
-Return ONLY a raw JSON object keyed by the EXACT website name, each value an array of the phrases in the SAME order as the input. Example: {"Darwin Nutrition":["longévité …","…"],"NutraIngredients Europe":["longevity …","…"]}` }],
-    }, { signal: activeSignal ?? undefined });
-    const obj = parseJsonObject(await stream.finalMessage());
-    const out: Record<string, string[]> = {};
-    for (const s of sources) {
-      const arr = obj?.[s.name];
-      if (Array.isArray(arr) && arr.length === concepts.length && arr.every((x) => typeof x === "string" && x.trim())) {
-        out[s.name] = arr as string[];
-      }
-    }
-    if (Object.keys(out).length > 0) emit(`[search] Step 1: auto-localized search terms per source language`);
-    return out;
-  } catch {
-    return {};
-  }
-}
-
 function marketSteer(targetMarket?: "eu" | "us" | "both"): string {
   if (targetMarket === "eu") return `\n- Focus on companies in Europe (EU / UK) — based in or primarily active in the region.`;
   if (targetMarket === "us") return `\n- Focus on companies in the United States — based in or primarily active there.`;
@@ -260,11 +224,9 @@ async function discoverCompanies(
   // Build the narrow queries from concepts × sources: one concept per query, as an explicit numbered
   // list so the model runs them as separate searches rather than combining them.
   emit(`[search] Step 1: using ${searchConcepts.length} search terms: ${searchConcepts.join(", ")}`);
-  // Query each source in its OWN language: the AI auto-detects each site's language and translates
-  // the terms accordingly (one call), then we build per-source queries. Falls back to English on any
-  // failure — no manual language setting needed.
-  const localized = await localizeConcepts(client, siteSources.map((s) => ({ name: s.name, url: s.url })), searchConcepts);
-  const allQueries = siteSources.flatMap((s) => (localized[s.name] ?? searchConcepts).map((c) => `${s.search_prefix} ${c}`));
+  // Baseline queries in English; the model adapts language per source as it reads (see the search
+  // rules below) — it re-searches non-English sources in their own language once it sees the content.
+  const allQueries = siteSources.flatMap((s) => searchConcepts.map((c) => `${s.search_prefix} ${c}`));
   const queryList = allQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n");
   emit(`[search] Step 1 technique: web_search — ${siteSources.length} website source(s) × ${searchConcepts.length} term(s) = ${allQueries.length} queries`);
   emit(`[search] Step 1 queries:\n${queryList}`);
@@ -294,6 +256,7 @@ ${sourceList}
 Run the searches below. IMPORTANT search rules:
 - Run each query as a SEPARATE, narrow search — one query at a time. Do NOT combine several queries into one search (narrow single-concept searches return far better company round-ups than broad stacked ones).
 - Cover ALL of the sources — do not spend your whole search budget on a single source.
+- Adapt to each source's language: don't assume English. Judge a source's language from what its results actually contain (and the site itself). If a source is in another language (e.g. French, German, Italian), translate the search term into that language and search that source again in its own language — that surfaces companies an English query would miss. You still read and understand results in any language.
 - You have a budget of up to 12 searches. You may stop early once you have 10 new companies (see the counting rule below).
 
 Searches to run:

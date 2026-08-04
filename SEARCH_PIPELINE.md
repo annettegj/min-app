@@ -89,13 +89,13 @@ worked down.
   from the database (`search_terms` / `sources` tables) and are chosen in the UI; if the user ticks
   none, the worker uses the default terms / all active sources. `config/sources.json` is the
   fallback if the DB read fails.
-- **Automatic per-source language:** the worker **auto-detects each website's language** from its
-  domain/name and translates the terms into that language via one Claude call (`localizeConcepts`),
-  then queries each source in **its own language** (e.g. `darwin-nutrition.fr` is searched in French).
-  No manual setting. On any failure it falls back to English — no regression. `web_fetch` sources
-  read the page directly (any language, no translation needed), and **Step 2 enrichment** reads
-  company sources in any language and writes the field values in English — so non-English company
-  info is handled automatically throughout.
+- **Language adapts as it reads:** queries start in English, but the discovery model is told not to
+  assume English — it judges each source's language from what the results actually contain and
+  **re-searches non-English sources in their own language** (e.g. searches `darwin-nutrition.fr`
+  in French once it sees French content) to surface companies an English query would miss. No manual
+  setting and no domain-based guessing. `web_fetch` sources read the page directly (any language),
+  and **Step 2 enrichment** reads company sources in any language and writes the fields in English —
+  so non-English content is handled automatically throughout.
 - Only **"web site"** sources produce queries here. **"web page"** sources are read once via
   `web_fetch` (`discoverViaFetch`), and **"youtube"** sources go through the YouTube Data API
   (`discoverViaYouTube`) — neither consumes the 12-search web budget.
