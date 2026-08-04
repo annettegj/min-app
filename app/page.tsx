@@ -1394,9 +1394,9 @@ export default function Home() {
                   </div>
                   <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
 
-                  {/* Target market — soft geography steer for discovery */}
+                  {/* Company location — location steer for discovery (where the company is based) */}
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 28 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)" }}>Target market</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)" }}>Company location</span>
                     <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }}>
                       {([
                         { value: "eu", label: "Europe" },
@@ -1412,7 +1412,7 @@ export default function Home() {
                         );
                       })}
                     </div>
-                    <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Guides the search toward this market. Companies from other markets can still be found and are scored against their own ICP.</span>
+                    <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Tells the search to look for companies based in this region. Any from other regions that turn up are still kept, and scored against their own ICP.</span>
                   </div>
 
                   <button onClick={() => { if (SEARCH_DISABLED) return; if (pendingQueueCount != null && pendingQueueCount >= 5) setQueueModalOpen(true); else handleAgentSearch(); }} disabled={SEARCH_DISABLED}
