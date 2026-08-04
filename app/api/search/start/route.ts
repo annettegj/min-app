@@ -30,9 +30,14 @@ export async function POST(request: Request) {
   let step3Mode: "auto" | "manual" = "auto";
   let searchConcepts: string[] | undefined;
   let sourceNames: string[] | undefined;
+  let targetMarket: "eu" | "us" | "both" | undefined;
   try {
     const body = await request.json();
     if (body?.step3Mode === "manual") step3Mode = "manual";
+    // Optional target market — a soft geography steer for discovery. "both"/unset = no steer.
+    if (body?.targetMarket === "eu" || body?.targetMarket === "us" || body?.targetMarket === "both") {
+      targetMarket = body.targetMarket;
+    }
     // Optional user-selected search terms. Empty/invalid → undefined, so the worker uses its defaults.
     if (Array.isArray(body?.searchConcepts)) {
       const terms = body.searchConcepts.filter(
@@ -67,7 +72,7 @@ export async function POST(request: Request) {
 
   // 2. Fire-and-forget: run the search without awaiting it. On a persistent server this keeps
   //    running after we respond. The .then/.catch write the final outcome to the job row.
-  searchForCompanies(jobId, step3Mode, searchConcepts, sourceNames)
+  searchForCompanies(jobId, step3Mode, searchConcepts, sourceNames, targetMarket)
     .then(async (result) => {
       if (result.noCompaniesFound) {
         await supabase.from("search_jobs").update({

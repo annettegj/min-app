@@ -181,11 +181,20 @@ function logSearchOutcome(response: Anthropic.Message): void {
 // ---- Step 1: Discovery ----
 // Searches trade media sources using predefined search strings and extracts company names.
 
+// A soft geography steer for Step 1 discovery. NOT a hard filter — off-market companies that turn
+// up anyway are still kept (Step 3 scores each against the matching ICP).
+function marketSteer(targetMarket?: "eu" | "us" | "both"): string {
+  if (targetMarket === "eu") return `\n- Prioritise companies whose primary market is Europe (EU / UK). You may still include clearly relevant companies from other markets.`;
+  if (targetMarket === "us") return `\n- Prioritise companies whose primary market is the United States. You may still include clearly relevant companies from other markets.`;
+  return "";
+}
+
 async function discoverCompanies(
   client: Anthropic,
   sources: Source[],
   knownNames: string[] = [],
-  concepts?: string[]
+  concepts?: string[],
+  targetMarket?: "eu" | "us" | "both"
 ): Promise<DiscoveredCompany[]> {
   // "web site" sources are searched via web_search (below); "web page" sources are read once via
   // web_fetch (discoverViaFetch). Missing type defaults to "web site".
@@ -202,8 +211,8 @@ async function discoverCompanies(
   // sources. If there are none, do just page + YouTube and return.
   if (siteSources.length === 0) {
     emit(`[search] Step 1: no website sources selected — skipping web_search`);
-    const pageOnly = pageSources.length > 0 ? await discoverViaFetch(client, pageSources, knownNames) : [];
-    const ytOnly = youtubeSources.length > 0 ? await discoverViaYouTube(client, youtubeSources, searchConcepts, knownNames) : [];
+    const pageOnly = pageSources.length > 0 ? await discoverViaFetch(client, pageSources, knownNames, targetMarket) : [];
+    const ytOnly = youtubeSources.length > 0 ? await discoverViaYouTube(client, youtubeSources, searchConcepts, knownNames, targetMarket) : [];
     return [...pageOnly, ...ytOnly];
   }
   const sourceList = siteSources
@@ -258,7 +267,7 @@ Important rules:
 - EXCLUDE Aker BioMarine, Lysoveta, and Superba — these are ingredient suppliers, not target customers.
 - Always use the shortest canonical company name — omit legal suffixes (GmbH, Ltd, AG, Inc, BV, etc.) and parenthetical additions. Write "Doppelherz", not "Doppelherz GmbH" or "Doppelherz (Queisser Pharma)".
 - If the same company appears in multiple sources, include it only once (keep the first source).
-- Only include companies that actually sell finished supplement products to consumers or through B2B channels — not raw ingredient suppliers or distributors with no own brand.
+- Only include companies that actually sell finished supplement products to consumers or through B2B channels — not raw ingredient suppliers or distributors with no own brand.${marketSteer(targetMarket)}
 
 Return ONLY a raw JSON array, no markdown or explanation:
 [{"name":"Company Name","source_name":"NutraIngredients Europe"}]`,
@@ -283,8 +292,8 @@ Return ONLY a raw JSON array, no markdown or explanation:
   emit(
     `[search] Step 1 tokens: ${response.usage.input_tokens} input, ${response.usage.output_tokens} output`
   );
-  const pageDiscovered = pageSources.length > 0 ? await discoverViaFetch(client, pageSources, knownNames) : [];
-  const ytDiscovered = youtubeSources.length > 0 ? await discoverViaYouTube(client, youtubeSources, searchConcepts, knownNames) : [];
+  const pageDiscovered = pageSources.length > 0 ? await discoverViaFetch(client, pageSources, knownNames, targetMarket) : [];
+  const ytDiscovered = youtubeSources.length > 0 ? await discoverViaYouTube(client, youtubeSources, searchConcepts, knownNames, targetMarket) : [];
   return [...discovered, ...pageDiscovered, ...ytDiscovered];
 }
 
@@ -296,7 +305,8 @@ async function discoverViaYouTube(
   client: Anthropic,
   youtubeSources: Source[],
   concepts: string[],
-  knownNames: string[] = []
+  knownNames: string[] = [],
+  targetMarket?: "eu" | "us" | "both"
 ): Promise<DiscoveredCompany[]> {
   // Defensive: trim whitespace and strip accidental surrounding quotes from the env value.
   const apiKey = process.env.YOUTUBE_API_KEY?.trim().replace(/^["']|["']$/g, "");
@@ -386,7 +396,7 @@ Important rules:
 - EXCLUDE Aker BioMarine, Lysoveta, and Superba.
 - Use the shortest canonical company name — omit legal suffixes (GmbH, Ltd, Inc, etc.) and parentheticals.
 - Only finished-brand supplement companies — not ingredient suppliers, not retailers (Amazon, iHerb), not pure distributors.
-- Ignore the YouTube channel/creator name itself unless the channel IS a supplement brand.${knownBlock}
+- Ignore the YouTube channel/creator name itself unless the channel IS a supplement brand.${marketSteer(targetMarket)}${knownBlock}
 
 Videos:
 ${videosText}
@@ -411,7 +421,8 @@ Return ONLY a raw JSON array, no markdown:
 async function discoverViaFetch(
   client: Anthropic,
   pageSources: Source[],
-  knownNames: string[] = []
+  knownNames: string[] = [],
+  targetMarket?: "eu" | "us" | "both"
 ): Promise<DiscoveredCompany[]> {
   const pageList = pageSources
     .map((s) => `- Source name: "${s.name}"\n  URL: ${s.url}${s.note ? `\n  NOTE: ${s.note}` : ""}`)
@@ -443,7 +454,7 @@ Important rules:
 - Always use the shortest canonical company name — omit legal suffixes (GmbH, Ltd, AG, Inc, BV, etc.) and parenthetical additions.
 - Only include companies that actually sell finished supplement products under their own brand — not raw ingredient suppliers or pure distributors.
 - Set "source_name" to the exact Source name given for the page the company came from.
-- If a page cannot be fetched, skip it and continue with the others.${knownBlock}
+- If a page cannot be fetched, skip it and continue with the others.${marketSteer(targetMarket)}${knownBlock}
 
 Return ONLY a raw JSON array, no markdown or explanation:
 [{"name":"Company Name","source_name":"${pageSources[0]?.name ?? "Source name"}"}]`,
@@ -745,7 +756,8 @@ export async function searchForCompanies(
   jobId: number | null = null,
   step3Mode: "auto" | "manual" = "auto",
   searchConcepts?: string[],
-  sourceNames?: string[]
+  sourceNames?: string[],
+  targetMarket?: "eu" | "us" | "both"
 ): Promise<{
   enriched: EnrichedCompany[];
   step3Prompt: string;
@@ -846,7 +858,7 @@ export async function searchForCompanies(
     // User-selected sources take precedence; otherwise search every active source.
     const sourcesForRun = sourceNames && sourceNames.length > 0 ? sources.filter((s) => sourceNames.includes(s.name)) : sources;
     emit(`[search] Step 1: using ${sourcesForRun.length} of ${sources.length} sources`);
-    const discovered = await discoverCompanies(client, sourcesForRun, knownNames, conceptsForRun);
+    const discovered = await discoverCompanies(client, sourcesForRun, knownNames, conceptsForRun, targetMarket);
     step1Discovered = discovered.length;
 
     if (discovered.length > 0) {

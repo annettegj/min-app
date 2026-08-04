@@ -161,6 +161,8 @@ export default function Home() {
   // --- Search configuration (read from the DB, editable in the app) ---
   const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  // Target market — a soft geography steer for discovery (not a hard filter). "both" = no steer.
+  const [targetMarket, setTargetMarket] = useState<"eu" | "us" | "both">("both");
   // Search config read from the DB on mount; initialised from the sources.json-derived
   // defaults so there's something before the fetch resolves (and as a fallback).
   const [sourceOptions, setSourceOptions] = useState(SOURCE_OPTIONS);
@@ -626,7 +628,7 @@ export default function Home() {
       const res = await fetch(`${workerBase}/api/search/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ step3Mode, searchConcepts: selectedTerms, sourceNames: selectedSources }),
+        body: JSON.stringify({ step3Mode, searchConcepts: selectedTerms, sourceNames: selectedSources, targetMarket }),
       });
       const data = await res.json();
 
@@ -1377,7 +1379,28 @@ export default function Home() {
                       })}
                     </div>
                   </div>
-                  <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 28 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
+                  <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
+
+                  {/* Target market — soft geography steer for discovery */}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 28 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)" }}>Target market</span>
+                    <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }}>
+                      {([
+                        { value: "eu", label: "Europe" },
+                        { value: "us", label: "US" },
+                        { value: "both", label: "No preference" },
+                      ] as const).map((opt) => {
+                        const active = targetMarket === opt.value;
+                        return (
+                          <button key={opt.value} type="button" onClick={() => setTargetMarket(opt.value)}
+                            style={{ background: active ? "var(--accent)" : "var(--white)", color: active ? "var(--white)" : "var(--text-slate)", border: "none", borderRadius: 0, padding: "7px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", cursor: "pointer" }}>
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Guides the search toward this market. Companies from other markets can still be found and are scored against their own ICP.</span>
+                  </div>
 
                   <button onClick={() => { if (SEARCH_DISABLED) return; if (pendingQueueCount != null && pendingQueueCount >= 5) setQueueModalOpen(true); else handleAgentSearch(); }} disabled={SEARCH_DISABLED}
                     style={{ background: SEARCH_DISABLED ? "var(--border-light)" : "var(--accent)", color: SEARCH_DISABLED ? "var(--text-dim)" : "var(--white)", border: SEARCH_DISABLED ? "1px solid var(--border-grey)" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer", borderRadius: 4 }}>
