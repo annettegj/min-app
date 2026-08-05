@@ -551,12 +551,9 @@ export default function Home() {
       });
       const data = await res.json();
       const issues = Array.isArray(data.issues) ? data.issues : [];
-      if (data.ok === true && issues.length === 0) {
-        // Clean — save without an extra confirmation step.
-        await commitIcp();
-      } else {
-        setIcpCheck({ ok: data.ok ?? null, summary: data.summary ?? "", issues, error: data.error });
-      }
+      // Always show the result and let the user press Save — the button says "review", so saving is
+      // never automatic (even when the review is clean).
+      setIcpCheck({ ok: data.ok ?? null, summary: data.summary ?? "", issues, error: data.error });
     } catch (err) {
       // Review couldn't run — advisory only, so let the user decide to save anyway.
       setIcpCheck({ ok: null, summary: "", issues: [], error: err instanceof Error ? err.message : "Review failed." });
@@ -2095,7 +2092,7 @@ export default function Home() {
                 {icpError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 8 }}>{icpError}</p>}
                 <div style={{ display: "flex", gap: 10, marginTop: 14, alignItems: "center" }}>
                   <button type="button" onClick={reviewIcp} disabled={icpSaving || icpChecking}
-                    style={{ ...btnPrimary, padding: "9px 24px", opacity: (icpSaving || icpChecking) ? 0.6 : 1 }}>{icpChecking ? "Reviewing…" : icpSaving ? "Saving…" : "Save changes"}</button>
+                    style={{ ...btnPrimary, padding: "9px 24px", opacity: (icpSaving || icpChecking) ? 0.6 : 1 }}>{icpChecking ? "Reviewing…" : icpSaving ? "Saving…" : "Review changes with AI"}</button>
                   <button type="button" onClick={cancelIcpEdit} disabled={icpSaving || icpChecking}
                     style={{ ...btnSecondary, padding: "9px 22px" }}>Cancel</button>
                   <button type="button" onClick={toggleIcpHistory} disabled={icpChecking}
@@ -2114,7 +2111,7 @@ export default function Home() {
                 {icpCheck && (
                   <div style={{ marginTop: 14, border: "1px solid var(--border-card)", borderRadius: 4, borderLeft: `3px solid ${icpCheck.issues.some(i => i.severity === "critical") ? "var(--danger-text)" : "var(--accent)"}`, padding: "14px 16px", background: "var(--surface)" }}>
                     <p style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>
-                      {icpCheck.ok === null ? "Couldn’t run the AI review" : icpCheck.issues.some(i => i.severity === "critical") ? "The AI review found some gaps" : "The AI review has a few suggestions"}
+                      {icpCheck.ok === null ? "Couldn’t run the AI review" : icpCheck.issues.length === 0 ? "✓ AI review passed — no issues found" : icpCheck.issues.some(i => i.severity === "critical") ? "The AI review found some gaps" : "The AI review has a few suggestions"}
                     </p>
                     {icpCheck.error ? (
                       <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 10 }}>The review couldn’t run ({icpCheck.error}). This is only an advisory check — you can still save.</p>
@@ -2137,12 +2134,16 @@ export default function Home() {
                           </div>
                         )}
                         {icpApplyError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginBottom: 8 }}>Couldn’t apply that suggestion ({icpApplyError}). You can edit the text manually or try again.</p>}
-                        <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>“Apply fix” lets the AI rewrite the text for that one point — the update lands in the editor above for you to review, and nothing is saved until you press <strong>Save changes</strong>. This is advice, not a gate.</p>
+                        {icpCheck.issues.length > 0 ? (
+                          <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>“Apply fix” lets the AI rewrite the text for that one point — the update lands in the editor above for you to review, and nothing is saved until you press <strong>Save changes</strong>. This is advice, not a gate.</p>
+                        ) : (
+                          <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>Nothing has been saved yet. Press <strong>Save changes</strong> to make this the live ICP, or keep editing.</p>
+                        )}
                       </>
                     )}
                     <div style={{ display: "flex", gap: 10 }}>
                       <button type="button" onClick={commitIcp} disabled={icpSaving}
-                        style={{ ...btnPrimary, padding: "8px 20px", opacity: icpSaving ? 0.6 : 1 }}>{icpSaving ? "Saving…" : "Save anyway"}</button>
+                        style={{ ...btnPrimary, padding: "8px 20px", opacity: icpSaving ? 0.6 : 1 }}>{icpSaving ? "Saving…" : (icpCheck.ok === null || icpCheck.issues.length > 0) ? "Save anyway" : "Save changes"}</button>
                       <button type="button" onClick={() => setIcpCheck(null)} disabled={icpSaving}
                         style={{ ...btnSecondary, padding: "8px 20px" }}>Keep editing</button>
                     </div>
@@ -2319,7 +2320,7 @@ export default function Home() {
                 <p style={ps}>After a company is researched, the AI scores it against the <strong>Lysoveta ICP Criteria</strong> (see that tab). It assigns an ICP fit score and a priority tier (Early Mover, Follower, or Enabler).</p>
                 <p style={ps}>There are separate profiles for <strong>Europe</strong> and the <strong>US</strong> (both on the ICP Criteria tab). Each company is scored against the profile that matches its primary market.</p>
                 <p style={ps}>Only companies that <strong>pass</strong> the ICP are shown for you to save. The rest are set aside — kept internally so they aren&apos;t re-discovered in future searches.</p>
-                <p style={ps}>The ICP itself is <strong>editable</strong> — on the <strong>Lysoveta ICP Criteria</strong> tab, click <strong>✎ Edit Criteria</strong> to adjust the text for either market. When you save, an <strong>AI review</strong> checks that your text still reads as clear scoring instructions and flags any gaps (advice only — you can save anyway). Changes are shared, take effect on the next search, and every save is kept in <strong>Version history</strong> so you can roll back.</p>
+                <p style={ps}>The ICP itself is <strong>editable</strong> — on the <strong>Lysoveta ICP Criteria</strong> tab, click <strong>✎ Edit Criteria</strong> to adjust the text for either market. Nothing saves automatically: you press <strong>Review changes with AI</strong>, which checks your text reads as clear scoring instructions and flags any gaps (advice only), then you press <strong>Save changes</strong> to make it live. Changes are shared, take effect on the next search, and every save is kept in <strong>Version history</strong> so you can roll back.</p>
               </>
             ) },
             { key: "exceptions", label: "When something goes wrong", content: (

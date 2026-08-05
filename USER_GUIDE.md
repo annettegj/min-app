@@ -153,15 +153,16 @@ sub-tabs — **European** and **US** — because the ideal customer differs by m
 scored against the profile that matches its primary market.
 
 **Editing the criteria.** Click **✎ Edit Criteria** to change the text for the current market. It's
-plain Markdown, and it *is* the exact instruction the AI scores against — so write it clearly. Press
-**Save changes** (shared — it affects everyone's searches from the next run on) or **Cancel**. Every
+plain Markdown, and it *is* the exact instruction the AI scores against — so write it clearly. Every
 save is kept in **Version history**: open it, pick an older version, **Load into editor**, and Save to
 roll back.
 
-When you press **Save changes**, an **AI review** first reads your text and checks it works as clear
-scoring instructions (target market, tiers, a scoring method, exclusions, no contradictions). If it's
-clean it saves straight away; if it spots gaps it lists them — but this is **advice, not a gate**, so
-you can **Save anyway** or **Keep editing**.
+**Nothing saves automatically.** When you're done you press **Review changes with AI** — an **AI
+review** reads your text and checks it works as clear scoring instructions (target market, tiers, a
+scoring method, exclusions, no contradictions). It then shows the result and a **Save changes** button:
+if it's clean you just confirm; if it found gaps it lists them (this is **advice, not a gate**) and you
+can **Save anyway** or **Keep editing**. Only when you press Save does it become the live ICP (shared —
+it affects everyone's searches from the next run on).
 
 Each point in the review has an **Apply fix** button. Click it and the AI rewrites the text to
 address just that point — the updated version lands back in the editor for you to read and adjust.
