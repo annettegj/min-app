@@ -220,6 +220,12 @@ export default function Home() {
   const [icpApplyError, setIcpApplyError] = useState("");
   // A proposed AI rewrite awaiting the user's OK — shown as a diff before it goes into the editor.
   const [icpDiff, setIcpDiff] = useState<{ revised: string; segments: DiffSeg[]; issueIdx: number } | null>(null);
+  // Optional "test on example companies" — scores real enriched companies against the current draft.
+  type IcpTestRow = { name: string; icp_score: number; priority_tier: string; geography: string; product_category: string; included: boolean; reason: string };
+  const [icpTesting, setIcpTesting] = useState(false);
+  const [icpTestResults, setIcpTestResults] = useState<IcpTestRow[] | null>(null);
+  const [icpTestError, setIcpTestError] = useState("");
+  const [icpTestEmpty, setIcpTestEmpty] = useState(false);
   // The editable AI-review instructions (the rubric), shown/edited in the "What does the AI review
   // check?" window. Stored in app_settings; defaults to DEFAULT_ICP_REVIEW_INSTRUCTIONS.
   const [reviewInstructions, setReviewInstructions] = useState(DEFAULT_ICP_REVIEW_INSTRUCTIONS);
@@ -546,9 +552,10 @@ export default function Home() {
   }
   function enterIcpEdit() {
     setIcpDraft(icpDocs?.[icpRegion] ?? "");
-    setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpDiff(null); setIcpEditMode(true);
+    setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpDiff(null);
+    setIcpTestResults(null); setIcpTestError(""); setIcpTestEmpty(false); setIcpEditMode(true);
   }
-  function cancelIcpEdit() { setIcpEditMode(false); setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpDiff(null); }
+  function cancelIcpEdit() { setIcpEditMode(false); setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpDiff(null); setIcpTestResults(null); setIcpTestError(""); setIcpTestEmpty(false); }
 
   // Apply one review suggestion: the AI rewrites the draft for that single point. The result is shown
   // as a DIFF first (acceptIcpDiff / discardIcpDiff) so the user sees exactly what changed before it
@@ -584,6 +591,28 @@ export default function Home() {
     setIcpDiff(null);
   }
   function discardIcpDiff() { setIcpDiff(null); }
+
+  // Optional test: score a sample of enriched companies against whatever is in the editor right now.
+  // Can be run any time — before or after the review / applied fixes.
+  async function testIcp() {
+    if (!icpDraft.trim()) { setIcpError("The ICP text can't be empty."); return; }
+    setIcpTesting(true); setIcpTestError(""); setIcpTestEmpty(false); setIcpTestResults(null);
+    try {
+      const workerBase = process.env.NEXT_PUBLIC_WORKER_URL ?? "";
+      const res = await fetch(`${workerBase}/api/icp/test`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: icpDraft, market: icpRegion }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Test failed.");
+      if (data.empty) { setIcpTestEmpty(true); setIcpTestResults([]); }
+      else setIcpTestResults(Array.isArray(data.results) ? data.results : []);
+    } catch (err) {
+      setIcpTestError(err instanceof Error ? err.message : "Test failed.");
+    } finally {
+      setIcpTesting(false);
+    }
+  }
 
   // Save flow: run an advisory AI review first. If it comes back clean, save straight away; if it
   // finds issues (or can't run), show them and let the user save anyway or keep editing.
@@ -2164,6 +2193,10 @@ export default function Home() {
                     style={{ ...btnPrimary, padding: "9px 24px", opacity: (icpSaving || icpChecking) ? 0.6 : 1 }}>{icpChecking ? "Reviewing…" : icpSaving ? "Saving…" : "Review changes with AI"}</button>
                   <button type="button" onClick={cancelIcpEdit} disabled={icpSaving || icpChecking}
                     style={{ ...btnSecondary, padding: "9px 22px" }}>Cancel</button>
+                  <button type="button" onClick={testIcp} disabled={icpTesting || icpSaving || icpChecking || !icpDraft.trim()}
+                    style={{ ...btnSecondary, padding: "9px 18px", opacity: (icpTesting || !icpDraft.trim()) ? 0.6 : 1 }}>
+                    {icpTesting ? "Testing…" : "Test on example companies"}
+                  </button>
                   <button type="button" onClick={toggleIcpHistory} disabled={icpChecking}
                     style={{ background: "transparent", border: "none", color: "var(--accent)", fontSize: 13, fontWeight: 700, cursor: "pointer", marginLeft: "auto" }}>
                     {icpHistoryOpen ? "Hide version history" : "Version history"}
@@ -2173,6 +2206,47 @@ export default function Home() {
                   style={{ background: "transparent", border: "none", color: "var(--accent)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "8px 0 0", textAlign: "left" }}>
                   ⓘ What does the AI review check?
                 </button>
+
+                {icpTestError && <p style={{ fontSize: 12.5, color: "var(--danger-text)", marginTop: 12 }}>Couldn’t run the test ({icpTestError}).</p>}
+                {icpTestEmpty && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 12 }}>No example companies yet — run a search first so there’s enriched company data to test against.</p>}
+                {icpTestResults && icpTestResults.length > 0 && (
+                  <div style={{ marginTop: 14, border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ padding: "10px 16px", background: "var(--surface)", borderBottom: "1px solid var(--border-card)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)" }}>Test results — how the current draft scores</p>
+                        <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 3 }}>Scored against the text in the editor right now (not the saved ICP). A sample of real enriched companies — nothing is changed or saved.</p>
+                      </div>
+                      <button type="button" onClick={() => { setIcpTestResults(null); setIcpTestEmpty(false); }}
+                        style={{ background: "transparent", border: "none", color: "var(--text-muted)", fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
+                    </div>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ textAlign: "left", color: "var(--text-muted)", borderBottom: "1px solid var(--border-card)" }}>
+                            <th style={{ padding: "8px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Company</th>
+                            <th style={{ padding: "8px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Geography</th>
+                            <th style={{ padding: "8px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Tier</th>
+                            <th style={{ padding: "8px 12px", fontWeight: 700, textAlign: "center", whiteSpace: "nowrap" }}>Score</th>
+                            <th style={{ padding: "8px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Result</th>
+                            <th style={{ padding: "8px 12px", fontWeight: 700 }}>Why</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {icpTestResults.map((r, k) => (
+                            <tr key={k} style={{ borderBottom: "1px solid var(--border-card)", background: r.included ? "transparent" : "var(--surface)" }}>
+                              <td style={{ padding: "8px 12px", fontWeight: 600, color: "var(--navy)", whiteSpace: "nowrap" }}>{r.name}</td>
+                              <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{r.geography || "—"}</td>
+                              <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{r.priority_tier && r.priority_tier !== "none" ? r.priority_tier.replace(/_/g, " ") : "—"}</td>
+                              <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, whiteSpace: "nowrap" }}>{r.icp_score}/5</td>
+                              <td style={{ padding: "8px 12px", whiteSpace: "nowrap", color: r.included ? "var(--success-bright, #2e7d32)" : "var(--text-muted)", fontWeight: 700 }}>{r.included ? "✓ Include" : "Excluded"}</td>
+                              <td style={{ padding: "8px 12px", color: "var(--text)", minWidth: 220 }}>{r.reason}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
                 {/* Proposed AI rewrite — shown as a diff so the change is obvious before it's applied. */}
                 {icpDiff && (

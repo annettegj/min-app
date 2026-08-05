@@ -196,6 +196,7 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - `app/api/icp/check/route.ts` — **worker** endpoint (needs the Anthropic key): the advisory AI review of an edited ICP. Its rubric judges only whether the text works as **clear scoring instructions for an AI** (target market, tiers, a scoring method + scale, exclusions, internal consistency) — explicitly NOT whether the business criteria are "correct". Returns `{ ok, summary, issues[] }`; the UI shows it and lets the user save anyway.
 - `lib/icpReview.ts` — the review rubric default (`DEFAULT_ICP_REVIEW_INSTRUCTIONS`) + `buildReviewPrompt()`. The **editable** rubric lives in `app_settings.icp_review_instructions`; the fixed scaffolding (ICP injection, `report_review` tool call, `ok` semantics) stays in this helper so an edit can't break the structured-output contract. Shared by the check route (server) and the UI (default/seed).
 - `app/api/icp/apply/route.ts` — **worker** endpoint: rewrites the ICP draft to address one review point (forced `revised_icp` tool call), returns `{ content }`. The UI shows it as a **diff** (`diffLines`, a small local line-level LCS in `page.tsx`) and only loads it into the editor on "Use this version" — never auto-saved.
+- `app/api/icp/test/route.ts` — **worker** endpoint (optional "Test on example companies"): scores a sample of already-enriched companies (from `companies.enriched_data`, a mix of added + rejected) against the **current editor draft** and returns every one with score/tier/included (`report_test` tool call). Read-only — writes nothing. Runnable before or after the review.
 - `app/api/test-claude/route.ts` — diagnostic (checks key/credits + a web_search test).
 - `lib/models.ts` — **single source of truth for the Claude model** (`CLAUDE_MODEL`). Every model call imports it. See [§ Which model, and why](#which-model-and-why).
 - `lib/features.ts` — feature flags. `US_MARKET_ENABLED` (currently **`false`**) gates all US-market support: the US ICP sub-tab (shown as a disabled "· soon" placeholder), the target-market selector (locked to Europe), and US-ICP routing in Step 3 (everything scores against the European ICP). Nothing is deleted — flip to `true` to re-enable it all at once. Imported by both `page.tsx` and `lib/search.ts`.
@@ -288,10 +289,11 @@ single model is simpler. `sources.json` may still set `enrichment_model` to over
 
 1. **US expansion** — add US companies/sources (vs. today's European focus).
 2. **Company Prospectus** — the disabled "Soon" tab.
-3. **Editable ICP tab** — ✅ steps 1–3 done: free-form editing + version history (`icp_docs`); an
-   **advisory AI review** on save (`POST /api/icp/check` — rubric, lists gaps, never blocks); and
-   **Apply fix** per review point (`POST /api/icp/apply` — AI rewrites the draft for that one point,
-   result loads into the editor, not auto-saved). Planned next: a **test-on-sample-companies** preview.
+3. **Editable ICP tab** — ✅ done: free-form editing + version history (`icp_docs`); an **advisory AI
+   review** on save (`POST /api/icp/check` — rubric, lists gaps, never blocks); **Apply fix** per
+   review point with a diff (`POST /api/icp/apply`); an editable review rubric (`app_settings`); and an
+   optional **Test on example companies** (`POST /api/icp/test`) that scores real companies against the
+   current draft, runnable any time.
    - ✅ *Done:* source & term selection wired to the search; editable sources/terms (DB-backed,
      from the UI — draft edit mode with a single **Save changes** that diffs & applies); editable
      company database (edit fields + soft/hard delete); `web_fetch` for "web page" sources
