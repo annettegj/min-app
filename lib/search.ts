@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import sourcesConfig from "@/config/sources.json";
+import { CLAUDE_MODEL } from "@/lib/models";
 
 
 // ---- Types ----
@@ -281,7 +282,7 @@ ${knownNames.join(", ")}`
       : `IMPORTANT: Aim for up to 10 companies. If fewer exist, return what you found — do not repeat searches just to reach 10.`;
 
   const stream = await client.messages.stream({
-    model: "claude-sonnet-5",
+    model: CLAUDE_MODEL,
     max_tokens: 32000,
     tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 12 }],
     messages: [
@@ -429,7 +430,7 @@ async function discoverViaYouTube(
       : "";
 
   const stream = await client.messages.stream({
-    model: "claude-sonnet-5",
+    model: CLAUDE_MODEL,
     max_tokens: 8000,
     messages: [
       {
@@ -480,7 +481,7 @@ async function discoverViaFetch(
       : "";
 
   const stream = await client.messages.stream({
-    model: "claude-sonnet-5",
+    model: CLAUDE_MODEL,
     max_tokens: 8000,
     tools: [{ type: "web_fetch_20260209", name: "web_fetch", max_uses: pageSources.length + 2 }],
     messages: [
@@ -522,7 +523,9 @@ Return ONLY a raw JSON array, no markdown or explanation:
 
 // ---- Step 2: Enrichment ----
 // One API call per company; runs in batches of `concurrency` to avoid rate limits.
-// Model is configurable — switch to claude-haiku-4-5 in sources.json to reduce cost.
+// Model: the global CLAUDE_MODEL (lib/models.ts) by default; sources.json may set `enrichment_model`
+// to override JUST this step. Note: enrichment uses web_search, so any override must be a model that
+// supports web_search_20260209 (Haiku does not) — see lib/models.ts.
 
 async function enrichCompany(
   client: Anthropic,
@@ -757,7 +760,7 @@ async function evaluateCompanies(
   try {
     const stream = await client.messages.stream(
       {
-        model: "claude-sonnet-5",
+        model: CLAUDE_MODEL,
         max_tokens: 16000,
         messages: [{ role: "user", content: buildStep3Prompt(companies, icp) }],
       },
@@ -840,7 +843,7 @@ export async function searchForCompanies(
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const enrichmentModel =
     (sourcesConfig as { enrichment_model?: string }).enrichment_model ??
-    "claude-sonnet-5";
+    CLAUDE_MODEL;
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

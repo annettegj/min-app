@@ -59,6 +59,8 @@ on serverless functions.
   API v3* in Google Cloud; the API is free/quota-capped so a leak burns quota, not money.
 - `ALLOWED_ORIGIN` — optional; pins CORS to the Vercel origin. Defaults to `"*"` if unset. **If you
   rename the Vercel URL and this is pinned to the old one, update it.**
+- `CLAUDE_MODEL` — optional; overrides the Claude model used by every API call. Unset → the default in
+  `lib/models.ts` (`claude-sonnet-5`). See [§ Which model, and why](#which-model-and-why).
 
 ### Accounts & access (fill in during handover)
 
@@ -193,12 +195,14 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - `lib/icpReview.ts` — the review rubric default (`DEFAULT_ICP_REVIEW_INSTRUCTIONS`) + `buildReviewPrompt()`. The **editable** rubric lives in `app_settings.icp_review_instructions`; the fixed scaffolding (ICP injection, `report_review` tool call, `ok` semantics) stays in this helper so an edit can't break the structured-output contract. Shared by the check route (server) and the UI (default/seed).
 - `app/api/icp/apply/route.ts` — **worker** endpoint: rewrites the ICP draft to address one review point (forced `revised_icp` tool call), returns `{ content }`. The UI shows it as a **diff** (`diffLines`, a small local line-level LCS in `page.tsx`) and only loads it into the editor on "Use this version" — never auto-saved.
 - `app/api/test-claude/route.ts` — diagnostic (checks key/credits + a web_search test).
+- `lib/models.ts` — **single source of truth for the Claude model** (`CLAUDE_MODEL`). Every model call imports it. See [§ Which model, and why](#which-model-and-why).
 - `app/api/search/route.ts` — OLD synchronous route, unused by the client (safe to delete).
 - **`sources` / `search_terms` DB tables** — the authoritative, UI-editable search configuration
   (see [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md#where-the-configuration-lives-database-not-the-file-anymore)).
-- `config/sources.json` — now a **fallback** for the two tables (used if the DB read fails), plus
-  `enrichment_model` (still read from here). `keyword_bank` was the old term pool, superseded by the
-  `search_terms` table.
+- `config/sources.json` — now a **fallback** for the two tables (used if the DB read fails). May
+  optionally carry `enrichment_model` to override the model for *just* the enrichment step (removed by
+  default → the global `CLAUDE_MODEL` is used). `keyword_bank` was the old term pool, superseded by
+  the `search_terms` table.
 - `config/icp.md` — the **European** ICP definition (price threshold is currency-agnostic: ~60 in own currency). Now the **seed/fallback**: the live ICP is the `icp_docs` table, editable from the ICP tab.
 - `config/icp_us.md` — the **US** ICP. Placeholder until real criteria are entered (in the app or here); Step 3 routes US companies to it by geography once it's real (see SEARCH_PIPELINE.md → Step 3). Also a fallback for the `icp_docs` `us` row.
 - `config/mock-results.json` — demo data (only used if `DEMO_MODE = true` in `page.tsx`).
@@ -222,6 +226,32 @@ Open http://localhost:3000. You need a `.env.local` with the Supabase vars + `AN
 > unreliable for server modules and can silently run stale code. `page.tsx` hot-reloads fine.
 
 ## 9. Cost & operational notes
+
+### Which model, and why
+
+Every Claude call in the app uses **one model**, defined once in `lib/models.ts` as `CLAUDE_MODEL`
+(default **`claude-sonnet-5`**). Discovery, enrichment, ICP scoring, the ICP review + rewrite, and the
+diagnostic route all import it — there are **no hardcoded model strings elsewhere**.
+
+**To change the model (post-handover):** edit the default in `lib/models.ts`, **or** set the
+`CLAUDE_MODEL` env var on the worker (no code change). All model calls are server-side, so the env var
+alone is enough.
+
+**Why `claude-sonnet-5`:**
+1. **Server tools.** Steps 1–2 depend on `web_search_20260209` / `web_fetch_20260209`. Sonnet 5
+   supports them; **Haiku does not support this web_search version**, so Haiku can't run discovery or
+   enrichment — that rules it out for most of the app.
+2. **Cost/quality balance.** The app is search-heavy (up to 12 discovery searches + one web_search per
+   company enriched, every run). Sonnet 5 is strong enough for the extraction, scoring, and
+   review/rewrite while costing far less and running faster than Opus.
+3. **Opus would be overkill** for these structured extraction/scoring/rubric tasks — ~2–5× the cost,
+   slower, no meaningful quality gain here.
+4. **1M context** comfortably holds the large contexts that accumulate across multi-round web_search.
+5. **One model everywhere** keeps behaviour predictable and cost easy to estimate.
+
+If AKBM switches models, prefer one that still supports `web_search_20260209` / `web_fetch_20260209`
+(required by Steps 1–2). The no-web-tool steps (ICP review/scoring) would tolerate more models, but a
+single model is simpler. `sources.json` may still set `enrichment_model` to override *just* enrichment.
 
 - **Each real search costs ~$3–5** on Sprint's Anthropic key (steps 1+2 use `web_search`, which
   accumulates large contexts). Step 3 is cheap (no web_search). Keep this in mind before sharing

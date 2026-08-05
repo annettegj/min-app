@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { CLAUDE_MODEL } from "@/lib/models";
 
 // Applies ONE review suggestion to an ICP draft: rewrites the document to address that single issue
 // while changing as little else as possible, and returns the full revised text. Runs on the worker
@@ -54,7 +55,7 @@ Return the full revised document by calling the revised_icp tool.`;
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const response = await client.messages.create({
-      model: "claude-sonnet-5",
+      model: CLAUDE_MODEL,
       max_tokens: 8000,
       tools: [
         {

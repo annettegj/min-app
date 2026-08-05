@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { CLAUDE_MODEL } from "@/lib/models";
 
 // Diagnostic route — isolates whether the problem is (A) the API key/credits,
 // or (B) the web_search server tool specifically.
@@ -28,7 +29,7 @@ export async function GET() {
   // TEST A — minimal call, NO tools. Confirms key + credits + connectivity.
   const testA = await timed(async () => {
     const msg = await client.messages.create({
-      model: "claude-sonnet-5",
+      model: CLAUDE_MODEL,
       max_tokens: 20,
       messages: [{ role: "user", content: "Say the single word: hei" }],
     });
@@ -43,7 +44,7 @@ export async function GET() {
     try {
       const stream = client.messages.stream(
         {
-          model: "claude-sonnet-5",
+          model: CLAUDE_MODEL,
           max_tokens: 256,
           tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 1 }],
           messages: [{ role: "user", content: "Search the web for the official website of the supplement brand Heights and return just the URL." }],

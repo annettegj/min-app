@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { DEFAULT_ICP_REVIEW_INSTRUCTIONS, ICP_REVIEW_INSTRUCTIONS_KEY, buildReviewPrompt } from "@/lib/icpReview";
+import { CLAUDE_MODEL } from "@/lib/models";
 
 // Advisory AI review of an edited ICP document. Runs on the worker (Render) because it needs the
 // Anthropic key. It NEVER blocks a save — the UI shows the result and lets the user save anyway.
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     // Force a structured tool call so the result is always valid JSON — no fragile text parsing.
     const response = await client.messages.create({
-      model: "claude-sonnet-5",
+      model: CLAUDE_MODEL,
       max_tokens: 2000,
       tools: [
         {
