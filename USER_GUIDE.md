@@ -168,7 +168,12 @@ Each point in the review has an **Apply fix** button. Click it and the AI rewrit
 just that point, then shows you a **diff** — added lines in green, removed lines in red — so you can
 see exactly what changed. Press **Use this version** to put it in the editor or **Discard** to drop it.
 **Nothing is saved by applying a fix**; you review the change (and edit more if you want), then press
-**Save changes** yourself. *(A test-on-sample-companies preview is the planned next step.)*
+**Save changes** yourself.
+
+**What the AI review checks** — the *ⓘ What does the AI review check?* link (under the editor buttons)
+opens the exact instructions the review AI follows. You can **✎ Edit** them there if the review should
+look for something different over time; it's a shared setting and takes effect on the next review, with
+a **Reset to default** option. *(A test-on-sample-companies preview is the planned next step.)*
 
 ## Tips
 

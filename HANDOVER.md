@@ -156,9 +156,10 @@ switch buttons back up (there's a comment in the code explaining exactly how).
   **"used X · queued Y · saved Z"** line under each source. See
   [SEARCH_PIPELINE.md → Source performance counters](SEARCH_PIPELINE.md#source-performance-counters).
 - **`app_users`** — the pilot login table (`email`, `password` in plaintext), migration 011. See §10.
-- **`app_settings`** — shared key/value settings (migration 013). Currently holds the source-warning
-  thresholds `source_warn_threshold_pct` (default `1`) and `source_warn_min_uses` (default `5`),
-  edited from the **Source performance** modal.
+- **`app_settings`** — shared key/value settings (migration 013). Holds the source-warning thresholds
+  `source_warn_threshold_pct` (default `1`) and `source_warn_min_uses` (default `5`), edited from the
+  **Source performance** modal; and `icp_review_instructions` — the editable AI-review rubric, edited
+  from the "What does the AI review check?" window (absent → the `lib/icpReview.ts` default is used).
 - **`icp_docs`** — the editable ICP text per market (`market` `eu`/`us`, `content`), migration 014.
   Read by `getIcpDocs` (worker) and the ICP tab; empty → falls back to `config/icp*.md`.
 - **`icp_doc_versions`** — a snapshot of the ICP `content` on every save (`market`, `content`,
@@ -189,6 +190,7 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - `app/api/reject/route.ts` — marks companies rejected (preserves `enriched_data`).
 - `app/api/icp/route.ts` — serves the `config/icp*.md` files (the fallback/seed the UI merges with the `icp_docs` DB rows).
 - `app/api/icp/check/route.ts` — **worker** endpoint (needs the Anthropic key): the advisory AI review of an edited ICP. Its rubric judges only whether the text works as **clear scoring instructions for an AI** (target market, tiers, a scoring method + scale, exclusions, internal consistency) — explicitly NOT whether the business criteria are "correct". Returns `{ ok, summary, issues[] }`; the UI shows it and lets the user save anyway.
+- `lib/icpReview.ts` — the review rubric default (`DEFAULT_ICP_REVIEW_INSTRUCTIONS`) + `buildReviewPrompt()`. The **editable** rubric lives in `app_settings.icp_review_instructions`; the fixed scaffolding (ICP injection, `report_review` tool call, `ok` semantics) stays in this helper so an edit can't break the structured-output contract. Shared by the check route (server) and the UI (default/seed).
 - `app/api/icp/apply/route.ts` — **worker** endpoint: rewrites the ICP draft to address one review point (forced `revised_icp` tool call), returns `{ content }`. The UI shows it as a **diff** (`diffLines`, a small local line-level LCS in `page.tsx`) and only loads it into the editor on "Use this version" — never auto-saved.
 - `app/api/test-claude/route.ts` — diagnostic (checks key/credits + a web_search test).
 - `app/api/search/route.ts` — OLD synchronous route, unused by the client (safe to delete).

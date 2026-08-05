@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createClient } from "@supabase/supabase-js";
+import { DEFAULT_ICP_REVIEW_INSTRUCTIONS, ICP_REVIEW_INSTRUCTIONS_KEY, buildReviewPrompt } from "@/lib/icpReview";
 
 // Advisory AI review of an edited ICP document. Runs on the worker (Render) because it needs the
 // Anthropic key. It NEVER blocks a save — the UI shows the result and lets the user save anyway.
@@ -35,23 +37,18 @@ export async function POST(request: Request) {
   }
 
   const marketLabel = market === "us" ? "United States" : "European";
-  const prompt = `You are reviewing a draft "Ideal Customer Profile" (ICP) document. This exact text is fed to another AI that scores supplement companies as potential B2B customers — it must read as clear, unambiguous scoring instructions for the ${marketLabel} market.
 
-Judge ONLY whether the text works as instructions. Do NOT judge the business strategy or whether the criteria are "correct" — only whether an AI could apply it consistently. Check that it includes, and states clearly:
-1. The target market / who qualifies (geography and company type).
-2. Priority tiers or archetypes to classify companies into (e.g. early mover / follower / enabler, or similar).
-3. A scoring method — how points or criteria produce a fit score, and how that maps to a rating scale (e.g. 1–5 stars).
-4. Hard exclusion rules (who to drop outright).
-5. Internal consistency — no contradictions, no undefined terms, nothing left dangling.
-
-Mark an issue "critical" if a scorer genuinely could not proceed (e.g. no scoring method at all, or empty/nonsense), and "minor" if it would still work but could be clearer.
-
-Draft ICP to review:
----
-${content}
----
-
-Report your assessment by calling the report_review tool. Set "ok" to true if there are no critical issues (minor issues are fine), false otherwise. Use an empty issues array if the document is clear and complete.`;
+  // The review rubric is user-editable (stored in app_settings). Fall back to the default if there's
+  // no row or the DB read fails — the review must still run.
+  let instructions = DEFAULT_ICP_REVIEW_INSTRUCTIONS;
+  try {
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+    const { data } = await supabase.from("app_settings").select("value").eq("key", ICP_REVIEW_INSTRUCTIONS_KEY).maybeSingle();
+    if (data?.value && data.value.trim()) instructions = data.value;
+  } catch {
+    /* keep the default */
+  }
+  const prompt = buildReviewPrompt(instructions, marketLabel, content);
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
