@@ -10,7 +10,10 @@ import { MarketBadge } from "@/app/components/common/MarketBadge";
 import { AuthScreen } from "@/app/components/common/AuthScreen";
 import { HowItWorksTab } from "@/app/components/about/HowItWorksTab";
 import { QueueModal } from "@/app/components/search/QueueModal";
+import { SourcePerfModal } from "@/app/components/search/SourcePerfModal";
+import { SourceModal } from "@/app/components/search/SourceModal";
 import { ReviewInfoModal } from "@/app/components/icp/ReviewInfoModal";
+import { ManageExamplesModal } from "@/app/components/icp/ManageExamplesModal";
 import { AddCompanyModal } from "@/app/components/database/AddCompanyModal";
 import { inputStyle, labelStyle, btnPrimary, btnSecondary, addBtnStyle, hintStyle, reqStyle, optStyle } from "@/lib/styles";
 import { diffLines, icpColor, displayHostname, safeHref, fmtAddedDate } from "@/lib/format";
@@ -2397,103 +2400,26 @@ export default function Home() {
 
       {/* Source-performance modal — opened by "Source performance" in the Search Configuration panel */}
       {perfModalOpen && (
-        <div onClick={() => { if (!perfSaving) setPerfModalOpen(false); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 960, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <div style={{ background: "var(--header)", padding: "16px 30px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p style={{ color: "var(--white)", fontSize: 19, fontWeight: 700 }}>Source performance</p>
-              <button type="button" onClick={() => { if (!perfSaving) setPerfModalOpen(false); }}
-                style={{ background: "transparent", color: "var(--white)", border: "none", fontSize: 24, cursor: "pointer", lineHeight: 1 }}>×</button>
-            </div>
-            <div style={{ padding: "26px 30px", overflowY: "auto" }}>
-              {/* Threshold — read-only by default; editing revealed inline (no nested pop-up).
-                  Left accent stripe + navy bold text so the active rule stands out from the grey notes. */}
-              <div style={{ marginBottom: 18, borderLeft: "3px solid var(--accent)", paddingLeft: 16 }}>
-                {!perfEditThreshold ? (
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 14 }}>
-                    <span style={{ fontSize: 16.5, fontWeight: 600, color: "var(--navy)", lineHeight: 1.5 }}>Flag a source when its hit rate is below <strong>{warnThresholdPct}%</strong>, once it has been used at least <strong>{warnMinUses}</strong> times.</span>
-                    <button type="button" onClick={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfEditThreshold(true); }}
-                      style={{ ...btnSecondary, padding: "5px 12px", fontSize: 12, marginLeft: "auto" }}>Edit threshold</button>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 600, color: "var(--navy)" }}>
-                      <span>Warn when hit rate is below</span>
-                      <input type="number" min={0} step={0.5} value={perfDraftPct} onChange={e => setPerfDraftPct(e.target.value)}
-                        style={{ width: 76, padding: "7px 9px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 15 }} />
-                      <span>%, once the source has been used at least</span>
-                      <input type="number" min={0} step={1} value={perfDraftMin} onChange={e => setPerfDraftMin(e.target.value)}
-                        style={{ width: 66, padding: "7px 9px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 15 }} />
-                      <span>times.</span>
-                    </div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                      <button type="button" onClick={async () => { await saveSettings(); setPerfEditThreshold(false); }} disabled={perfSaving}
-                        style={{ ...btnPrimary, padding: "8px 20px", opacity: perfSaving ? 0.6 : 1 }}>{perfSaving ? "Saving…" : "Save"}</button>
-                      <button type="button" onClick={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfEditThreshold(false); }} disabled={perfSaving}
-                        style={{ ...btnSecondary, padding: "8px 20px" }}>Cancel</button>
-                    </div>
-                  </>
-                )}
-                <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 10 }}>Shared setting — affects the warnings everyone sees. The minimum-uses guard stops brand-new sources from being flagged before they&apos;ve had a fair chance.</p>
-              </div>
-
-              <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.65, marginBottom: 8 }}>
-                <strong>Hit rate</strong> = companies found ÷ times used — how many new companies a source turns up per search (a source that never finds anything trends toward 0%). This is what the warning is based on.
-              </p>
-              <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.65, marginBottom: 22 }}>
-                <strong>Saved rate</strong> = approved companies ÷ times used — a quality signal shown for reference only, not used for the warning.
-              </p>
-
-              {/* Per-source table */}
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                  <thead>
-                    <tr style={{ textAlign: "left", color: "var(--text-muted)", borderBottom: "1px solid var(--border-card)" }}>
-                      <th style={{ padding: "9px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Source</th>
-                      <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Used</th>
-                      <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Queued</th>
-                      <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Saved</th>
-                      <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Hit rate</th>
-                      <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Saved rate</th>
-                      <th style={{ padding: "9px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const hrVal = (s: { times_used: number; companies_found: number }) => {
-                        const hr = sourceHitRate(s.times_used, s.companies_found);
-                        return hr === null ? Infinity : hr;
-                      };
-                      return [...sourceOptions].sort((a, b) => {
-                        const la = sourceIsLow(a.times_used, a.companies_found) ? 0 : 1;
-                        const lb = sourceIsLow(b.times_used, b.companies_found) ? 0 : 1;
-                        if (la !== lb) return la - lb;
-                        return hrVal(a) - hrVal(b);
-                      }).map(s => {
-                        const low = sourceIsLow(s.times_used, s.companies_found);
-                        const unused = s.times_used === 0;
-                        return (
-                          <tr key={s.name} style={{ borderBottom: "1px solid var(--border-card)", background: low ? "var(--banner-warn-bg)" : "transparent" }}>
-                            <td style={{ padding: "9px 12px", whiteSpace: "nowrap" }}>{s.name}<MarketBadge market={s.market} /></td>
-                            <td style={{ padding: "9px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{s.times_used}</td>
-                            <td style={{ padding: "9px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{s.companies_found}</td>
-                            <td style={{ padding: "9px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{savedBySource.get(s.name) ?? 0}</td>
-                            <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>{fmtHitRate(s.times_used, s.companies_found)}</td>
-                            <td style={{ padding: "9px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{fmtSavedRate(s.times_used, savedBySource.get(s.name) ?? 0)}</td>
-                            <td style={{ padding: "9px 12px", color: low ? "var(--danger-text)" : "var(--text-muted)", fontWeight: low ? 700 : 400, whiteSpace: "nowrap" }}>
-                              {unused ? "Not used yet" : low ? "⚠ Low" : "OK"}
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
+        <SourcePerfModal
+          warnThresholdPct={warnThresholdPct}
+          warnMinUses={warnMinUses}
+          editThreshold={perfEditThreshold}
+          draftPct={perfDraftPct}
+          draftMin={perfDraftMin}
+          saving={perfSaving}
+          setDraftPct={setPerfDraftPct}
+          setDraftMin={setPerfDraftMin}
+          onEdit={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfEditThreshold(true); }}
+          onSave={async () => { await saveSettings(); setPerfEditThreshold(false); }}
+          onCancelEdit={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfEditThreshold(false); }}
+          onClose={() => setPerfModalOpen(false)}
+          sources={sourceOptions}
+          savedBySource={savedBySource}
+          hitRate={sourceHitRate}
+          isLow={sourceIsLow}
+          fmtHitRate={fmtHitRate}
+          fmtSavedRate={fmtSavedRate}
+        />
       )}
 
       {/* "What does the AI review check?" — shows/edits the review instructions (the editable rubric). */}
@@ -2525,160 +2451,32 @@ export default function Home() {
 
       {/* Manage test example companies — the fixed, user-editable set used by "Test on example companies". */}
       {manageOpen && (
-        <div onClick={() => { if (!manageSaving) setManageOpen(false); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 640, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <div style={{ background: "var(--header)", padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p style={{ color: "var(--white)", fontSize: 17, fontWeight: 700 }}>Test example companies</p>
-              <button type="button" onClick={() => { if (!manageSaving) setManageOpen(false); }}
-                style={{ background: "transparent", color: "var(--white)", border: "none", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
-            </div>
-            <div style={{ padding: "20px 24px", overflowY: "auto" }}>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 14 }}>
-                These companies are scored against your ICP draft when you click <strong>Test on example companies</strong>. Set what you <strong>expect</strong> each to be, and the test flags any that the ICP scores differently. Pick a spread — a couple of clear early movers, a follower, an enabler, and a couple that should be rejected.
-              </p>
-              <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
-                <button type="button" onClick={suggestStarterSet} style={{ ...btnSecondary, padding: "7px 16px", fontSize: 12.5 }}>Suggest a starter set</button>
-                <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>Fills in 2 early movers · 1 follower · 1 enabler · 2 rejected from your database.</span>
-              </div>
-
-              {manageDraft.length === 0 ? (
-                <p style={{ fontSize: 13, color: "var(--text-muted)", padding: "10px 0" }}>No examples yet — use “Suggest a starter set”, or add companies below.</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-                  {manageDraft.map((e) => (
-                    <div key={e.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ flex: 1, fontSize: 13, color: "var(--navy)", fontWeight: 600 }}>{e.name}</span>
-                      <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>expect:</span>
-                      <select value={e.expected} onChange={(ev) => setExampleExpected(e.name, ev.target.value as ExpectedCategory)}
-                        style={{ ...inputStyle, width: "auto", padding: "5px 8px", fontSize: 12.5 }}>
-                        {EXPECTED_LABELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-                      </select>
-                      <button type="button" title="Remove" onClick={() => removeExample(e.name)}
-                        style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 15, fontWeight: 700, lineHeight: 1, padding: "2px 6px" }}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ marginBottom: 6 }}>
-                <label style={{ fontSize: 11.5, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Add a company (from your database)</label>
-                <select value="" onChange={(ev) => { addExample(ev.target.value); ev.target.value = ""; }} style={{ ...inputStyle }}>
-                  <option value="">Select a company to add…</option>
-                  {manageOptions.filter(o => !manageDraft.some(d => d.name === o.name)).map(o => (
-                    <option key={o.name} value={o.name}>{o.name}{o.rejected ? " (rejected)" : o.priority_tier ? ` (${o.priority_tier.replace(/_/g, " ")})` : ""}</option>
-                  ))}
-                </select>
-                <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 6 }}>Only companies that have been researched (have enriched data) can be used as examples.</p>
-              </div>
-
-              {manageError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 8 }}>{manageError}</p>}
-              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-                <button type="button" onClick={saveExamples} disabled={manageSaving}
-                  style={{ ...btnPrimary, padding: "9px 22px", opacity: manageSaving ? 0.6 : 1 }}>{manageSaving ? "Saving…" : "Save"}</button>
-                <button type="button" onClick={() => setManageOpen(false)} disabled={manageSaving}
-                  style={{ ...btnSecondary, padding: "9px 20px" }}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ManageExamplesModal
+          draft={manageDraft}
+          options={manageOptions}
+          saving={manageSaving}
+          error={manageError}
+          onSuggest={suggestStarterSet}
+          onAdd={addExample}
+          onSetExpected={setExampleExpected}
+          onRemove={removeExample}
+          onSave={saveExamples}
+          onClose={() => setManageOpen(false)}
+        />
       )}
 
-      {/* Add-source modal — opened by "+ Add new source" in the Search Configuration panel */}
       {sourceModalOpen && (
-        <div onClick={() => { if (!configBusy) { setSourceModalOpen(false); setConfigError(""); } }}
-          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 520, width: "100%", padding: "26px 28px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)", maxHeight: "90vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
-              <p style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)" }}>{editingSourceKey ? "Edit source" : "Add a source"}</p>
-              <button type="button" title="What do these fields mean?" aria-label="Help" onClick={() => setSourceInfoOpen(v => !v)}
-                style={{ flexShrink: 0, width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--border)", background: sourceInfoOpen ? "var(--accent)" : "var(--white)", color: sourceInfoOpen ? "var(--white)" : "var(--text-muted)", fontSize: 13, fontWeight: 700, fontStyle: "italic", cursor: "pointer", lineHeight: 1, fontFamily: "Georgia, serif" }}>i</button>
-            </div>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
-              Applied to the draft — nothing is saved until you press <strong>Save changes</strong> in the panel. <span style={reqStyle}>*</span>
-              <span style={{ marginLeft: 4 }}>marks a required field.</span>
-            </p>
-            {sourceInfoOpen && (
-              <div style={{ background: "var(--banner-info-bg)", border: "1px solid var(--banner-info-border)", borderRadius: 4, padding: "12px 14px", marginBottom: 18, fontSize: 12.5, color: "var(--banner-info-text)", lineHeight: 1.6 }}>
-                <p style={{ marginBottom: 8 }}><strong>Which type should I choose?</strong></p>
-                <p style={{ marginBottom: 8 }}><strong>Website</strong> — the AI runs a web search across the whole site, once per search term, looking for companies mentioned anywhere on it. Choose this for an ongoing publication that keeps posting new articles (e.g. a trade-news site). It needs a <strong>search prefix</strong> — usually the domain (like <em>nutraingredients.com</em>) — which is put in front of each term to keep the search on that site.</p>
-                <p style={{ marginBottom: 8 }}><strong>Single page</strong> — the AI reads one specific URL, once, and pulls the companies from it. Choose this when you want it to go through a single fixed page, e.g. a <em>“Top 10 supplement brands for 2026”</em> list. Best for a fixed list — re-running finds nothing new after the first read.</p>
-                <p style={{ margin: 0 }}><strong>Note to the AI</strong> is a free-text instruction for this source — e.g. a paywall tip or a region to focus on.</p>
-              </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <label style={labelStyle}>Name <span style={reqStyle}>*</span></label>
-                <input type="text" autoFocus value={newSource.name} onChange={e => setNewSource({ ...newSource, name: e.target.value })}
-                  placeholder="e.g. Nutrition Insight" style={inputStyle} />
-              </div>
-              <div>
-                <label style={labelStyle}>Type <span style={reqStyle}>*</span></label>
-                <select value={newSource.type} onChange={e => setNewSource({ ...newSource, type: e.target.value as "web site" | "web page" | "youtube" })} style={inputStyle}>
-                  <option value="web site">Website</option>
-                  <option value="web page">Single page</option>
-                  <option value="youtube">YouTube search</option>
-                </select>
-              </div>
-              <div>
-                <label style={labelStyle}>Market <span style={optStyle}>optional</span></label>
-                <select value={newSource.market} onChange={e => setNewSource({ ...newSource, market: e.target.value })} style={inputStyle}>
-                  <option value="">Unspecified</option>
-                  <option value="EU">EU</option>
-                  <option value="US">US</option>
-                  <option value="Global">Global</option>
-                </select>
-                <p style={hintStyle}>Which market this source leans toward — shown as a tag in the list.</p>
-              </div>
-              {newSource.type === "web site" ? (
-                <>
-                  <div>
-                    <label style={labelStyle}>Search prefix <span style={reqStyle}>*</span></label>
-                    <input type="text" value={newSource.search_prefix} onChange={e => setNewSource({ ...newSource, search_prefix: e.target.value })}
-                      placeholder="e.g. nutraingredients.com Europe" style={inputStyle} />
-                    <p style={hintStyle}>A fixed text added in front of <em>every</em> search term to aim the search at this specific source. Unlike the search terms (which change from search to search), this stays the same each time the source is used — the query becomes <em>“&lt;prefix&gt; &lt;term&gt;”</em>. Usually the site&apos;s domain, optionally with a region, e.g. <em>nutraingredients.com Europe</em>.</p>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Homepage URL <span style={optStyle}>optional</span></label>
-                    <input type="text" value={newSource.url} onChange={e => setNewSource({ ...newSource, url: e.target.value })}
-                      placeholder="https://www.nutraingredients.com" style={inputStyle} />
-                  </div>
-                </>
-              ) : newSource.type === "youtube" ? (
-                <div>
-                  <label style={labelStyle}>Query bias <span style={optStyle}>optional</span></label>
-                  <input type="text" value={newSource.search_prefix} onChange={e => setNewSource({ ...newSource, search_prefix: e.target.value })}
-                    placeholder="e.g. supplement review" style={inputStyle} />
-                  <p style={hintStyle}>Optional words added in front of each term when searching YouTube, e.g. <em>supplement review longevity</em>. Leave blank to search the term alone. (Requires the server’s YouTube API key.)</p>
-                </div>
-              ) : (
-                <div>
-                  <label style={labelStyle}>Page URL <span style={reqStyle}>*</span></label>
-                  <input type="text" value={newSource.url} onChange={e => setNewSource({ ...newSource, url: e.target.value })}
-                    placeholder="https://www.healthline.com/nutrition/best-vitamin-brands" style={inputStyle} />
-                  <p style={hintStyle}>The exact page to read. Fetched once — best for a fixed list of brands.</p>
-                </div>
-              )}
-              <div>
-                <label style={labelStyle}>Note to the AI <span style={optStyle}>optional</span></label>
-                <textarea value={newSource.note} onChange={e => setNewSource({ ...newSource, note: e.target.value })} rows={3}
-                  placeholder={'e.g. This site defaults to its US edition — always keep "Europe" in the query so results aren\'t US-only.'}
-                  style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
-                <p style={hintStyle}>Passed to the AI as an instruction for this source (paywall tips, region focus, etc.).</p>
-              </div>
-            </div>
-            {configError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 14 }}>{configError}</p>}
-            <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-              <button type="button" onClick={applySource} disabled={!newSource.name.trim()}
-                style={{ ...btnPrimary, opacity: !newSource.name.trim() ? 0.6 : 1 }}>
-                {editingSourceKey ? "Update source" : "Add source"}
-              </button>
-              <button type="button" onClick={() => { setSourceModalOpen(false); setConfigError(""); }} style={{ ...btnSecondary }}>Cancel</button>
-            </div>
-          </div>
-        </div>
+        <SourceModal
+          source={newSource}
+          setSource={setNewSource}
+          editing={editingSourceKey !== null}
+          infoOpen={sourceInfoOpen}
+          setInfoOpen={setSourceInfoOpen}
+          error={configError}
+          busy={configBusy}
+          onApply={applySource}
+          onClose={() => { setSourceModalOpen(false); setConfigError(""); }}
+        />
       )}
     </div>
   );
