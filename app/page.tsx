@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { US_MARKET_ENABLED } from "@/lib/features";
 import mockResultsData from "@/config/mock-results.json";
@@ -10,16 +10,17 @@ import { HowItWorksTab } from "@/app/components/about/HowItWorksTab";
 import { QueueModal } from "@/app/components/search/QueueModal";
 import { SourcePerfModal } from "@/app/components/search/SourcePerfModal";
 import { SourceModal } from "@/app/components/search/SourceModal";
-import { AddCompanyModal } from "@/app/components/database/AddCompanyModal";
 import { IcpTab } from "@/app/components/icp/IcpTab";
+import { CompanyDatabaseTab } from "@/app/components/database/CompanyDatabaseTab";
+import { useCompanies } from "@/app/hooks/useCompanies";
 import { inputStyle, labelStyle, btnPrimary, btnSecondary, addBtnStyle, hintStyle, reqStyle, optStyle } from "@/lib/styles";
-import { icpColor, displayHostname, safeHref, fmtAddedDate } from "@/lib/format";
+import { safeHref } from "@/lib/format";
 import {
-  DEMO_MODE, SEARCH_DISABLED, GEOGRAPHIES, GEO_OPTIONS, CATEGORIES, CAT_OPTIONS, TIERS,
-  SEARCH_TERM_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS, EMPTY_ADD_FORM, AUTH_KEY, AUTH_MAX_AGE,
+  DEMO_MODE, SEARCH_DISABLED, GEO_OPTIONS, CAT_OPTIONS,
+  SEARCH_TERM_OPTIONS, SOURCE_OPTIONS, AUTH_KEY, AUTH_MAX_AGE,
 } from "@/lib/uiConstants";
 import type {
-  Company, SearchResult, PendingCompany, EditDraft,
+  SearchResult, PendingCompany,
   SourceFields, SourceRecord, DraftTerm, DraftSource,
 } from "@/lib/uiTypes";
 
@@ -28,42 +29,9 @@ export default function Home() {
   const [authEmail, setAuthEmail] = useState<string | null | undefined>(undefined);
   const [tab, setTab] = useState<"database" | "search" | "icp" | "prospectus" | "about">("database");
 
-  // --- Database tab state ---
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [geography, setGeography] = useState("All");
-  const [category, setCategory] = useState("");
-  const [priceMin, setPriceMin] = useState("");
-  const [priceMax, setPriceMax] = useState("");
-  const [icpMin, setIcpMin] = useState(1);
-  const [tier, setTier] = useState("All");
-  const [searchState, setSearchState] = useState<"idle" | "loading" | "done">("idle");
-  const [searchParams, setSearchParams] = useState<null | {
-    geography: string; category: string;
-    priceMin: string; priceMax: string;
-    icpMin: number; tier: string;
-  }>(null);
-  // Inline company editing / removal (Company Database tab)
-  const [editingCompanyId, setEditingCompanyId] = useState<number | null>(null);
-  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
-  const [editOriginal, setEditOriginal] = useState<EditDraft | null>(null);
-  const [pendingNav, setPendingNav] = useState<null | (() => void)>(null);
-  const [pendingExport, setPendingExport] = useState(false);
-  const [savingEdit, setSavingEdit] = useState(false);
-  const [editError, setEditError] = useState("");
-  const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
-  const [removing, setRemoving] = useState(false);
-  // List-level edit mode (unlocks per-row edit/remove) + session-only "hidden from view" rows
-  // (a client-side curation, e.g. to tailor an Excel export; not persisted to the database).
-  const [editMode, setEditMode] = useState(false);
-  const [hiddenIds, setHiddenIds] = useState<Set<number>>(new Set());
-  // Row selection in the Company Database — pick specific companies to view-only / export.
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [showOnlySelected, setShowOnlySelected] = useState(false);
-  // Manual "Add company" form (pop-up) — lets users enter a company they came across themselves.
-  const [addOpen, setAddOpen] = useState(false);
-  const [addForm, setAddForm] = useState(EMPTY_ADD_FORM);
-  const [addSaving, setAddSaving] = useState(false);
-  const [addFormError, setAddFormError] = useState("");
+  // --- Company Database domain (state + handlers) ---
+  const companiesApi = useCompanies();
+  const { savedBySource, loadCompanies } = companiesApi;
 
   // --- Search tab state ---
   const [agentState, setAgentState] = useState<"idle" | "stale_warning" | "searching" | "done" | "error">("idle")
@@ -74,7 +42,6 @@ export default function Home() {
   const [addingState, setAddingState] = useState<"idle" | "form" | "saving" | "saved">("idle");
   const [saveError, setSaveError] = useState("");
   const [sourceNameMap, setSourceNameMap] = useState<Record<string, string>>({});
-  const [expandedCompanyId, setExpandedCompanyId] = useState<number | null>(null);
 
   // --- Search configuration (read from the DB, editable in the app) ---
   const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
@@ -190,59 +157,6 @@ export default function Home() {
   // Per-source count of approved companies in the database (Z in "used X · queued Y · saved Z").
   // Computed live from the loaded companies grouped by source_name — no stored counter, so it can
   // never drift. Companies saved before source_name was tracked simply don't count.
-  const savedBySource = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const c of companies) {
-      if (!c.source_name) continue;
-      m.set(c.source_name, (m.get(c.source_name) ?? 0) + 1);
-    }
-    return m;
-  }, [companies]);
-
-  // Loads the active company database — always excludes rejected companies.
-  // Single source of truth so the database view can never accidentally include rejected rows.
-  async function loadCompanies() {
-    const { data } = await supabase.from("companies").select("*");
-    if (data) setCompanies(data.filter((c: Company) => c.added && !c.rejected) as Company[]);
-  }
-
-  // Manual add: open the form fresh, and save a user-entered company straight into the database.
-  function openAddCompany() { setAddForm(EMPTY_ADD_FORM); setAddFormError(""); setAddOpen(true); }
-  async function submitAddCompany() {
-    const name = addForm.name.trim();
-    if (!name) { setAddFormError("Company name is required."); return; }
-    setAddSaving(true); setAddFormError("");
-    const { error } = await supabase.from("companies").upsert({
-      name,
-      website_url: addForm.website_url.trim() || null,
-      geography: addForm.geography,
-      product_category: addForm.product_category,
-      max_price: addForm.max_price ? Number(addForm.max_price) : null,
-      price_currency: addForm.price_currency || null,
-      icp_fit: addForm.icp_fit,
-      priority_tier: addForm.priority_tier || null,
-      description: addForm.description.trim() || null,
-      source_name: addForm.source_name.trim() || "Manually added",
-      added: true,
-      rejected: false,
-      added_at: new Date().toISOString(),
-      status: "not_contacted",
-    }, { onConflict: "name" });
-    if (error) { setAddFormError("Could not save: " + error.message); setAddSaving(false); return; }
-    await loadCompanies();
-    setAddSaving(false); setAddOpen(false);
-    // Reset to show-all so the newly added company is visible right away.
-    setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" });
-    setSearchState("done");
-  }
-
-  // Update a company's outreach status (optimistic — writes straight to the DB).
-  async function updateCompanyStatus(id: number, status: string) {
-    setCompanies(prev => prev.map(c => c.id === id ? { ...c, status } : c));
-    const { error } = await supabase.from("companies").update({ status }).eq("id", id);
-    if (error) { console.error("[status] update failed:", error.message); loadCompanies(); }
-  }
-
   // Loads the search config (sources + terms) from the DB into the full records (with ids) and the
   // derived selection lists. On a read error it leaves state untouched, so a transient failure never
   // wipes the list. Stale selections (renamed/removed items) are pruned.
@@ -415,7 +329,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    loadCompanies();
     loadSearchConfig();
     loadPendingCount();
     loadSettings();
@@ -425,232 +338,6 @@ export default function Home() {
   useEffect(() => {
     if (agentState === "idle" || agentState === "done" || agentState === "stale_warning") loadPendingCount();
   }, [agentState]);
-
-  const results = useMemo(() => {
-    if (!searchParams) return [];
-    return companies.filter((c) => {
-      if (searchParams.geography !== "All" && c.geography !== searchParams.geography) return false;
-      if (searchParams.category && c.product_category !== searchParams.category) return false;
-      if (searchParams.priceMin && (c.max_price ?? 0) < Number(searchParams.priceMin)) return false;
-      if (searchParams.priceMax && (c.max_price ?? 0) > Number(searchParams.priceMax)) return false;
-      if (c.icp_fit < searchParams.icpMin) return false;
-      if (searchParams.tier === "Early Mover" && c.priority_tier !== "early_mover") return false;
-      if (searchParams.tier === "Follower" && c.priority_tier !== "follower") return false;
-      if (searchParams.tier === "Enabler" && c.priority_tier !== "enabler") return false;
-      return true;
-    });
-  }, [searchParams, companies]);
-
-  // Rows actually shown in the table = filtered results minus any hidden-from-view rows. This is a
-  // session-only curation (not persisted); it also drives what the Excel export includes.
-  const visibleResults = useMemo(
-    () => results.filter((c) => !hiddenIds.has(c.id) && (!showOnlySelected || selectedIds.has(c.id))),
-    [results, hiddenIds, showOnlySelected, selectedIds]
-  );
-
-  // Toggle one row's selection; if it empties the selection, drop out of "view only" mode.
-  function toggleSelected(id: number) {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      if (next.size === 0) setShowOnlySelected(false);
-      return next;
-    });
-  }
-  function clearSelection() { setSelectedIds(new Set()); setShowOnlySelected(false); }
-  // The company targeted by the remove modal (null when the modal is closed).
-  const removeTarget = confirmRemoveId != null ? companies.find((c) => c.id === confirmRemoveId) ?? null : null;
-
-  // Exports the currently filtered company list (`results`) to a real .xlsx file, generated
-  // client-side. exceljs is dynamically imported so it only loads when the user clicks Export.
-  const [exporting, setExporting] = useState(false);
-  async function handleExportExcel() {
-    if (visibleResults.length === 0 || exporting) return;
-    setExporting(true);
-    try {
-      const ExcelJS = (await import("exceljs")).default;
-      const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet("Companies");
-      ws.columns = [
-        { header: "Name", key: "name", width: 28 },
-        { header: "Geography", key: "geography", width: 12 },
-        { header: "Product category", key: "product_category", width: 26 },
-        { header: "Max price", key: "max_price", width: 12 },
-        { header: "Currency", key: "price_currency", width: 10 },
-        { header: "ICP fit", key: "icp_fit", width: 9 },
-        { header: "Priority tier", key: "priority_tier", width: 14 },
-        { header: "Website", key: "website_url", width: 34 },
-        { header: "Source", key: "source_name", width: 22 },
-        { header: "Added", key: "added", width: 14 },
-        { header: "Status", key: "status", width: 16 },
-        { header: "Description", key: "description", width: 60 },
-      ];
-      ws.getRow(1).font = { bold: true };
-      for (const c of visibleResults) {
-        ws.addRow({
-          name: c.name,
-          geography: c.geography,
-          product_category: c.product_category,
-          max_price: c.max_price ?? "",
-          price_currency: c.price_currency ?? "",
-          icp_fit: c.icp_fit,
-          priority_tier: c.priority_tier ?? "",
-          website_url: c.website_url ?? "",
-          source_name: c.source_name ?? "",
-          added: fmtAddedDate(c),
-          status: STATUS_OPTIONS.find(o => o.value === (c.status ?? "not_contacted"))?.label ?? "",
-          description: c.description ?? "",
-        });
-      }
-      const buffer = await wb.xlsx.writeBuffer();
-      const blob = new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const today = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `lysoveta-companies-${today}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("[export] Excel export failed:", err);
-      alert("Could not generate the Excel file. See the console (F12) for details.");
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  // --- Company Database: inline edit + soft-delete ---
-  function startEdit(c: Company) {
-    setExpandedCompanyId(c.id);
-    setEditingCompanyId(c.id);
-    setConfirmRemoveId(null);
-    setEditError("");
-    const draft: EditDraft = {
-      geography: c.geography ?? "",
-      product_category: c.product_category ?? "",
-      max_price: c.max_price != null ? String(c.max_price) : "",
-      price_currency: c.price_currency ?? "",
-      icp_fit: c.icp_fit ?? 3,
-      priority_tier: c.priority_tier ?? "",
-      website_url: c.website_url ?? "",
-      description: c.description ?? "",
-    };
-    setEditDraft(draft);
-    setEditOriginal(draft);
-  }
-
-  function cancelEdit() {
-    setEditingCompanyId(null);
-    setEditDraft(null);
-    setEditOriginal(null);
-    setEditError("");
-  }
-
-  async function saveEdit(c: Company) {
-    if (!editDraft) return;
-    setSavingEdit(true);
-    setEditError("");
-    const { error } = await supabase
-      .from("companies")
-      .update({
-        geography: editDraft.geography,
-        product_category: editDraft.product_category,
-        max_price: editDraft.max_price ? Number(editDraft.max_price) : null,
-        price_currency: editDraft.price_currency || null,
-        icp_fit: editDraft.icp_fit,
-        priority_tier: editDraft.priority_tier || null,
-        website_url: editDraft.website_url || null,
-        description: editDraft.description || null,
-      })
-      .eq("id", c.id);
-    if (error) {
-      setEditError(`Could not save: ${error.message}`);
-      setSavingEdit(false);
-      return;
-    }
-    await loadCompanies();
-    setSavingEdit(false);
-    setEditingCompanyId(null);
-    setEditDraft(null);
-    setEditOriginal(null);
-  }
-
-  // Soft delete: mark rejected (reversible, preserves enriched_data) so it drops out of the view,
-  // and remove it from the discovery queue so it isn't re-processed.
-  async function removeCompany(c: Company) {
-    setRemoving(true);
-    setEditError("");
-    const { error } = await supabase.from("companies").update({ rejected: true }).eq("id", c.id);
-    if (error) {
-      setEditError(`Could not remove: ${error.message}`);
-      setRemoving(false);
-      return;
-    }
-    await supabase.from("discovery_queue").delete().eq("name", c.name);
-    await loadCompanies();
-    setRemoving(false);
-    setConfirmRemoveId(null);
-    setExpandedCompanyId(null);
-  }
-
-  function toggleEditMode() {
-    if (editMode) {
-      // Leaving edit mode — abandon any in-progress edit or remove-confirmation.
-      cancelEdit();
-      setConfirmRemoveId(null);
-    }
-    setEditMode((v) => !v);
-  }
-
-  // Hide a row from the current view only (session-only, reversible via "Restore hidden").
-  function hideFromView(id: number) {
-    setHiddenIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
-    if (expandedCompanyId === id) setExpandedCompanyId(null);
-  }
-
-  function restoreHidden() {
-    setHiddenIds(new Set());
-  }
-
-  // Clears the shown results and returns the Company Database tab to its empty starting state
-  // (filter panel only, no table). Also resets edit mode and any session-only hidden rows.
-  function clearResults() {
-    setSearchState("idle");
-    setSearchParams(null);
-    setExpandedCompanyId(null);
-    setEditMode(false);
-    cancelEdit();
-    setConfirmRemoveId(null);
-    setHiddenIds(new Set());
-  }
-
-  // True only when an edit form is open AND a field has actually been changed from the original.
-  function hasUnsavedEdit() {
-    return editingCompanyId != null && editDraft != null && editOriginal != null
-      && JSON.stringify(editDraft) !== JSON.stringify(editOriginal);
-  }
-  // Runs `proceed` immediately — unless there's an unsaved edit, in which case it asks first.
-  function guardUnsavedEdit(proceed: () => void) {
-    if (hasUnsavedEdit()) setPendingNav(() => proceed);
-    else proceed();
-  }
-
-  function handleSearch() {
-    setSearchState("loading");
-    setSearchParams(null);
-    setTimeout(() => {
-      setSearchParams({ geography, category, priceMin, priceMax, icpMin, tier });
-      setSearchState("done");
-    }, 500);
-  }
 
   async function deleteFromQueue(name: string) {
     await supabase.from("discovery_queue").delete().eq("name", name);
@@ -952,328 +639,7 @@ export default function Home() {
       <div className="max-w-screen-2xl mx-auto w-full px-8 py-8 flex-1 flex flex-col gap-6">
 
         {/* ── TAB 1: Company Database ── */}
-        {tab === "database" && (
-          <>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <button onClick={() => guardUnsavedEdit(() => { setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" }); setSearchState("done"); })}
-                style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "var(--surface)")}
-                onMouseLeave={e => (e.currentTarget.style.background = "var(--white)")}>
-                Show All Companies →
-              </button>
-              <button onClick={openAddCompany}
-                style={{ ...btnPrimary, padding: "12px 28px", fontSize: 13, letterSpacing: "0.08em" }}>
-                + Add Company
-              </button>
-            </div>
-
-            <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ background: "var(--header)", padding: "12px 20px" }}>
-                <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Filter Companies</p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0" style={{ borderTop: "1px solid var(--border-light)" }}>
-
-                <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-                  <label style={labelStyle}>Geography</label>
-                  <select value={geography} onChange={(e) => setGeography(e.target.value)} style={inputStyle}>
-                    {GEOGRAPHIES.map((g) => <option key={g}>{g}</option>)}
-                  </select>
-                </div>
-
-                <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-                  <label style={labelStyle}>Product Category</label>
-                  <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
-                    {CATEGORIES.map(c => <option key={c} value={c === "All" ? "" : c}>{c}</option>)}
-                  </select>
-                </div>
-
-                <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-                  <label style={labelStyle}>Min. ICP Fit Score</label>
-                  <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button key={star} onClick={() => setIcpMin(icpMin === star ? 1 : star)}
-                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= icpMin ? (icpMin >= 4 ? "var(--success)" : icpMin === 3 ? "var(--warning)" : "var(--danger)") : "var(--border-grey)" }}>
-                        ★
-                      </button>
-                    ))}
-                  </div>
-                  <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 4 }}>Showing {icpMin}★ and above</p>
-                </div>
-
-                <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-                  <label style={labelStyle}>Priority Tier</label>
-                  <select value={tier} onChange={(e) => setTier(e.target.value)} style={inputStyle}>
-                    {TIERS.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-
-
-
-                <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)" }}>
-                  <label style={labelStyle}>Price Range</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input type="number" placeholder="Min" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} style={inputStyle} />
-                    <input type="number" placeholder="Max" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} style={inputStyle} />
-                  </div>
-                </div>
-
-                <div style={{ padding: "18px 20px" }} />
-              </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              {searchState === "done" && (
-                <button onClick={() => guardUnsavedEdit(clearResults)}
-                  style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}>
-                  Clear Results
-                </button>
-              )}
-              <button onClick={() => guardUnsavedEdit(handleSearch)}
-                style={{ ...btnPrimary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-hover)")}
-                onMouseLeave={e => (e.currentTarget.style.background = "var(--accent)")}>
-                Find Companies →
-              </button>
-            </div>
-
-            {searchState === "loading" && <p style={{ color: "var(--text-slate)", fontSize: 13 }}>Fetching companies…</p>}
-
-            {searchState === "done" && (
-              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Results</p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                    <p style={{ color: "var(--white)", fontSize: 12 }}>
-                      {visibleResults.length} {visibleResults.length !== 1 ? "companies" : "company"}{hiddenIds.size > 0 ? ` · ${hiddenIds.size} hidden` : ""}{selectedIds.size > 0 ? ` · ${selectedIds.size} selected` : ""}
-                    </p>
-                    {selectedIds.size > 0 && (
-                      <>
-                        <button type="button" onClick={() => setShowOnlySelected(v => !v)}
-                          style={{ background: showOnlySelected ? "var(--white)" : "transparent", color: showOnlySelected ? "var(--header)" : "var(--on-dark)", border: "1px solid var(--border-on-dark)", padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
-                          {showOnlySelected ? "Show all" : "View only selected"}
-                        </button>
-                        <button type="button" onClick={clearSelection}
-                          style={{ background: "transparent", color: "var(--on-dark)", border: "1px solid var(--border-on-dark)", padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
-                          Clear selection
-                        </button>
-                      </>
-                    )}
-                    {hiddenIds.size > 0 && (
-                      <button type="button" onClick={restoreHidden}
-                        style={{ background: "transparent", color: "var(--on-dark)", border: "1px solid var(--border-on-dark)", padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
-                        Restore hidden
-                      </button>
-                    )}
-                    {results.length > 0 && (
-                      <button type="button" onClick={toggleEditMode}
-                        style={{ background: editMode ? "var(--white)" : "var(--accent)", color: editMode ? "var(--header)" : "var(--white)", border: "none", padding: "6px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
-                        {editMode ? "Done editing" : "Edit list"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {results.length === 0 ? (
-                  <div style={{ padding: "48px 20px", textAlign: "center", color: "var(--text-faint)", fontSize: 13 }}>
-                    No companies match the selected filters.
-                  </div>
-                ) : (
-                  <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                    <thead>
-                      <tr style={{ background: "var(--surface-table-head)", borderBottom: "1px solid var(--border-card)" }}>
-                        <th style={{ padding: "10px 8px 10px 14px", width: 1 }}>
-                          <input type="checkbox" aria-label="Select all shown"
-                            checked={visibleResults.length > 0 && visibleResults.every(c => selectedIds.has(c.id))}
-                            onChange={e => {
-                              const check = e.target.checked;
-                              setSelectedIds(prev => {
-                                const next = new Set(prev);
-                                if (check) visibleResults.forEach(c => next.add(c.id));
-                                else { visibleResults.forEach(c => next.delete(c.id)); if (next.size === 0) setShowOnlySelected(false); }
-                                return next;
-                              });
-                            }}
-                            style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }} />
-                        </th>
-                        {["Company", "Website", "Source", "Geography", "Category", "Max. Price", "Priority", "ICP Fit", "Added", "Status"].map(h => (
-                          <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: 11.5, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-slate)" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleResults.map((c, i) => (
-                        <Fragment key={c.id}>
-                          <tr onClick={() => setExpandedCompanyId(expandedCompanyId === c.id ? null : c.id)}
-                            style={{ borderBottom: expandedCompanyId === c.id ? "none" : "1px solid var(--border-light)", background: i % 2 === 0 ? "var(--white)" : "var(--surface-input)", cursor: "pointer" }}
-                            onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-row-hover)")}
-                            onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "var(--white)" : "var(--surface-input)")}>
-                            <td style={{ padding: "12px 8px 12px 14px", width: 1 }} onClick={e => e.stopPropagation()}>
-                              <input type="checkbox" aria-label={`Select ${c.name}`} checked={selectedIds.has(c.id)}
-                                onChange={() => toggleSelected(c.id)}
-                                style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }} />
-                            </td>
-                            <td style={{ padding: "12px 14px", fontWeight: 600, color: "var(--navy)" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                <span style={{ fontSize: 10, color: "var(--text-faint)" }}>{expandedCompanyId === c.id ? "▾" : "▸"}</span>
-                                {editMode && (
-                                  <span style={{ display: "flex", gap: 10 }}>
-                                    <button type="button" title="Edit"
-                                      onClick={(e) => { e.stopPropagation(); startEdit(c); }}
-                                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-hover)")}
-                                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                                      style={{ background: "transparent", border: "none", borderRadius: 4, color: "var(--ink)", cursor: "pointer", padding: "4px 6px", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                                      </svg>
-                                    </button>
-                                    <button type="button" title="Remove…"
-                                      onClick={(e) => { e.stopPropagation(); setConfirmRemoveId(confirmRemoveId === c.id ? null : c.id); setEditError(""); }}
-                                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-danger-hover)")}
-                                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                                      style={{ background: "transparent", border: "none", borderRadius: 4, color: "var(--danger-text)", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: "4px 7px" }}>✕</button>
-                                  </span>
-                                )}
-                                {c.name}
-                              </div>
-                            </td>
-                            <td style={{ padding: "12px 14px", wordBreak: "break-word" }}>
-                              {c.website_url ? (
-                                <a href={safeHref(c.website_url)} target="_blank" rel="noopener noreferrer"
-                                  onClick={e => e.stopPropagation()}
-                                  style={{ color: "var(--accent)", fontSize: 12, textDecoration: "none" }}
-                                  onMouseEnter={e => (e.currentTarget.style.textDecoration = "underline")}
-                                  onMouseLeave={e => (e.currentTarget.style.textDecoration = "none")}>
-                                  {displayHostname(c.website_url)}
-                                </a>
-                              ) : (
-                                <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>
-                              )}
-                            </td>
-                            <td style={{ padding: "12px 14px", color: "var(--text-body)", fontSize: 12 }}>
-                              {c.source_name ?? <span style={{ color: "var(--text-faint)" }}>—</span>}
-                            </td>
-                            <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.geography}</td>
-                            <td style={{ padding: "12px 14px", color: "var(--text-body)" }}>{c.product_category}</td>
-                            <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : c.price_currency === "EUR" ? "€" : ""}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
-                            <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
-                              {c.priority_tier === "early_mover" && (
-                                <span style={{ background: "var(--badge-green-bg)", color: "var(--success)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Early Mover</span>
-                              )}
-                              {c.priority_tier === "follower" && (
-                                <span style={{ background: "var(--badge-yellow-bg)", color: "var(--badge-yellow-text)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Follower</span>
-                              )}
-                              {c.priority_tier === "enabler" && (
-                                <span style={{ background: "var(--badge-purple-bg)", color: "var(--badge-purple-text)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Enabler</span>
-                              )}
-                              {!c.priority_tier && <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>}
-                            </td>
-                            <td style={{ padding: "12px 14px", fontSize: 13, letterSpacing: 1, color: icpColor(c.icp_fit), whiteSpace: "nowrap" }}>{"★".repeat(c.icp_fit)}{"☆".repeat(5 - c.icp_fit)}</td>
-                            <td style={{ padding: "12px 14px", color: "var(--text-body)", fontSize: 12.5, whiteSpace: "nowrap" }}>{fmtAddedDate(c)}</td>
-                            <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
-                              <select value={c.status ?? "not_contacted"} onChange={e => updateCompanyStatus(c.id, e.target.value)}
-                                style={{ fontSize: 12, padding: "5px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--white)", color: (c.status ?? "not_contacted") === "contacted" ? "var(--success-bright, #2e7d32)" : (c.status ?? "not_contacted") === "not_relevant" ? "var(--text-faint)" : "var(--text)", cursor: "pointer" }}>
-                                {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                              </select>
-                            </td>
-                          </tr>
-                          {expandedCompanyId === c.id && (
-                            <tr style={{ borderBottom: "1px solid var(--border-light)", background: i % 2 === 0 ? "var(--white)" : "var(--surface-input)" }}>
-                              <td colSpan={11} style={{ padding: "0 20px 20px 48px" }}>
-                                {editingCompanyId === c.id && editDraft ? (
-                                  <div style={{ maxWidth: 900 }}>
-                                    <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16, marginBottom: 16 }}>
-                                      <div>
-                                        <label style={labelStyle}>Geography</label>
-                                        <select value={editDraft.geography} onChange={e => setEditDraft({ ...editDraft, geography: e.target.value })} style={inputStyle}>
-                                          {GEO_OPTIONS.map(g => <option key={g}>{g}</option>)}
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label style={labelStyle}>Product category</label>
-                                        <select value={editDraft.product_category} onChange={e => setEditDraft({ ...editDraft, product_category: e.target.value })} style={inputStyle}>
-                                          {CAT_OPTIONS.map(cat => <option key={cat}>{cat}</option>)}
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label style={labelStyle}>Max price</label>
-                                        <input type="number" value={editDraft.max_price} onChange={e => setEditDraft({ ...editDraft, max_price: e.target.value })} style={inputStyle} />
-                                      </div>
-                                      <div>
-                                        <label style={labelStyle}>Currency</label>
-                                        <select value={editDraft.price_currency} onChange={e => setEditDraft({ ...editDraft, price_currency: e.target.value })} style={inputStyle}>
-                                          <option value="">—</option>
-                                          {["EUR", "GBP", "USD", "NOK", "SEK", "DKK", "CHF"].map(cur => <option key={cur}>{cur}</option>)}
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label style={labelStyle}>ICP fit</label>
-                                        <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
-                                          {[1, 2, 3, 4, 5].map(star => (
-                                            <button key={star} type="button" onClick={() => setEditDraft({ ...editDraft, icp_fit: star })}
-                                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= editDraft.icp_fit ? "var(--accent)" : "var(--border-grey)" }}>★</button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <label style={labelStyle}>Priority tier</label>
-                                        <select value={editDraft.priority_tier} onChange={e => setEditDraft({ ...editDraft, priority_tier: e.target.value })} style={inputStyle}>
-                                          <option value="">—</option>
-                                          <option value="early_mover">Early Mover</option>
-                                          <option value="follower">Follower</option>
-                                          <option value="enabler">Enabler</option>
-                                        </select>
-                                      </div>
-                                      <div style={{ gridColumn: "1 / -1" }}>
-                                        <label style={labelStyle}>Website</label>
-                                        <input type="text" value={editDraft.website_url} onChange={e => setEditDraft({ ...editDraft, website_url: e.target.value })} style={inputStyle} />
-                                      </div>
-                                      <div style={{ gridColumn: "1 / -1" }}>
-                                        <label style={labelStyle}>Description</label>
-                                        <textarea value={editDraft.description} onChange={e => setEditDraft({ ...editDraft, description: e.target.value })} rows={3} style={{ ...inputStyle, resize: "vertical" }} />
-                                      </div>
-                                    </div>
-                                    {editError && <p style={{ color: "var(--danger)", fontSize: 12, marginBottom: 10 }}>{editError}</p>}
-                                    <div style={{ display: "flex", gap: 10 }}>
-                                      <button type="button" onClick={() => saveEdit(c)} disabled={savingEdit}
-                                        style={{ ...btnPrimary, padding: "9px 22px", background: savingEdit ? "var(--accent-disabled)" : "var(--accent)", cursor: savingEdit ? "default" : "pointer" }}>
-                                        {savingEdit ? "Saving…" : "Save"}
-                                      </button>
-                                      <button type="button" onClick={cancelEdit} disabled={savingEdit}
-                                        style={{ ...btnSecondary, padding: "9px 22px" }}>
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div style={{ maxWidth: 900 }}>
-                                    <p style={{ fontSize: 14, color: "var(--text-body)", lineHeight: 1.7, maxWidth: 860, marginBottom: 16 }}>
-                                      {c.description ?? <span style={{ color: "var(--text-faint)", fontStyle: "italic" }}>No description available.</span>}
-                                    </p>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                  </div>
-                )}
-              </div>
-            )}
-            {searchState === "done" && results.length > 0 && (
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-                <button
-                  onClick={() => { if (hasUnsavedEdit()) setPendingExport(true); else handleExportExcel(); }}
-                  disabled={exporting}
-                  style={{ ...btnSecondary, padding: "9px 20px", borderRadius: 4, opacity: exporting ? 0.6 : 1, cursor: exporting ? "default" : "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-                  {exporting ? "Exporting…" : "↓ Export as Excel"}
-                </button>
-              </div>
-            )}
-          </>
-        )}
+        {tab === "database" && <CompanyDatabaseTab api={companiesApi} />}
 
         {/* ── TAB 2: Find New Companies ── */}
         {/* Narrower, centered column for this tab only — the top bar stays full-width. */}
@@ -1801,77 +1167,6 @@ export default function Home() {
       </footer>
 
       {/* Remove-company modal — opened by the ✕ on a row in edit mode */}
-      {removeTarget && (
-        <div
-          onClick={() => { if (!removing) setConfirmRemoveId(null); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 660, width: "100%", padding: "26px 28px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <p style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>Remove {removeTarget.name}?</p>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Choose how you want to remove this company.</p>
-            <div style={{ display: "flex", gap: 14 }}>
-              <button type="button" onClick={() => { hideFromView(removeTarget.id); setConfirmRemoveId(null); }} disabled={removing}
-                style={{ flex: 1, textAlign: "left", background: "var(--white)", color: "var(--navy)", border: "1px solid var(--border)", padding: "16px", cursor: removing ? "default" : "pointer" }}>
-                <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Remove from this view only</span>
-                <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>Hides it from the current list and the Excel export. Not deleted — use “Restore hidden” to bring it back.</span>
-              </button>
-              <button type="button" onClick={() => removeCompany(removeTarget)} disabled={removing}
-                style={{ flex: 1, textAlign: "left", background: "var(--white)", color: "var(--danger-text)", border: "1px solid var(--border-danger)", padding: "16px", cursor: removing ? "default" : "pointer" }}>
-                <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{removing ? "Deleting…" : "Delete from the company database"}</span>
-                <span style={{ display: "block", fontSize: 12, color: "var(--danger-muted)", lineHeight: 1.5 }}>Removes it from the database. Kept internally as rejected, so it can be restored later and won’t be re-discovered.</span>
-              </button>
-            </div>
-            <div style={{ marginTop: 20 }}>
-              <button type="button" onClick={() => setConfirmRemoveId(null)} disabled={removing}
-                style={{ background: "var(--surface)", color: "var(--text-slate)", border: "1px solid var(--border)", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: removing ? "default" : "pointer" }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Unsaved-edit guard — shown only when a row edit has actually been changed */}
-      {pendingNav && (
-        <div onClick={() => setPendingNav(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 460, width: "100%", padding: "24px 26px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <p style={{ fontSize: 16, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>You have unsaved changes</p>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Discard your edits to this company and continue?</p>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button type="button" onClick={() => { const go = pendingNav; cancelEdit(); setPendingNav(null); if (go) go(); }}
-                style={{ ...btnSecondary, color: "var(--danger-text)", border: "1px solid var(--border-danger)" }}>
-                Discard changes
-              </button>
-              <button type="button" onClick={() => setPendingNav(null)} style={{ ...btnPrimary }}>
-                Keep editing
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Export guard — unsaved edits aren't in the saved data the export reads */}
-      {pendingExport && (
-        <div onClick={() => setPendingExport(false)}
-          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 460, width: "100%", padding: "24px 26px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <p style={{ fontSize: 16, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>You have unsaved changes</p>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Your unsaved edits won’t be included in the Excel export. Export anyway?</p>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button type="button" onClick={() => { setPendingExport(false); handleExportExcel(); }}
-                style={{ ...btnSecondary }}>
-                Export anyway
-              </button>
-              <button type="button" onClick={() => setPendingExport(false)} style={{ ...btnPrimary }}>
-                Keep editing
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Queue warning — pops up when the user clicks Search while >= 5 companies are still waiting */}
       {queueModalOpen && (
@@ -1910,16 +1205,6 @@ export default function Home() {
 
       {/* "What does the AI review check?" — shows/edits the review instructions (the editable rubric). */}
 
-      {addOpen && (
-        <AddCompanyModal
-          form={addForm}
-          setForm={setAddForm}
-          saving={addSaving}
-          error={addFormError}
-          onSubmit={submitAddCompany}
-          onClose={() => setAddOpen(false)}
-        />
-      )}
 
       {/* Manage test example companies — the fixed, user-editable set used by "Test on example companies". */}
 
