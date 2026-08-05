@@ -1448,11 +1448,11 @@ export default function Home() {
                   </div>
                 ) : (
                   <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", minWidth: 1000, borderCollapse: "collapse", fontSize: 15 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                     <thead>
                       <tr style={{ background: "var(--surface-table-head)", borderBottom: "1px solid var(--border-card)" }}>
-                        {["Company", "Website", "Source", "Geography", "Category", "Max. Price", "Priority", "ICP Fit Score", "Added", "Status"].map(h => (
-                          <th key={h} style={{ padding: "12px 22px", textAlign: "left", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-slate)" }}>{h}</th>
+                        {["Company", "Website", "Source", "Geography", "Category", "Max. Price", "Priority", "ICP Fit", "Added", "Status"].map(h => (
+                          <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: 11.5, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-slate)" }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1463,8 +1463,8 @@ export default function Home() {
                             style={{ borderBottom: expandedCompanyId === c.id ? "none" : "1px solid var(--border-light)", background: i % 2 === 0 ? "var(--white)" : "var(--surface-input)", cursor: "pointer" }}
                             onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-row-hover)")}
                             onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "var(--white)" : "var(--surface-input)")}>
-                            <td style={{ padding: "16px 22px", fontWeight: 600, color: "var(--navy)", whiteSpace: "nowrap" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <td style={{ padding: "12px 14px", fontWeight: 600, color: "var(--navy)" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                 <span style={{ fontSize: 10, color: "var(--text-faint)" }}>{expandedCompanyId === c.id ? "▾" : "▸"}</span>
                                 {editMode && (
                                   <span style={{ display: "flex", gap: 10 }}>
@@ -1487,7 +1487,7 @@ export default function Home() {
                                 {c.name}
                               </div>
                             </td>
-                            <td style={{ padding: "16px 22px", whiteSpace: "nowrap" }}>
+                            <td style={{ padding: "12px 14px", wordBreak: "break-word" }}>
                               {c.website_url ? (
                                 <a href={safeHref(c.website_url)} target="_blank" rel="noopener noreferrer"
                                   onClick={e => e.stopPropagation()}
@@ -1500,13 +1500,13 @@ export default function Home() {
                                 <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>
                               )}
                             </td>
-                            <td style={{ padding: "16px 22px", color: "var(--text-body)", fontSize: 12, whiteSpace: "nowrap" }}>
+                            <td style={{ padding: "12px 14px", color: "var(--text-body)", fontSize: 12 }}>
                               {c.source_name ?? <span style={{ color: "var(--text-faint)" }}>—</span>}
                             </td>
-                            <td style={{ padding: "16px 22px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.geography}</td>
-                            <td style={{ padding: "16px 22px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.product_category}</td>
-                            <td style={{ padding: "16px 22px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : c.price_currency === "EUR" ? "€" : ""}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
-                            <td style={{ padding: "16px 22px", whiteSpace: "nowrap" }}>
+                            <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.geography}</td>
+                            <td style={{ padding: "12px 14px", color: "var(--text-body)" }}>{c.product_category}</td>
+                            <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : c.price_currency === "EUR" ? "€" : ""}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
+                            <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
                               {c.priority_tier === "early_mover" && (
                                 <span style={{ background: "var(--badge-green-bg)", color: "var(--success)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Early Mover</span>
                               )}
@@ -1518,9 +1518,9 @@ export default function Home() {
                               )}
                               {!c.priority_tier && <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>}
                             </td>
-                            <td style={{ padding: "16px 22px", fontSize: 13, letterSpacing: 1, color: icpColor(c.icp_fit), whiteSpace: "nowrap" }}>{"★".repeat(c.icp_fit)}{"☆".repeat(5 - c.icp_fit)}</td>
-                            <td style={{ padding: "16px 22px", color: "var(--text-body)", fontSize: 12.5, whiteSpace: "nowrap" }}>{fmtAddedDate(c)}</td>
-                            <td style={{ padding: "12px 22px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
+                            <td style={{ padding: "12px 14px", fontSize: 13, letterSpacing: 1, color: icpColor(c.icp_fit), whiteSpace: "nowrap" }}>{"★".repeat(c.icp_fit)}{"☆".repeat(5 - c.icp_fit)}</td>
+                            <td style={{ padding: "12px 14px", color: "var(--text-body)", fontSize: 12.5, whiteSpace: "nowrap" }}>{fmtAddedDate(c)}</td>
+                            <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
                               <select value={c.status ?? "not_contacted"} onChange={e => updateCompanyStatus(c.id, e.target.value)}
                                 style={{ fontSize: 12, padding: "5px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--white)", color: (c.status ?? "not_contacted") === "contacted" ? "var(--success-bright, #2e7d32)" : (c.status ?? "not_contacted") === "not_relevant" ? "var(--text-faint)" : "var(--text)", cursor: "pointer" }}>
                                 {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
