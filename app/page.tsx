@@ -571,7 +571,7 @@ export default function Home() {
       if (!res.ok || typeof data.content !== "string") throw new Error(data.error ?? "Could not apply the suggestion.");
       setIcpDiff({ revised: data.content, segments: diffLines(icpDraft, data.content), issueIdx: idx });
     } catch (err) {
-      setIcpApplyError(err instanceof Error ? err.message : "Could not apply the suggestion.");
+      setIcpApplyError(icpNetworkMsg(err));
     } finally {
       setIcpApplying(null);
     }
@@ -591,6 +591,16 @@ export default function Home() {
   }
   function discardIcpDiff() { setIcpDiff(null); }
 
+  // Turns a raw fetch error into a friendly message. "Failed to fetch" (a TypeError from fetch) means
+  // the worker never answered — almost always a cold Render worker waking up, or a redeploy in flight.
+  function icpNetworkMsg(err: unknown): string {
+    const m = err instanceof Error ? err.message : String(err);
+    if (/failed to fetch|networkerror|load failed|fetch failed/i.test(m)) {
+      return "couldn’t reach the server — it may be waking up after being idle (this can take ~30 seconds). Wait a moment and try again.";
+    }
+    return m;
+  }
+
   // Optional test: score a sample of enriched companies against whatever is in the editor right now.
   // Can be run any time — before or after the review / applied fixes.
   async function testIcp() {
@@ -607,7 +617,7 @@ export default function Home() {
       if (data.empty) { setIcpTestEmpty(true); setIcpTestResults([]); }
       else setIcpTestResults(Array.isArray(data.results) ? data.results : []);
     } catch (err) {
-      setIcpTestError(err instanceof Error ? err.message : "Test failed.");
+      setIcpTestError(icpNetworkMsg(err));
     } finally {
       setIcpTesting(false);
     }
@@ -631,7 +641,7 @@ export default function Home() {
       setIcpCheck({ ok: data.ok ?? null, summary: data.summary ?? "", issues, error: data.error });
     } catch (err) {
       // Review couldn't run — advisory only, so let the user decide to save anyway.
-      setIcpCheck({ ok: null, summary: "", issues: [], error: err instanceof Error ? err.message : "Review failed." });
+      setIcpCheck({ ok: null, summary: "", issues: [], error: icpNetworkMsg(err) });
     } finally {
       setIcpChecking(false);
     }
