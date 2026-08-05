@@ -138,9 +138,11 @@ on an always-on server (Render / `next dev`), never serverless.
 
 - **`companies`** — source of truth. Columns: `name`, `geography`, `product_category`, `max_price`,
   `price_currency`, `icp_fit`, `website_url`, `source_name`, `description`, `priority_tier`,
-  `enriched_data` (jsonb), `enriched_at`, `rejected` (bool), `added` (bool).
+  `enriched_data` (jsonb), `enriched_at`, `added_at` (when saved to the DB), `status` (outreach state,
+  default `not_contacted` — migration 015), `rejected` (bool), `added` (bool).
   `added=true & rejected=false` → shown; `added=false` → enriched-not-reviewed (cache);
-  `rejected=true` → excluded.
+  `rejected=true` → excluded. The database table shows an **Added** date (falls back to `enriched_at`
+  for pre-015 rows) and an editable **Status** dropdown; both are included in the Excel export.
 - **`discovery_queue`** — `name`, `source_name`, `status` (pending/processing),
   `processing_started_at`, `discovered_at`. Rows stuck "processing" > 10 min are reset to pending
   at search start.
@@ -209,7 +211,7 @@ on an always-on server (Render / `next dev`), never serverless.
 - `db/migrations/*.sql` — DB schema + seed (001 = sources/search_terms tables; 002+ = added sources;
   008 = source `market` tags; 011 = `app_users` login; 012 = source performance counters +
   `companies.source_name`; 013 = `app_settings` for the source-warning thresholds; 014 = `icp_docs`
-  + `icp_doc_versions` for the editable ICP).
+  + `icp_doc_versions` for the editable ICP; 015 = `companies.added_at` + `companies.status`).
 - [SOURCES.md](SOURCES.md) — running log of every source evaluated for discovery: works / held / rejected, and why.
 
 ## 8. Running locally

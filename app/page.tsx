@@ -46,7 +46,18 @@ type Company = {
   priority_tier?: string | null;
   rejected?: boolean;
   added?: boolean;
+  added_at?: string | null;
+  enriched_at?: string | null;
+  status?: string | null;
 };
+
+// Outreach status the user can set per company (migration 015). Values are stored; labels are shown.
+const STATUS_OPTIONS = [
+  { value: "not_contacted", label: "Not contacted" },
+  { value: "contacted", label: "Contacted" },
+  { value: "in_dialogue", label: "In dialogue" },
+  { value: "not_relevant", label: "Not relevant" },
+];
 
 type SearchResult = {
   name: string;
@@ -411,6 +422,18 @@ export default function Home() {
   async function loadCompanies() {
     const { data } = await supabase.from("companies").select("*");
     if (data) setCompanies(data.filter((c: Company) => c.added && !c.rejected) as Company[]);
+  }
+
+  // "Date added" to the database — falls back to enriched_at for rows saved before added_at existed.
+  function fmtAddedDate(c: Company): string {
+    const iso = c.added_at ?? c.enriched_at;
+    return iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  }
+  // Update a company's outreach status (optimistic — writes straight to the DB).
+  async function updateCompanyStatus(id: number, status: string) {
+    setCompanies(prev => prev.map(c => c.id === id ? { ...c, status } : c));
+    const { error } = await supabase.from("companies").update({ status }).eq("id", id);
+    if (error) { console.error("[status] update failed:", error.message); loadCompanies(); }
   }
 
   // Loads the search config (sources + terms) from the DB into the full records (with ids) and the
@@ -826,6 +849,8 @@ export default function Home() {
         { header: "Priority tier", key: "priority_tier", width: 14 },
         { header: "Website", key: "website_url", width: 34 },
         { header: "Source", key: "source_name", width: 22 },
+        { header: "Added", key: "added", width: 14 },
+        { header: "Status", key: "status", width: 16 },
         { header: "Description", key: "description", width: 60 },
       ];
       ws.getRow(1).font = { bold: true };
@@ -840,6 +865,8 @@ export default function Home() {
           priority_tier: c.priority_tier ?? "",
           website_url: c.website_url ?? "",
           source_name: c.source_name ?? "",
+          added: fmtAddedDate(c),
+          status: STATUS_OPTIONS.find(o => o.value === (c.status ?? "not_contacted"))?.label ?? "",
           description: c.description ?? "",
         });
       }
@@ -1174,6 +1201,7 @@ export default function Home() {
       icp_fit: c.icp_fit,
       priority_tier: c.priority_tier ?? null,
       added: true,
+      added_at: new Date().toISOString(),
     }));
     const { error } = await supabase.from("companies").upsert(rows, { onConflict: "name" });
     if (error) {
@@ -1422,7 +1450,7 @@ export default function Home() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
                     <thead>
                       <tr style={{ background: "var(--surface-table-head)", borderBottom: "1px solid var(--border-card)" }}>
-                        {["Company", "Website", "Source", "Geography", "Category", "Max. Price", "Priority", "ICP Fit Score"].map(h => (
+                        {["Company", "Website", "Source", "Geography", "Category", "Max. Price", "Priority", "ICP Fit Score", "Added", "Status"].map(h => (
                           <th key={h} style={{ padding: "12px 22px", textAlign: "left", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-slate)" }}>{h}</th>
                         ))}
                       </tr>
@@ -1490,10 +1518,17 @@ export default function Home() {
                               {!c.priority_tier && <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>}
                             </td>
                             <td style={{ padding: "16px 22px", fontSize: 13, letterSpacing: 1, color: icpColor(c.icp_fit), whiteSpace: "nowrap" }}>{"★".repeat(c.icp_fit)}{"☆".repeat(5 - c.icp_fit)}</td>
+                            <td style={{ padding: "16px 22px", color: "var(--text-body)", fontSize: 12.5, whiteSpace: "nowrap" }}>{fmtAddedDate(c)}</td>
+                            <td style={{ padding: "12px 22px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
+                              <select value={c.status ?? "not_contacted"} onChange={e => updateCompanyStatus(c.id, e.target.value)}
+                                style={{ fontSize: 12, padding: "5px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--white)", color: (c.status ?? "not_contacted") === "contacted" ? "var(--success-bright, #2e7d32)" : (c.status ?? "not_contacted") === "not_relevant" ? "var(--text-faint)" : "var(--text)", cursor: "pointer" }}>
+                                {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                              </select>
+                            </td>
                           </tr>
                           {expandedCompanyId === c.id && (
                             <tr style={{ borderBottom: "1px solid var(--border-light)", background: i % 2 === 0 ? "var(--white)" : "var(--surface-input)" }}>
-                              <td colSpan={8} style={{ padding: "0 20px 20px 48px" }}>
+                              <td colSpan={10} style={{ padding: "0 20px 20px 48px" }}>
                                 {editingCompanyId === c.id && editDraft ? (
                                   <div style={{ maxWidth: 900 }}>
                                     <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16, marginBottom: 16 }}>
@@ -2411,7 +2446,7 @@ export default function Home() {
             ) },
             { key: "database", label: "Company Database", content: (
               <>
-                <p style={ps}>Your saved companies live here. Use the filters at the top (geography, category, price range, ICP fit, priority tier), then <strong>Find Companies</strong> to apply them — or <strong>Show All Companies</strong>. Click a row to expand its description.</p>
+                <p style={ps}>Your saved companies live here. Use the filters at the top (geography, category, price range, ICP fit, priority tier), then <strong>Find Companies</strong> to apply them — or <strong>Show All Companies</strong>. Click a row to expand its description. Each row shows the <strong>date added</strong> and an editable <strong>Status</strong> (Not contacted / Contacted / In dialogue / Not relevant) for tracking outreach — it saves the moment you change it.</p>
                 <ul style={uls}>
                   <li style={lis}><strong>Export as Excel</strong> — downloads the companies currently shown (respects your filters and any hidden rows).</li>
                   <li style={lis}><strong>Clear Results</strong> — empties the shown table; doesn&apos;t delete anything.</li>

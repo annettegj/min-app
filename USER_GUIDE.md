@@ -29,7 +29,10 @@ you'll be asked again. There's a **Log out** button at the top-right.
 
 Your saved companies. Use the filters at the top (geography, category, price range, ICP fit,
 priority tier) to narrow the list, then **Find Companies** to apply them (or **Show All Companies**).
-Click a row to expand its description.
+Click a row to expand its description. Each row also shows the **date it was added** to the database
+and an editable **Status** — a dropdown (Not contacted / Contacted / In dialogue / Not relevant) you
+can change any time to track outreach; the change saves immediately. Both are included in the Excel
+export.
 
 - **Export as Excel** — downloads an `.xlsx` file of the companies **currently shown** (it respects
   your filters and any rows you've hidden). The file name includes the date. The first export may
