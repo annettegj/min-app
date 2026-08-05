@@ -52,6 +52,13 @@ export type SourceRecord = SourceFields & { id: number; times_used: number; comp
 export type DraftTerm = { key: string; id: number | null; term: string; is_default: boolean };
 export type DraftSource = SourceFields & { key: string; id: number | null };
 
+// The manual "Add company" form shape.
+export type AddCompanyForm = {
+  name: string; website_url: string; geography: string; product_category: string;
+  max_price: string; price_currency: string; icp_fit: number; priority_tier: string;
+  description: string; source_name: string;
+};
+
 // Line-level diff segment (used when showing what the AI changed in an ICP draft).
 export type DiffSeg = { type: "equal" | "add" | "remove"; text: string };
 

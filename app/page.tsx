@@ -9,6 +9,9 @@ import mockResultsData from "@/config/mock-results.json";
 import { MarketBadge } from "@/app/components/common/MarketBadge";
 import { AuthScreen } from "@/app/components/common/AuthScreen";
 import { HowItWorksTab } from "@/app/components/about/HowItWorksTab";
+import { QueueModal } from "@/app/components/search/QueueModal";
+import { ReviewInfoModal } from "@/app/components/icp/ReviewInfoModal";
+import { AddCompanyModal } from "@/app/components/database/AddCompanyModal";
 import { inputStyle, labelStyle, btnPrimary, btnSecondary, addBtnStyle, hintStyle, reqStyle, optStyle } from "@/lib/styles";
 import { diffLines, icpColor, displayHostname, safeHref, fmtAddedDate } from "@/lib/format";
 import {
@@ -2383,34 +2386,13 @@ export default function Home() {
 
       {/* Queue warning — pops up when the user clicks Search while >= 5 companies are still waiting */}
       {queueModalOpen && (
-        <div onClick={() => { if (!clearingQueue) setQueueModalOpen(false); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 520, width: "100%", padding: "26px 28px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <p style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>{pendingQueueCount} companies are still waiting to be researched</p>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 20 }}>
-              If you search now, the app will only research this waiting list — your selected sources and terms will <strong>not</strong> be searched, because it looks for new companies only once the list is below 5. Choose what to do:
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <button type="button" disabled={clearingQueue} onClick={() => { setQueueModalOpen(false); handleAgentSearch(); }}
-                style={{ textAlign: "left", background: "var(--white)", color: "var(--navy)", border: "1px solid var(--border)", borderRadius: 4, padding: "14px 16px", cursor: clearingQueue ? "default" : "pointer" }}>
-                <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Research the waiting list</span>
-                <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>Runs the search on the {pendingQueueCount} waiting companies. Your selected sources/terms are searched on a later run.</span>
-              </button>
-              <button type="button" disabled={clearingQueue} onClick={async () => { await clearQueue(); setQueueModalOpen(false); handleAgentSearch(); }}
-                style={{ textAlign: "left", background: "var(--white)", color: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 4, padding: "14px 16px", cursor: clearingQueue ? "default" : "pointer" }}>
-                <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{clearingQueue ? "Clearing…" : "Clear the list & search my selections"}</span>
-                <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>Removes the waiting companies (not yet researched; may be found again later), then searches your selected sources and terms.</span>
-              </button>
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <button type="button" disabled={clearingQueue} onClick={() => setQueueModalOpen(false)}
-                style={{ background: "var(--surface)", color: "var(--text-slate)", border: "1px solid var(--border)", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: clearingQueue ? "default" : "pointer", borderRadius: 4 }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <QueueModal
+          pendingQueueCount={pendingQueueCount}
+          clearingQueue={clearingQueue}
+          onResearch={() => { setQueueModalOpen(false); handleAgentSearch(); }}
+          onClearAndSearch={async () => { await clearQueue(); setQueueModalOpen(false); handleAgentSearch(); }}
+          onClose={() => setQueueModalOpen(false)}
+        />
       )}
 
       {/* Source-performance modal — opened by "Source performance" in the Search Configuration panel */}
@@ -2516,135 +2498,29 @@ export default function Home() {
 
       {/* "What does the AI review check?" — shows/edits the review instructions (the editable rubric). */}
       {reviewInfoOpen && (
-        <div onClick={() => { if (!reviewSaving) setReviewInfoOpen(false); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 720, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <div style={{ background: "var(--header)", padding: "16px 26px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <p style={{ color: "var(--white)", fontSize: 17, fontWeight: 700 }}>What the AI review checks</p>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {!reviewEditing && (
-                  <button type="button" onClick={editReviewInstructions}
-                    style={{ background: "var(--accent)", border: "none", color: "var(--white)", padding: "5px 14px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>✎ Edit</button>
-                )}
-                <button type="button" onClick={() => { if (!reviewSaving) setReviewInfoOpen(false); }}
-                  style={{ background: "transparent", color: "var(--white)", border: "none", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
-              </div>
-            </div>
-            <div style={{ padding: "20px 26px", overflowY: "auto" }}>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 16 }}>
-                These are the exact instructions given to the AI when it reviews an ICP edit (before you save). Editing them changes what the review looks for — the surrounding structure (how your ICP text is fed in and how the result is returned) is fixed in code and can’t be broken here. Applies to both markets.
-              </p>
-              {!reviewEditing ? (
-                <div style={{ border: "1px solid var(--border-card)", borderRadius: 4, background: "var(--surface)", padding: "14px 16px", whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.6, color: "var(--text)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}>
-                  {reviewInstructions}
-                </div>
-              ) : (
-                <>
-                  <textarea value={reviewDraft} onChange={e => setReviewDraft(e.target.value)} spellCheck={false}
-                    style={{ width: "100%", minHeight: 300, padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13.5, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", lineHeight: 1.6, color: "var(--text)", resize: "vertical" }} />
-                  {reviewInfoError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 8 }}>{reviewInfoError}</p>}
-                  <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Shared setting — changes what every ICP review checks for. Saved to the database and used by the next review.</p>
-                  <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center" }}>
-                    <button type="button" onClick={saveReviewInstructions} disabled={reviewSaving}
-                      style={{ ...btnPrimary, padding: "9px 22px", opacity: reviewSaving ? 0.6 : 1 }}>{reviewSaving ? "Saving…" : "Save"}</button>
-                    <button type="button" onClick={() => { setReviewEditing(false); setReviewInfoError(""); }} disabled={reviewSaving}
-                      style={{ ...btnSecondary, padding: "9px 20px" }}>Cancel</button>
-                    <button type="button" onClick={() => setReviewDraft(DEFAULT_ICP_REVIEW_INSTRUCTIONS)} disabled={reviewSaving}
-                      style={{ background: "transparent", border: "none", color: "var(--accent)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", marginLeft: "auto" }}>Reset to default</button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        <ReviewInfoModal
+          editing={reviewEditing}
+          instructions={reviewInstructions}
+          draft={reviewDraft}
+          error={reviewInfoError}
+          saving={reviewSaving}
+          setDraft={setReviewDraft}
+          onEdit={editReviewInstructions}
+          onSave={saveReviewInstructions}
+          onCancelEdit={() => { setReviewEditing(false); setReviewInfoError(""); }}
+          onClose={() => setReviewInfoOpen(false)}
+        />
       )}
 
-      {/* Manual "Add company" form — lets users enter a company they came across themselves. */}
       {addOpen && (
-        <div onClick={() => { if (!addSaving) setAddOpen(false); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 640, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <div style={{ background: "var(--header)", padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p style={{ color: "var(--white)", fontSize: 17, fontWeight: 700 }}>Add company</p>
-              <button type="button" onClick={() => { if (!addSaving) setAddOpen(false); }}
-                style={{ background: "transparent", color: "var(--white)", border: "none", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
-            </div>
-            <div style={{ padding: "20px 24px", overflowY: "auto" }}>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 16 }}>
-                Enter a company you came across and it&apos;ll be saved straight to the database. Only the name is required. Set the ICP fit yourself for now (an AI-suggested score may come later).
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 14 }}>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>Company name <span style={{ color: "var(--danger-text)" }}>*</span></label>
-                  <input type="text" value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} style={inputStyle} placeholder="e.g. Doppelherz" />
-                </div>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>Website</label>
-                  <input type="text" value={addForm.website_url} onChange={e => setAddForm({ ...addForm, website_url: e.target.value })} style={inputStyle} placeholder="https://…" />
-                </div>
-                <div>
-                  <label style={labelStyle}>Geography</label>
-                  <select value={addForm.geography} onChange={e => setAddForm({ ...addForm, geography: e.target.value })} style={inputStyle}>
-                    {GEO_OPTIONS.map(g => <option key={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Product category</label>
-                  <select value={addForm.product_category} onChange={e => setAddForm({ ...addForm, product_category: e.target.value })} style={inputStyle}>
-                    {CAT_OPTIONS.map(cat => <option key={cat}>{cat}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Max price</label>
-                  <input type="number" value={addForm.max_price} onChange={e => setAddForm({ ...addForm, max_price: e.target.value })} style={inputStyle} placeholder="—" />
-                </div>
-                <div>
-                  <label style={labelStyle}>Currency</label>
-                  <select value={addForm.price_currency} onChange={e => setAddForm({ ...addForm, price_currency: e.target.value })} style={inputStyle}>
-                    <option value="">—</option>
-                    {["EUR", "GBP", "USD", "NOK", "SEK", "DKK", "CHF"].map(cur => <option key={cur}>{cur}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>Priority tier</label>
-                  <select value={addForm.priority_tier} onChange={e => setAddForm({ ...addForm, priority_tier: e.target.value })} style={inputStyle}>
-                    <option value="">—</option>
-                    <option value="early_mover">Early Mover</option>
-                    <option value="follower">Follower</option>
-                    <option value="enabler">Enabler</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={labelStyle}>ICP fit</label>
-                  <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
-                    {[1, 2, 3, 4, 5].map(star => (
-                      <button key={star} type="button" onClick={() => setAddForm({ ...addForm, icp_fit: star })}
-                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= addForm.icp_fit ? "var(--accent)" : "var(--border-grey)" }}>★</button>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>Source <span style={{ color: "var(--text-faint)" }}>(optional)</span></label>
-                  <input type="text" value={addForm.source_name} onChange={e => setAddForm({ ...addForm, source_name: e.target.value })} style={inputStyle} placeholder="Manually added" />
-                </div>
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={labelStyle}>Description / notes</label>
-                  <textarea value={addForm.description} onChange={e => setAddForm({ ...addForm, description: e.target.value })} rows={3}
-                    style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} placeholder="Why it's relevant, what they sell, etc." />
-                </div>
-              </div>
-              {addFormError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 12 }}>{addFormError}</p>}
-              <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-                <button type="button" onClick={submitAddCompany} disabled={addSaving}
-                  style={{ ...btnPrimary, padding: "10px 24px", opacity: addSaving ? 0.6 : 1 }}>{addSaving ? "Saving…" : "Add to database"}</button>
-                <button type="button" onClick={() => setAddOpen(false)} disabled={addSaving}
-                  style={{ ...btnSecondary, padding: "10px 22px" }}>Cancel</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AddCompanyModal
+          form={addForm}
+          setForm={setAddForm}
+          saving={addSaving}
+          error={addFormError}
+          onSubmit={submitAddCompany}
+          onClose={() => setAddOpen(false)}
+        />
       )}
 
       {/* Manage test example companies — the fixed, user-editable set used by "Test on example companies". */}
