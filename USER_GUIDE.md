@@ -34,6 +34,11 @@ and an editable **Status** — a dropdown (Not contacted / Contacted / In dialog
 can change any time to track outreach; the change saves immediately. Both are included in the Excel
 export.
 
+- **Select specific companies** — each row has a checkbox (and there's a "select all" box in the
+  header). Once you've ticked some, the header shows **View only selected** (hides everything else so
+  only your picks show — click **Show all** to bring the rest back, your ticks stay) and
+  **Clear selection** (unticks everything). Because the Excel export always takes **what's currently
+  shown**, ticking a few companies and clicking *View only selected* is the way to export just those.
 - **Export as Excel** — downloads an `.xlsx` file of the companies **currently shown** (it respects
   your filters and any rows you've hidden). The file name includes the date. The first export may
   take a moment while the export engine loads; after that it's instant.

@@ -282,6 +282,9 @@ export default function Home() {
   // (a client-side curation, e.g. to tailor an Excel export; not persisted to the database).
   const [editMode, setEditMode] = useState(false);
   const [hiddenIds, setHiddenIds] = useState<Set<number>>(new Set());
+  // Row selection in the Company Database — pick specific companies to view-only / export.
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showOnlySelected, setShowOnlySelected] = useState(false);
 
   // --- Search tab state ---
   const [agentState, setAgentState] = useState<"idle" | "stale_warning" | "searching" | "done" | "error">("idle")
@@ -823,9 +826,20 @@ export default function Home() {
   // Rows actually shown in the table = filtered results minus any hidden-from-view rows. This is a
   // session-only curation (not persisted); it also drives what the Excel export includes.
   const visibleResults = useMemo(
-    () => results.filter((c) => !hiddenIds.has(c.id)),
-    [results, hiddenIds]
+    () => results.filter((c) => !hiddenIds.has(c.id) && (!showOnlySelected || selectedIds.has(c.id))),
+    [results, hiddenIds, showOnlySelected, selectedIds]
   );
+
+  // Toggle one row's selection; if it empties the selection, drop out of "view only" mode.
+  function toggleSelected(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.size === 0) setShowOnlySelected(false);
+      return next;
+    });
+  }
+  function clearSelection() { setSelectedIds(new Set()); setShowOnlySelected(false); }
   // The company targeted by the remove modal (null when the modal is closed).
   const removeTarget = confirmRemoveId != null ? companies.find((c) => c.id === confirmRemoveId) ?? null : null;
 
@@ -1426,8 +1440,20 @@ export default function Home() {
                   <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Results</p>
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <p style={{ color: "var(--white)", fontSize: 12 }}>
-                      {visibleResults.length} {visibleResults.length !== 1 ? "companies" : "company"}{hiddenIds.size > 0 ? ` · ${hiddenIds.size} hidden` : ""}
+                      {visibleResults.length} {visibleResults.length !== 1 ? "companies" : "company"}{hiddenIds.size > 0 ? ` · ${hiddenIds.size} hidden` : ""}{selectedIds.size > 0 ? ` · ${selectedIds.size} selected` : ""}
                     </p>
+                    {selectedIds.size > 0 && (
+                      <>
+                        <button type="button" onClick={() => setShowOnlySelected(v => !v)}
+                          style={{ background: showOnlySelected ? "var(--white)" : "transparent", color: showOnlySelected ? "var(--header)" : "var(--on-dark)", border: "1px solid var(--border-on-dark)", padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
+                          {showOnlySelected ? "Show all" : "View only selected"}
+                        </button>
+                        <button type="button" onClick={clearSelection}
+                          style={{ background: "transparent", color: "var(--on-dark)", border: "1px solid var(--border-on-dark)", padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
+                          Clear selection
+                        </button>
+                      </>
+                    )}
                     {hiddenIds.size > 0 && (
                       <button type="button" onClick={restoreHidden}
                         style={{ background: "transparent", color: "var(--on-dark)", border: "1px solid var(--border-on-dark)", padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
@@ -1451,6 +1477,20 @@ export default function Home() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                     <thead>
                       <tr style={{ background: "var(--surface-table-head)", borderBottom: "1px solid var(--border-card)" }}>
+                        <th style={{ padding: "10px 8px 10px 14px", width: 1 }}>
+                          <input type="checkbox" aria-label="Select all shown"
+                            checked={visibleResults.length > 0 && visibleResults.every(c => selectedIds.has(c.id))}
+                            onChange={e => {
+                              const check = e.target.checked;
+                              setSelectedIds(prev => {
+                                const next = new Set(prev);
+                                if (check) visibleResults.forEach(c => next.add(c.id));
+                                else { visibleResults.forEach(c => next.delete(c.id)); if (next.size === 0) setShowOnlySelected(false); }
+                                return next;
+                              });
+                            }}
+                            style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }} />
+                        </th>
                         {["Company", "Website", "Source", "Geography", "Category", "Max. Price", "Priority", "ICP Fit", "Added", "Status"].map(h => (
                           <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: 11.5, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-slate)" }}>{h}</th>
                         ))}
@@ -1463,6 +1503,11 @@ export default function Home() {
                             style={{ borderBottom: expandedCompanyId === c.id ? "none" : "1px solid var(--border-light)", background: i % 2 === 0 ? "var(--white)" : "var(--surface-input)", cursor: "pointer" }}
                             onMouseEnter={e => (e.currentTarget.style.background = "var(--surface-row-hover)")}
                             onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "var(--white)" : "var(--surface-input)")}>
+                            <td style={{ padding: "12px 8px 12px 14px", width: 1 }} onClick={e => e.stopPropagation()}>
+                              <input type="checkbox" aria-label={`Select ${c.name}`} checked={selectedIds.has(c.id)}
+                                onChange={() => toggleSelected(c.id)}
+                                style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }} />
+                            </td>
                             <td style={{ padding: "12px 14px", fontWeight: 600, color: "var(--navy)" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                 <span style={{ fontSize: 10, color: "var(--text-faint)" }}>{expandedCompanyId === c.id ? "▾" : "▸"}</span>
@@ -1529,7 +1574,7 @@ export default function Home() {
                           </tr>
                           {expandedCompanyId === c.id && (
                             <tr style={{ borderBottom: "1px solid var(--border-light)", background: i % 2 === 0 ? "var(--white)" : "var(--surface-input)" }}>
-                              <td colSpan={10} style={{ padding: "0 20px 20px 48px" }}>
+                              <td colSpan={11} style={{ padding: "0 20px 20px 48px" }}>
                                 {editingCompanyId === c.id && editDraft ? (
                                   <div style={{ maxWidth: 900 }}>
                                     <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16, marginBottom: 16 }}>
@@ -2450,7 +2495,8 @@ export default function Home() {
               <>
                 <p style={ps}>Your saved companies live here. Use the filters at the top (geography, category, price range, ICP fit, priority tier), then <strong>Find Companies</strong> to apply them — or <strong>Show All Companies</strong>. Click a row to expand its description. Each row shows the <strong>date added</strong> and an editable <strong>Status</strong> (Not contacted / Contacted / In dialogue / Not relevant) for tracking outreach — it saves the moment you change it.</p>
                 <ul style={uls}>
-                  <li style={lis}><strong>Export as Excel</strong> — downloads the companies currently shown (respects your filters and any hidden rows).</li>
+                  <li style={lis}><strong>Select rows</strong> — tick companies (or the header box for all shown), then <strong>View only selected</strong> to show just those (<strong>Show all</strong> brings the rest back; ticks stay). Since the export takes what&apos;s shown, this is how to export just your picks. <strong>Clear selection</strong> unticks everything.</li>
+                  <li style={lis}><strong>Export as Excel</strong> — downloads the companies currently shown (respects your filters, hidden rows, and any &quot;view only selected&quot;).</li>
                   <li style={lis}><strong>Clear Results</strong> — empties the shown table; doesn&apos;t delete anything.</li>
                   <li style={lis}><strong>Edit list</strong> — turns on edit mode. Each row gets a pencil (edit its fields) and an ✕ (choose <em>Remove from this view only</em> — hidden and restorable — or <em>Delete from the company database</em>).</li>
                   <li style={lis}><strong>Restore hidden</strong> — brings back rows you hid.</li>
