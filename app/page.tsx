@@ -1447,7 +1447,8 @@ export default function Home() {
                     No companies match the selected filters.
                   </div>
                 ) : (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+                  <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", minWidth: 1000, borderCollapse: "collapse", fontSize: 15 }}>
                     <thead>
                       <tr style={{ background: "var(--surface-table-head)", borderBottom: "1px solid var(--border-card)" }}>
                         {["Company", "Website", "Source", "Geography", "Category", "Max. Price", "Priority", "ICP Fit Score", "Added", "Status"].map(h => (
@@ -1608,6 +1609,7 @@ export default function Home() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 )}
               </div>
             )}
