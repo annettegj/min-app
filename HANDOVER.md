@@ -163,7 +163,9 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - **`app_settings`** — shared key/value settings (migration 013). Holds the source-warning thresholds
   `source_warn_threshold_pct` (default `1`) and `source_warn_min_uses` (default `5`), edited from the
   **Source performance** modal; and `icp_review_instructions` — the editable AI-review rubric, edited
-  from the "What does the AI review check?" window (absent → the `lib/icpReview.ts` default is used).
+  from the "What does the AI review check?" window (absent → the `lib/icpReview.ts` default is used);
+  and `icp_test_companies` — the fixed example set for "Test on example companies" (JSON
+  `{name, expected}[]`), edited from the "Manage test example companies" window.
 - **`icp_docs`** — the editable ICP text per market (`market` `eu`/`us`, `content`), migration 014.
   Read by `getIcpDocs` (worker) and the ICP tab; empty → falls back to `config/icp*.md`.
 - **`icp_doc_versions`** — a snapshot of the ICP `content` on every save (`market`, `content`,
@@ -196,7 +198,8 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - `app/api/icp/check/route.ts` — **worker** endpoint (needs the Anthropic key): the advisory AI review of an edited ICP. Its rubric judges only whether the text works as **clear scoring instructions for an AI** (target market, tiers, a scoring method + scale, exclusions, internal consistency) — explicitly NOT whether the business criteria are "correct". Returns `{ ok, summary, issues[] }`; the UI shows it and lets the user save anyway.
 - `lib/icpReview.ts` — the review rubric default (`DEFAULT_ICP_REVIEW_INSTRUCTIONS`) + `buildReviewPrompt()`. The **editable** rubric lives in `app_settings.icp_review_instructions`; the fixed scaffolding (ICP injection, `report_review` tool call, `ok` semantics) stays in this helper so an edit can't break the structured-output contract. Shared by the check route (server) and the UI (default/seed).
 - `app/api/icp/apply/route.ts` — **worker** endpoint: rewrites the ICP draft to address one review point (forced `revised_icp` tool call), returns `{ content }`. The UI shows it as a **diff** (`diffLines`, a small local line-level LCS in `page.tsx`) and only loads it into the editor on "Use this version" — never auto-saved.
-- `app/api/icp/test/route.ts` — **worker** endpoint (optional "Test on example companies"): scores a sample of already-enriched companies (from `companies.enriched_data`, a mix of added + rejected) against the **current editor draft** and returns every one with score/tier/included (`report_test` tool call). Read-only — writes nothing. Runnable before or after the review.
+- `app/api/icp/test/route.ts` — **worker** endpoint (optional "Test on example companies"): scores the user's fixed example set against the **current editor draft** and returns every company with score/tier/included plus the user's `expected` label (`report_test` tool call, scored blind). The set comes from `app_settings.icp_test_companies` (JSON `{name, expected}[]`); if unset it falls back to a dynamic mix of recent added + rejected. Read-only — writes nothing. Runnable before or after the review.
+- `lib/icpTest.ts` — types/const for the example set: `ICP_TEST_COMPANIES_KEY`, `IcpTestExample`, `EXPECTED_LABELS`, and `expectedMatch()` (ok/mismatch/none for the UI's Match column).
 - `app/api/test-claude/route.ts` — diagnostic (checks key/credits + a web_search test).
 - `lib/models.ts` — **single source of truth for the Claude model** (`CLAUDE_MODEL`). Every model call imports it. See [§ Which model, and why](#which-model-and-why).
 - `lib/features.ts` — feature flags. `US_MARKET_ENABLED` (currently **`false`**) gates all US-market support: the US ICP sub-tab (shown as a disabled "· soon" placeholder), the target-market selector (locked to Europe), and US-ICP routing in Step 3 (everything scores against the European ICP). Nothing is deleted — flip to `true` to re-enable it all at once. Imported by both `page.tsx` and `lib/search.ts`.

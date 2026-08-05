@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_ICP_REVIEW_INSTRUCTIONS, ICP_REVIEW_INSTRUCTIONS_KEY } from "@/lib/icpReview";
 import { US_MARKET_ENABLED } from "@/lib/features";
+import { ICP_TEST_COMPANIES_KEY, EXPECTED_LABELS, expectedMatch, type IcpTestExample, type ExpectedCategory } from "@/lib/icpTest";
 import mockResultsData from "@/config/mock-results.json";
 import sourcesConfig from "@/config/sources.json";
 
@@ -221,11 +222,18 @@ export default function Home() {
   // A proposed AI rewrite awaiting the user's OK — shown as a diff before it goes into the editor.
   const [icpDiff, setIcpDiff] = useState<{ revised: string; segments: DiffSeg[]; issueIdx: number } | null>(null);
   // Optional "test on example companies" — scores real enriched companies against the current draft.
-  type IcpTestRow = { name: string; icp_score: number; priority_tier: string; geography: string; product_category: string; included: boolean; reason: string };
+  type IcpTestRow = { name: string; icp_score: number; priority_tier: string; geography: string; product_category: string; included: boolean; reason: string; expected: ExpectedCategory };
   const [icpTesting, setIcpTesting] = useState(false);
   const [icpTestResults, setIcpTestResults] = useState<IcpTestRow[] | null>(null);
   const [icpTestError, setIcpTestError] = useState("");
   const [icpTestEmpty, setIcpTestEmpty] = useState(false);
+  // The fixed, user-editable example set (from app_settings) + the "Manage examples" modal.
+  const [icpTestSet, setIcpTestSet] = useState<IcpTestExample[]>([]);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [manageDraft, setManageDraft] = useState<IcpTestExample[]>([]);
+  const [manageOptions, setManageOptions] = useState<{ name: string; priority_tier: string | null; added: boolean; rejected: boolean }[]>([]);
+  const [manageSaving, setManageSaving] = useState(false);
+  const [manageError, setManageError] = useState("");
   // The editable AI-review instructions (the rubric), shown/edited in the "What does the AI review
   // check?" window. Stored in app_settings; defaults to DEFAULT_ICP_REVIEW_INSTRUCTIONS.
   const [reviewInstructions, setReviewInstructions] = useState(DEFAULT_ICP_REVIEW_INSTRUCTIONS);
@@ -670,6 +678,47 @@ export default function Home() {
     if (Number.isFinite(min)) { setWarnMinUses(min); setPerfDraftMin(String(min)); }
     const rev = map.get(ICP_REVIEW_INSTRUCTIONS_KEY) as string | undefined;
     if (rev && rev.trim()) setReviewInstructions(rev);
+    const testSet = map.get(ICP_TEST_COMPANIES_KEY) as string | undefined;
+    if (testSet) { try { const p = JSON.parse(testSet); if (Array.isArray(p)) setIcpTestSet(p.filter((e) => e && typeof e.name === "string")); } catch { /* ignore */ } }
+  }
+
+  // --- Manage the example-companies set (fixed, user-editable, in app_settings) ---
+  async function openManageExamples() {
+    setManageDraft(icpTestSet.map(e => ({ ...e })));
+    setManageError(""); setManageOpen(true);
+    // Load the pool of companies that CAN be examples (have enriched_data), with tier + flags.
+    const { data } = await supabase.from("companies").select("name, priority_tier, added, rejected").not("enriched_data", "is", null).order("enriched_at", { ascending: false });
+    setManageOptions((data ?? []).map((r: { name: string; priority_tier: string | null; added: boolean; rejected: boolean }) => ({ name: r.name, priority_tier: r.priority_tier, added: r.added, rejected: r.rejected })));
+  }
+  function suggestStarterSet() {
+    // 2 early movers, 1 follower, 1 enabler (from approved companies by tier) + 2 clearly rejected.
+    const pick = (n: number, fn: (o: typeof manageOptions[number]) => boolean, expected: ExpectedCategory) =>
+      manageOptions.filter(fn).slice(0, n).map(o => ({ name: o.name, expected }));
+    const draft: IcpTestExample[] = [
+      ...pick(2, o => o.added && o.priority_tier === "early_mover", "early_mover"),
+      ...pick(1, o => o.added && o.priority_tier === "follower", "follower"),
+      ...pick(1, o => o.added && o.priority_tier === "enabler", "enabler"),
+      ...pick(2, o => o.rejected, "reject"),
+    ];
+    // De-dupe by name (a company could match two filters in odd data).
+    const seen = new Set<string>();
+    setManageDraft(draft.filter(e => (seen.has(e.name) ? false : (seen.add(e.name), true))));
+    setManageError("");
+  }
+  function addExample(name: string) {
+    if (!name || manageDraft.some(e => e.name === name)) return;
+    setManageDraft(prev => [...prev, { name, expected: "" }]);
+  }
+  function setExampleExpected(name: string, expected: ExpectedCategory) {
+    setManageDraft(prev => prev.map(e => e.name === name ? { ...e, expected } : e));
+  }
+  function removeExample(name: string) { setManageDraft(prev => prev.filter(e => e.name !== name)); }
+  async function saveExamples() {
+    setManageSaving(true);
+    const { error } = await supabase.from("app_settings").upsert(
+      { key: ICP_TEST_COMPANIES_KEY, value: JSON.stringify(manageDraft), updated_at: new Date().toISOString() }, { onConflict: "key" });
+    if (error) { setManageError("Could not save: " + error.message); setManageSaving(false); return; }
+    setIcpTestSet(manageDraft); setManageSaving(false); setManageOpen(false);
   }
 
   // --- AI-review instructions (the editable rubric shown in "What does the AI review check?") ---
@@ -2202,13 +2251,19 @@ export default function Home() {
                     {icpHistoryOpen ? "Hide version history" : "Version history"}
                   </button>
                 </div>
-                <button type="button" onClick={openReviewInfo}
-                  style={{ background: "transparent", border: "none", color: "var(--accent)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "8px 0 0", textAlign: "left" }}>
-                  ⓘ What does the AI review check?
-                </button>
+                <div style={{ display: "flex", gap: 18, alignItems: "center", paddingTop: 8, flexWrap: "wrap" }}>
+                  <button type="button" onClick={openReviewInfo}
+                    style={{ background: "transparent", border: "none", color: "var(--accent)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0, textAlign: "left" }}>
+                    ⓘ What does the AI review check?
+                  </button>
+                  <button type="button" onClick={openManageExamples}
+                    style={{ background: "transparent", border: "none", color: "var(--accent)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: 0, textAlign: "left" }}>
+                    ⚙ Manage test example companies{icpTestSet.length > 0 ? ` (${icpTestSet.length})` : ""}
+                  </button>
+                </div>
 
                 {icpTestError && <p style={{ fontSize: 12.5, color: "var(--danger-text)", marginTop: 12 }}>Couldn’t run the test ({icpTestError}).</p>}
-                {icpTestEmpty && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 12 }}>No example companies yet — run a search first so there’s enriched company data to test against.</p>}
+                {icpTestEmpty && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 12 }}>No example companies to test — click <strong>⚙ Manage test example companies</strong> to add some (or run a search first so there’s enriched company data).</p>}
                 {icpTestResults && icpTestResults.length > 0 && (
                   <div style={{ marginTop: 14, border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                     <div style={{ padding: "10px 16px", background: "var(--surface)", borderBottom: "1px solid var(--border-card)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
@@ -2228,20 +2283,28 @@ export default function Home() {
                             <th style={{ padding: "8px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Tier</th>
                             <th style={{ padding: "8px 12px", fontWeight: 700, textAlign: "center", whiteSpace: "nowrap" }}>Score</th>
                             <th style={{ padding: "8px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Result</th>
+                            <th style={{ padding: "8px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Expected</th>
+                            <th style={{ padding: "8px 12px", fontWeight: 700, textAlign: "center", whiteSpace: "nowrap" }}>Match</th>
                             <th style={{ padding: "8px 12px", fontWeight: 700 }}>Why</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {icpTestResults.map((r, k) => (
-                            <tr key={k} style={{ borderBottom: "1px solid var(--border-card)", background: r.included ? "transparent" : "var(--surface)" }}>
+                          {icpTestResults.map((r, k) => {
+                            const m = expectedMatch(r.expected, r.included, r.priority_tier);
+                            const expLabel = EXPECTED_LABELS.find(e => e.value === r.expected)?.label ?? "—";
+                            return (
+                            <tr key={k} style={{ borderBottom: "1px solid var(--border-card)", background: m === "mismatch" ? "var(--banner-warn-bg)" : r.included ? "transparent" : "var(--surface)" }}>
                               <td style={{ padding: "8px 12px", fontWeight: 600, color: "var(--navy)", whiteSpace: "nowrap" }}>{r.name}</td>
                               <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{r.geography || "—"}</td>
                               <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{r.priority_tier && r.priority_tier !== "none" ? r.priority_tier.replace(/_/g, " ") : "—"}</td>
                               <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, whiteSpace: "nowrap" }}>{r.icp_score}/5</td>
                               <td style={{ padding: "8px 12px", whiteSpace: "nowrap", color: r.included ? "var(--success-bright, #2e7d32)" : "var(--text-muted)", fontWeight: 700 }}>{r.included ? "✓ Include" : "Excluded"}</td>
+                              <td style={{ padding: "8px 12px", whiteSpace: "nowrap", color: "var(--text-muted)" }}>{r.expected ? expLabel : "—"}</td>
+                              <td style={{ padding: "8px 12px", textAlign: "center", whiteSpace: "nowrap", fontWeight: 700, color: m === "ok" ? "var(--success-bright, #2e7d32)" : m === "mismatch" ? "var(--danger-text)" : "var(--text-faint)" }}>{m === "ok" ? "✓" : m === "mismatch" ? "⚠" : "—"}</td>
                               <td style={{ padding: "8px 12px", color: "var(--text)", minWidth: 220 }}>{r.reason}</td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -2809,6 +2872,68 @@ export default function Home() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage test example companies — the fixed, user-editable set used by "Test on example companies". */}
+      {manageOpen && (
+        <div onClick={() => { if (!manageSaving) setManageOpen(false); }}
+          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 640, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <div style={{ background: "var(--header)", padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p style={{ color: "var(--white)", fontSize: 17, fontWeight: 700 }}>Test example companies</p>
+              <button type="button" onClick={() => { if (!manageSaving) setManageOpen(false); }}
+                style={{ background: "transparent", color: "var(--white)", border: "none", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: "20px 24px", overflowY: "auto" }}>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 14 }}>
+                These companies are scored against your ICP draft when you click <strong>Test on example companies</strong>. Set what you <strong>expect</strong> each to be, and the test flags any that the ICP scores differently. Pick a spread — a couple of clear early movers, a follower, an enabler, and a couple that should be rejected.
+              </p>
+              <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
+                <button type="button" onClick={suggestStarterSet} style={{ ...btnSecondary, padding: "7px 16px", fontSize: 12.5 }}>Suggest a starter set</button>
+                <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>Fills in 2 early movers · 1 follower · 1 enabler · 2 rejected from your database.</span>
+              </div>
+
+              {manageDraft.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--text-muted)", padding: "10px 0" }}>No examples yet — use “Suggest a starter set”, or add companies below.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                  {manageDraft.map((e) => (
+                    <div key={e.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ flex: 1, fontSize: 13, color: "var(--navy)", fontWeight: 600 }}>{e.name}</span>
+                      <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>expect:</span>
+                      <select value={e.expected} onChange={(ev) => setExampleExpected(e.name, ev.target.value as ExpectedCategory)}
+                        style={{ ...inputStyle, width: "auto", padding: "5px 8px", fontSize: 12.5 }}>
+                        {EXPECTED_LABELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                      </select>
+                      <button type="button" title="Remove" onClick={() => removeExample(e.name)}
+                        style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 15, fontWeight: 700, lineHeight: 1, padding: "2px 6px" }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ marginBottom: 6 }}>
+                <label style={{ fontSize: 11.5, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Add a company (from your database)</label>
+                <select value="" onChange={(ev) => { addExample(ev.target.value); ev.target.value = ""; }} style={{ ...inputStyle }}>
+                  <option value="">Select a company to add…</option>
+                  {manageOptions.filter(o => !manageDraft.some(d => d.name === o.name)).map(o => (
+                    <option key={o.name} value={o.name}>{o.name}{o.rejected ? " (rejected)" : o.priority_tier ? ` (${o.priority_tier.replace(/_/g, " ")})` : ""}</option>
+                  ))}
+                </select>
+                <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 6 }}>Only companies that have been researched (have enriched data) can be used as examples.</p>
+              </div>
+
+              {manageError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 8 }}>{manageError}</p>}
+              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                <button type="button" onClick={saveExamples} disabled={manageSaving}
+                  style={{ ...btnPrimary, padding: "9px 22px", opacity: manageSaving ? 0.6 : 1 }}>{manageSaving ? "Saving…" : "Save"}</button>
+                <button type="button" onClick={() => setManageOpen(false)} disabled={manageSaving}
+                  style={{ ...btnSecondary, padding: "9px 20px" }}>Cancel</button>
+              </div>
             </div>
           </div>
         </div>

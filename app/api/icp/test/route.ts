@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { CLAUDE_MODEL } from "@/lib/models";
+import { ICP_TEST_COMPANIES_KEY, type IcpTestExample } from "@/lib/icpTest";
 
 // Optional "test on example companies" for an ICP draft. Scores a handful of already-enriched
 // companies from the DB against the CURRENT editor draft (not the saved ICP), and returns EVERY
@@ -43,17 +44,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "The ICP text is empty." }, { status: 400, headers: corsHeaders });
   }
 
-  // Gather a small, mixed sample of already-enriched companies (some approved, some rejected) so the
-  // test shows a spread. Their enriched_data is the exact shape Step 3 scores.
+  // Build the example set. Preferred: the user-configured fixed list (app_settings) with an expected
+  // category per company. Fallback (nothing configured yet): a dynamic mix of recent added + rejected.
   let examples: Record<string, unknown>[] = [];
+  const expectedByName = new Map<string, string>();
   try {
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-    const [{ data: added }, { data: rejected }] = await Promise.all([
-      supabase.from("companies").select("enriched_data").eq("added", true).not("enriched_data", "is", null).order("enriched_at", { ascending: false }).limit(4),
-      supabase.from("companies").select("enriched_data").eq("rejected", true).not("enriched_data", "is", null).order("enriched_at", { ascending: false }).limit(3),
-    ]);
-    const rows = [...(added ?? []), ...(rejected ?? [])];
-    examples = rows.map((r) => r.enriched_data as Record<string, unknown>).filter(Boolean).slice(0, 6);
+
+    let configured: IcpTestExample[] = [];
+    try {
+      const { data: setting } = await supabase.from("app_settings").select("value").eq("key", ICP_TEST_COMPANIES_KEY).maybeSingle();
+      if (setting?.value) {
+        const parsed = JSON.parse(setting.value);
+        if (Array.isArray(parsed)) configured = parsed.filter((e) => e && typeof e.name === "string");
+      }
+    } catch { /* ignore — treat as unconfigured */ }
+
+    if (configured.length > 0) {
+      const names = configured.map((e) => e.name);
+      configured.forEach((e) => expectedByName.set(e.name, e.expected ?? ""));
+      const { data } = await supabase.from("companies").select("name, enriched_data").in("name", names).not("enriched_data", "is", null);
+      // Preserve the configured order.
+      const byName = new Map((data ?? []).map((r) => [r.name as string, r.enriched_data as Record<string, unknown>]));
+      examples = names.map((n) => byName.get(n)).filter((d): d is Record<string, unknown> => !!d);
+    } else {
+      const [{ data: added }, { data: rejected }] = await Promise.all([
+        supabase.from("companies").select("enriched_data").eq("added", true).not("enriched_data", "is", null).order("enriched_at", { ascending: false }).limit(4),
+        supabase.from("companies").select("enriched_data").eq("rejected", true).not("enriched_data", "is", null).order("enriched_at", { ascending: false }).limit(3),
+      ]);
+      const rows = [...(added ?? []), ...(rejected ?? [])];
+      examples = rows.map((r) => r.enriched_data as Record<string, unknown>).filter(Boolean).slice(0, 6);
+    }
   } catch {
     /* fall through — reported as "no examples" below */
   }
@@ -121,7 +142,9 @@ Report every company by calling the report_test tool.`;
     });
     const toolUse = response.content.find((b) => b.type === "tool_use");
     if (!toolUse || toolUse.type !== "tool_use") throw new Error("no structured result");
-    const results = (toolUse.input as { results?: TestRow[] }).results ?? [];
+    const scored = (toolUse.input as { results?: TestRow[] }).results ?? [];
+    // Attach the user's expected category (by name) so the UI can show expected-vs-actual.
+    const results = scored.map((r) => ({ ...r, expected: expectedByName.get(r.name) ?? "" }));
     return NextResponse.json({ results }, { headers: corsHeaders });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Test failed." }, { status: 500, headers: corsHeaders });

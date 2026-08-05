@@ -176,11 +176,17 @@ look for something different over time; it's a shared setting and takes effect o
 a **Reset to default** option.
 
 **Test on example companies** — optional, and you can run it any time (before or after the review, or
-after applying fixes). Click **Test on example companies** and the AI scores a sample of real
+after applying fixes). Click **Test on example companies** and the AI scores a fixed set of real
 already-researched companies against **whatever is in the editor right now** — you get a table with
 each company's score, tier, and whether the ICP would include or exclude it, so you can see the effect
-of your changes before saving. It's read-only: nothing is changed or saved. (If you haven't run a
-search yet there's no data to test against, and it will say so.)
+of your changes before saving. It's read-only: nothing is changed or saved.
+
+You choose the example set (it stays the same each time, so you can compare ICP versions on the same
+companies): click **⚙ Manage test example companies**. There you can **Suggest a starter set** (fills
+in 2 early movers, 1 follower, 1 enabler, and 2 rejected from your database), add/remove companies, and
+mark what you **expect** each to be. The test then shows **Expected** next to the actual result and a
+**Match** column (✓ / ⚠) that flags any company the ICP scores differently than you expected — a quick
+way to sanity-check an edit. (Only companies that have been researched can be used as examples.)
 
 ## Tips
 
