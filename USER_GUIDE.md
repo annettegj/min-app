@@ -34,6 +34,10 @@ and an editable **Status** — a dropdown (Not contacted / Contacted / In dialog
 can change any time to track outreach; the change saves immediately. Both are included in the Excel
 export.
 
+- **+ Add Company** (top-right) — manually add a company you came across, without running a search.
+  A pop-up form asks for the name (required) plus website, geography, category, price, priority tier,
+  ICP fit (you set the stars yourself for now), source, and a description. It's saved straight to the
+  database and shown right away.
 - **Select specific companies** — each row has a checkbox (and there's a "select all" box in the
   header). Once you've ticked some, the header shows **View only selected** (hides everything else so
   only your picks show — click **Show all** to bring the rest back, your ticks stay) and

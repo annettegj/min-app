@@ -285,6 +285,12 @@ export default function Home() {
   // Row selection in the Company Database — pick specific companies to view-only / export.
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showOnlySelected, setShowOnlySelected] = useState(false);
+  // Manual "Add company" form (pop-up) — lets users enter a company they came across themselves.
+  const EMPTY_ADD_FORM = { name: "", website_url: "", geography: "EU", product_category: CAT_OPTIONS[0], max_price: "", price_currency: "", icp_fit: 3, priority_tier: "", description: "", source_name: "" };
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState(EMPTY_ADD_FORM);
+  const [addSaving, setAddSaving] = useState(false);
+  const [addFormError, setAddFormError] = useState("");
 
   // --- Search tab state ---
   const [agentState, setAgentState] = useState<"idle" | "stale_warning" | "searching" | "done" | "error">("idle")
@@ -425,6 +431,36 @@ export default function Home() {
   async function loadCompanies() {
     const { data } = await supabase.from("companies").select("*");
     if (data) setCompanies(data.filter((c: Company) => c.added && !c.rejected) as Company[]);
+  }
+
+  // Manual add: open the form fresh, and save a user-entered company straight into the database.
+  function openAddCompany() { setAddForm(EMPTY_ADD_FORM); setAddFormError(""); setAddOpen(true); }
+  async function submitAddCompany() {
+    const name = addForm.name.trim();
+    if (!name) { setAddFormError("Company name is required."); return; }
+    setAddSaving(true); setAddFormError("");
+    const { error } = await supabase.from("companies").upsert({
+      name,
+      website_url: addForm.website_url.trim() || null,
+      geography: addForm.geography,
+      product_category: addForm.product_category,
+      max_price: addForm.max_price ? Number(addForm.max_price) : null,
+      price_currency: addForm.price_currency || null,
+      icp_fit: addForm.icp_fit,
+      priority_tier: addForm.priority_tier || null,
+      description: addForm.description.trim() || null,
+      source_name: addForm.source_name.trim() || "Manually added",
+      added: true,
+      rejected: false,
+      added_at: new Date().toISOString(),
+      status: "not_contacted",
+    }, { onConflict: "name" });
+    if (error) { setAddFormError("Could not save: " + error.message); setAddSaving(false); return; }
+    await loadCompanies();
+    setAddSaving(false); setAddOpen(false);
+    // Reset to show-all so the newly added company is visible right away.
+    setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" });
+    setSearchState("done");
   }
 
   // "Date added" to the database — falls back to enriched_at for rows saved before added_at existed.
@@ -1354,12 +1390,16 @@ export default function Home() {
         {/* ── TAB 1: Company Database ── */}
         {tab === "database" && (
           <>
-            <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
               <button onClick={() => guardUnsavedEdit(() => { setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" }); setSearchState("done"); })}
                 style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
                 onMouseEnter={e => (e.currentTarget.style.background = "var(--surface)")}
                 onMouseLeave={e => (e.currentTarget.style.background = "var(--white)")}>
                 Show All Companies →
+              </button>
+              <button onClick={openAddCompany}
+                style={{ ...btnPrimary, padding: "12px 28px", fontSize: 13, letterSpacing: "0.08em" }}>
+                + Add Company
               </button>
             </div>
 
@@ -2495,6 +2535,7 @@ export default function Home() {
               <>
                 <p style={ps}>Your saved companies live here. Use the filters at the top (geography, category, price range, ICP fit, priority tier), then <strong>Find Companies</strong> to apply them — or <strong>Show All Companies</strong>. Click a row to expand its description. Each row shows the <strong>date added</strong> and an editable <strong>Status</strong> (Not contacted / Contacted / In dialogue / Not relevant) for tracking outreach — it saves the moment you change it.</p>
                 <ul style={uls}>
+                  <li style={lis}><strong>+ Add Company</strong> — manually add a company (name required, plus website, geography, category, price, tier, ICP fit, and notes) without running a search. Saved straight to the database.</li>
                   <li style={lis}><strong>Select rows</strong> — tick companies (or the header box for all shown), then <strong>View only selected</strong> to show just those (<strong>Show all</strong> brings the rest back; ticks stay). Since the export takes what&apos;s shown, this is how to export just your picks. <strong>Clear selection</strong> unticks everything.</li>
                   <li style={lis}><strong>Export as Excel</strong> — downloads the companies currently shown (respects your filters, hidden rows, and any &quot;view only selected&quot;).</li>
                   <li style={lis}><strong>Clear Results</strong> — empties the shown table; doesn&apos;t delete anything.</li>
@@ -2863,6 +2904,93 @@ export default function Home() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual "Add company" form — lets users enter a company they came across themselves. */}
+      {addOpen && (
+        <div onClick={() => { if (!addSaving) setAddOpen(false); }}
+          style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 640, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            <div style={{ background: "var(--header)", padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p style={{ color: "var(--white)", fontSize: 17, fontWeight: 700 }}>Add company</p>
+              <button type="button" onClick={() => { if (!addSaving) setAddOpen(false); }}
+                style={{ background: "transparent", color: "var(--white)", border: "none", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: "20px 24px", overflowY: "auto" }}>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 16 }}>
+                Enter a company you came across and it&apos;ll be saved straight to the database. Only the name is required. Set the ICP fit yourself for now (an AI-suggested score may come later).
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 14 }}>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Company name <span style={{ color: "var(--danger-text)" }}>*</span></label>
+                  <input type="text" value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} style={inputStyle} placeholder="e.g. Doppelherz" />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Website</label>
+                  <input type="text" value={addForm.website_url} onChange={e => setAddForm({ ...addForm, website_url: e.target.value })} style={inputStyle} placeholder="https://…" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Geography</label>
+                  <select value={addForm.geography} onChange={e => setAddForm({ ...addForm, geography: e.target.value })} style={inputStyle}>
+                    {GEO_OPTIONS.map(g => <option key={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Product category</label>
+                  <select value={addForm.product_category} onChange={e => setAddForm({ ...addForm, product_category: e.target.value })} style={inputStyle}>
+                    {CAT_OPTIONS.map(cat => <option key={cat}>{cat}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Max price</label>
+                  <input type="number" value={addForm.max_price} onChange={e => setAddForm({ ...addForm, max_price: e.target.value })} style={inputStyle} placeholder="—" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Currency</label>
+                  <select value={addForm.price_currency} onChange={e => setAddForm({ ...addForm, price_currency: e.target.value })} style={inputStyle}>
+                    <option value="">—</option>
+                    {["EUR", "GBP", "USD", "NOK", "SEK", "DKK", "CHF"].map(cur => <option key={cur}>{cur}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Priority tier</label>
+                  <select value={addForm.priority_tier} onChange={e => setAddForm({ ...addForm, priority_tier: e.target.value })} style={inputStyle}>
+                    <option value="">—</option>
+                    <option value="early_mover">Early Mover</option>
+                    <option value="follower">Follower</option>
+                    <option value="enabler">Enabler</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>ICP fit</label>
+                  <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button key={star} type="button" onClick={() => setAddForm({ ...addForm, icp_fit: star })}
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= addForm.icp_fit ? "var(--accent)" : "var(--border-grey)" }}>★</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Source <span style={{ color: "var(--text-faint)" }}>(optional)</span></label>
+                  <input type="text" value={addForm.source_name} onChange={e => setAddForm({ ...addForm, source_name: e.target.value })} style={inputStyle} placeholder="Manually added" />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={labelStyle}>Description / notes</label>
+                  <textarea value={addForm.description} onChange={e => setAddForm({ ...addForm, description: e.target.value })} rows={3}
+                    style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} placeholder="Why it's relevant, what they sell, etc." />
+                </div>
+              </div>
+              {addFormError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 12 }}>{addFormError}</p>}
+              <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                <button type="button" onClick={submitAddCompany} disabled={addSaving}
+                  style={{ ...btnPrimary, padding: "10px 24px", opacity: addSaving ? 0.6 : 1 }}>{addSaving ? "Saving…" : "Add to database"}</button>
+                <button type="button" onClick={() => setAddOpen(false)} disabled={addSaving}
+                  style={{ ...btnSecondary, padding: "10px 22px" }}>Cancel</button>
+              </div>
             </div>
           </div>
         </div>

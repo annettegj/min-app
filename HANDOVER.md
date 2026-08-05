@@ -83,7 +83,10 @@ a **Log out** button + the signed-in email sit top-right. See §10.
    **Clear Results** (empties the view). **Edit list** mode unlocks per-row **edit** (✎ → inline
    form → Supabase `update`) and **remove** (✕ → "remove from this view only" = session hide, or
    "delete from the company database" = soft delete via `rejected`). Unsaved edits are guarded
-   before filtering/clearing/exporting.
+   before filtering/clearing/exporting. **+ Add Company** opens a form to enter a company manually
+   (user sets ICP fit themselves for now) — upserted with `added=true`, `source_name` defaulting to
+   "Manually added". Rows have checkboxes → **View only selected** / **Clear selection** (the Excel
+   export follows what's shown).
 2. **Find New Companies** — runs the search (see pipeline below). Includes the **Search
    Configuration** panel (draft-based edit mode for terms & sources — up to 3 terms / 4 sources, each
    source showing its **EU/US/Global** market badge and its **"used · queued · saved"** performance
