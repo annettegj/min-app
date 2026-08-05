@@ -164,8 +164,9 @@ if it's clean you just confirm; if it found gaps it lists them (this is **advice
 can **Save anyway** or **Keep editing**. Only when you press Save does it become the live ICP (shared —
 it affects everyone's searches from the next run on).
 
-Each point in the review has an **Apply fix** button. Click it and the AI rewrites the text to
-address just that point — the updated version lands back in the editor for you to read and adjust.
+Each point in the review has an **Apply fix** button. Click it and the AI rewrites the text to address
+just that point, then shows you a **diff** — added lines in green, removed lines in red — so you can
+see exactly what changed. Press **Use this version** to put it in the editor or **Discard** to drop it.
 **Nothing is saved by applying a fix**; you review the change (and edit more if you want), then press
 **Save changes** yourself. *(A test-on-sample-companies preview is the planned next step.)*
 

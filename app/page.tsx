@@ -167,6 +167,32 @@ type DraftSource = SourceFields & { key: string; id: number | null };
 const AUTH_KEY = "cf_auth"; // localStorage key for the simple pilot login
 const AUTH_MAX_AGE = 14 * 24 * 60 * 60 * 1000; // auto-logout after 2 weeks
 
+// A simple line-level diff (LCS) for showing what the AI changed in an ICP draft before it's applied.
+// Returns segments in order: "equal" (unchanged), "remove" (old line dropped), "add" (new line).
+type DiffSeg = { type: "equal" | "add" | "remove"; text: string };
+function diffLines(oldText: string, newText: string): DiffSeg[] {
+  const a = oldText.split("\n");
+  const b = newText.split("\n");
+  const n = a.length, m = b.length;
+  // LCS length table.
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const out: DiffSeg[] = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { out.push({ type: "equal", text: a[i] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push({ type: "remove", text: a[i] }); i++; }
+    else { out.push({ type: "add", text: b[j] }); j++; }
+  }
+  while (i < n) { out.push({ type: "remove", text: a[i] }); i++; }
+  while (j < m) { out.push({ type: "add", text: b[j] }); j++; }
+  return out;
+}
+
 export default function Home() {
   // Simple pilot login. undefined = still checking localStorage; null = logged out; string = email.
   const [authEmail, setAuthEmail] = useState<string | null | undefined>(undefined);
@@ -190,6 +216,8 @@ export default function Home() {
   const [icpApplying, setIcpApplying] = useState<number | null>(null);
   const [icpApplyNote, setIcpApplyNote] = useState("");
   const [icpApplyError, setIcpApplyError] = useState("");
+  // A proposed AI rewrite awaiting the user's OK — shown as a diff before it goes into the editor.
+  const [icpDiff, setIcpDiff] = useState<{ revised: string; segments: DiffSeg[]; issueIdx: number } | null>(null);
 
   // --- Database tab state ---
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -507,14 +535,15 @@ export default function Home() {
   }
   function enterIcpEdit() {
     setIcpDraft(icpDocs?.[icpRegion] ?? "");
-    setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpEditMode(true);
+    setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpDiff(null); setIcpEditMode(true);
   }
-  function cancelIcpEdit() { setIcpEditMode(false); setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); }
+  function cancelIcpEdit() { setIcpEditMode(false); setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpDiff(null); }
 
-  // Apply one review suggestion: the AI rewrites the draft for that single point; the revised text is
-  // loaded into the editor (NOT saved) so the user can review/edit and save when ready.
+  // Apply one review suggestion: the AI rewrites the draft for that single point. The result is shown
+  // as a DIFF first (acceptIcpDiff / discardIcpDiff) so the user sees exactly what changed before it
+  // goes into the editor — nothing is saved.
   async function applyIcpFix(issueText: string, idx: number) {
-    setIcpApplying(idx); setIcpApplyError("");
+    setIcpApplying(idx); setIcpApplyError(""); setIcpApplyNote("");
     try {
       const workerBase = process.env.NEXT_PUBLIC_WORKER_URL ?? "";
       const res = await fetch(`${workerBase}/api/icp/apply`, {
@@ -523,26 +552,33 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok || typeof data.content !== "string") throw new Error(data.error ?? "Could not apply the suggestion.");
-      setIcpDraft(data.content);
-      // Drop the applied point from the panel; the rest still apply to the now-updated draft.
-      setIcpCheck(prev => {
-        if (!prev) return prev;
-        const remaining = prev.issues.filter((_, i) => i !== idx);
-        return remaining.length ? { ...prev, issues: remaining } : null;
-      });
-      setIcpApplyNote("Updated the text above to address that point. Review it (edit further if you like), then Save changes when you're ready.");
+      setIcpDiff({ revised: data.content, segments: diffLines(icpDraft, data.content), issueIdx: idx });
     } catch (err) {
       setIcpApplyError(err instanceof Error ? err.message : "Could not apply the suggestion.");
     } finally {
       setIcpApplying(null);
     }
   }
+  function acceptIcpDiff() {
+    if (!icpDiff) return;
+    const idx = icpDiff.issueIdx;
+    setIcpDraft(icpDiff.revised);
+    // Drop the applied point from the panel; the rest still apply to the now-updated draft.
+    setIcpCheck(prev => {
+      if (!prev) return prev;
+      const remaining = prev.issues.filter((_, i) => i !== idx);
+      return remaining.length ? { ...prev, issues: remaining } : null;
+    });
+    setIcpApplyNote("Applied — the change is now in the editor above. Review it (edit further if you like), then Save changes when you're ready.");
+    setIcpDiff(null);
+  }
+  function discardIcpDiff() { setIcpDiff(null); }
 
   // Save flow: run an advisory AI review first. If it comes back clean, save straight away; if it
   // finds issues (or can't run), show them and let the user save anyway or keep editing.
   async function reviewIcp() {
     if (!icpDraft.trim()) { setIcpError("The ICP text can't be empty."); return; }
-    setIcpError(""); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpChecking(true);
+    setIcpError(""); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpDiff(null); setIcpChecking(true);
     try {
       const workerBase = process.env.NEXT_PUBLIC_WORKER_URL ?? "";
       const res = await fetch(`${workerBase}/api/icp/check`, {
@@ -2101,6 +2137,35 @@ export default function Home() {
                   </button>
                 </div>
 
+                {/* Proposed AI rewrite — shown as a diff so the change is obvious before it's applied. */}
+                {icpDiff && (
+                  <div style={{ marginTop: 14, border: "1px solid var(--accent)", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ padding: "10px 16px", background: "var(--surface)", borderBottom: "1px solid var(--border-card)" }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)" }}>Proposed change — review before applying</p>
+                      <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>
+                        <span style={{ background: "var(--diff-add-bg, #e6f4ea)", padding: "0 4px", borderRadius: 2 }}>green = added</span>{" "}
+                        <span style={{ background: "var(--diff-del-bg, #fce8e6)", padding: "0 4px", borderRadius: 2, textDecoration: "line-through" }}>red = removed</span>. Unchanged lines are shown for context.
+                      </p>
+                    </div>
+                    <div style={{ maxHeight: 320, overflow: "auto", padding: "10px 0", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: 12.5, lineHeight: 1.55, background: "var(--white)" }}>
+                      {icpDiff.segments.map((seg, k) => (
+                        <div key={k} style={{
+                          whiteSpace: "pre-wrap", wordBreak: "break-word", padding: "0 16px",
+                          background: seg.type === "add" ? "var(--diff-add-bg, #e6f4ea)" : seg.type === "remove" ? "var(--diff-del-bg, #fce8e6)" : "transparent",
+                          color: seg.type === "remove" ? "var(--danger-text)" : seg.type === "add" ? "#1b5e20" : "var(--text-muted)",
+                          textDecoration: seg.type === "remove" ? "line-through" : "none",
+                        }}>
+                          <span style={{ userSelect: "none", opacity: 0.6, marginRight: 8 }}>{seg.type === "add" ? "+" : seg.type === "remove" ? "−" : " "}</span>{seg.text || " "}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: 10, padding: "12px 16px", borderTop: "1px solid var(--border-card)", background: "var(--surface)" }}>
+                      <button type="button" onClick={acceptIcpDiff} style={{ ...btnPrimary, padding: "8px 20px" }}>Use this version</button>
+                      <button type="button" onClick={discardIcpDiff} style={{ ...btnSecondary, padding: "8px 20px" }}>Discard</button>
+                    </div>
+                  </div>
+                )}
+
                 {icpApplyNote && (
                   <div style={{ marginTop: 12, border: "1px solid var(--border-card)", borderLeft: "3px solid var(--success, #2e7d32)", borderRadius: 4, padding: "10px 14px", background: "var(--surface)" }}>
                     <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.55 }}>✓ {icpApplyNote}</p>
@@ -2125,8 +2190,8 @@ export default function Home() {
                                 <span style={{ flex: 1, fontSize: 13, color: "var(--text)", lineHeight: 1.55 }}>
                                   <strong style={{ color: iss.severity === "critical" ? "var(--danger-text)" : "var(--navy-mid)" }}>{iss.severity === "critical" ? "Critical: " : "Suggestion: "}</strong>{iss.text}
                                 </span>
-                                <button type="button" onClick={() => applyIcpFix(iss.text, idx)} disabled={icpApplying !== null || icpSaving}
-                                  style={{ ...btnSecondary, padding: "4px 12px", fontSize: 12, flexShrink: 0, opacity: (icpApplying !== null || icpSaving) ? 0.6 : 1 }}>
+                                <button type="button" onClick={() => applyIcpFix(iss.text, idx)} disabled={icpApplying !== null || icpSaving || icpDiff !== null}
+                                  style={{ ...btnSecondary, padding: "4px 12px", fontSize: 12, flexShrink: 0, opacity: (icpApplying !== null || icpSaving || icpDiff !== null) ? 0.6 : 1 }}>
                                   {icpApplying === idx ? "Applying…" : "Apply fix"}
                                 </button>
                               </div>

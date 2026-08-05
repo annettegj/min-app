@@ -188,8 +188,8 @@ switch buttons back up (there's a comment in the code explaining exactly how).
   `searchConcepts`, and `sourceNames` (the user's selected terms/sources) from the request body.
 - `app/api/reject/route.ts` — marks companies rejected (preserves `enriched_data`).
 - `app/api/icp/route.ts` — serves the `config/icp*.md` files (the fallback/seed the UI merges with the `icp_docs` DB rows).
-- `app/api/icp/check/route.ts` — **worker** endpoint (needs the Anthropic key): the advisory AI review of an edited ICP. Returns `{ ok, summary, issues[] }`; the UI shows it and lets the user save anyway.
-- `app/api/icp/apply/route.ts` — **worker** endpoint: rewrites the ICP draft to address one review point (forced `revised_icp` tool call), returns `{ content }`. The UI loads it into the editor — not auto-saved.
+- `app/api/icp/check/route.ts` — **worker** endpoint (needs the Anthropic key): the advisory AI review of an edited ICP. Its rubric judges only whether the text works as **clear scoring instructions for an AI** (target market, tiers, a scoring method + scale, exclusions, internal consistency) — explicitly NOT whether the business criteria are "correct". Returns `{ ok, summary, issues[] }`; the UI shows it and lets the user save anyway.
+- `app/api/icp/apply/route.ts` — **worker** endpoint: rewrites the ICP draft to address one review point (forced `revised_icp` tool call), returns `{ content }`. The UI shows it as a **diff** (`diffLines`, a small local line-level LCS in `page.tsx`) and only loads it into the editor on "Use this version" — never auto-saved.
 - `app/api/test-claude/route.ts` — diagnostic (checks key/credits + a web_search test).
 - `app/api/search/route.ts` — OLD synchronous route, unused by the client (safe to delete).
 - **`sources` / `search_terms` DB tables** — the authoritative, UI-editable search configuration
