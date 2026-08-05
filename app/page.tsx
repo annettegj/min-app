@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_ICP_REVIEW_INSTRUCTIONS, ICP_REVIEW_INSTRUCTIONS_KEY } from "@/lib/icpReview";
+import { US_MARKET_ENABLED } from "@/lib/features";
 import mockResultsData from "@/config/mock-results.json";
 import sourcesConfig from "@/config/sources.json";
 
@@ -280,7 +281,8 @@ export default function Home() {
   const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   // Target market — a soft geography steer for discovery (not a hard filter). "both" = no steer.
-  const [targetMarket, setTargetMarket] = useState<"eu" | "us" | "both">("both");
+  // While US support is off, this is locked to Europe (the selector is shown but disabled).
+  const [targetMarket, setTargetMarket] = useState<"eu" | "us" | "both">(US_MARKET_ENABLED ? "both" : "eu");
   // Search config read from the DB on mount; initialised from the sources.json-derived
   // defaults so there's something before the fetch resolves (and as a fallback).
   const [sourceOptions, setSourceOptions] = useState(SOURCE_OPTIONS);
@@ -1758,15 +1760,18 @@ export default function Home() {
                         { value: "both", label: "No preference" },
                       ] as const).map((opt) => {
                         const active = targetMarket === opt.value;
+                        const locked = !US_MARKET_ENABLED; // US off → selector is a disabled placeholder
                         return (
-                          <button key={opt.value} type="button" onClick={() => setTargetMarket(opt.value)}
-                            style={{ background: active ? "var(--accent)" : "var(--white)", color: active ? "var(--white)" : "var(--text-slate)", border: "none", borderRadius: 0, padding: "7px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", cursor: "pointer" }}>
+                          <button key={opt.value} type="button" disabled={locked} onClick={() => setTargetMarket(opt.value)}
+                            style={{ background: active ? "var(--accent)" : "var(--white)", color: active ? "var(--white)" : (locked ? "var(--text-faint)" : "var(--text-slate)"), border: "none", borderRadius: 0, padding: "7px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", cursor: locked ? "not-allowed" : "pointer", opacity: locked && !active ? 0.5 : 1 }}>
                             {opt.label}
                           </button>
                         );
                       })}
                     </div>
-                    <span style={{ fontSize: 11, color: "var(--text-faint)" }}>Guides the search toward companies in this region. Any from other regions that turn up are still kept and scored against their own ICP.</span>
+                    <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{US_MARKET_ENABLED
+                      ? "Guides the search toward companies in this region. Any from other regions that turn up are still kept and scored against their own ICP."
+                      : "The search focuses on European companies."}</span>
                   </div>
 
                   <button onClick={() => { if (SEARCH_DISABLED) return; if (pendingQueueCount != null && pendingQueueCount >= 5) setQueueModalOpen(true); else handleAgentSearch(); }} disabled={SEARCH_DISABLED}
@@ -2124,15 +2129,20 @@ export default function Home() {
               )}
             </div>
             <div style={{ display: "flex", gap: 4, padding: "10px 20px", borderBottom: "1px solid var(--border-light)", background: "var(--surface-tint)" }}>
-              {([{ key: "eu", label: "European ICP" }, { key: "us", label: "US ICP" }] as const).map(r => (
-                <button key={r.key} type="button" disabled={icpEditMode} onClick={() => setIcpRegion(r.key)}
-                  style={{ padding: "7px 16px", borderRadius: 4, border: "none", cursor: icpEditMode ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
-                    opacity: icpEditMode && icpRegion !== r.key ? 0.4 : 1,
-                    background: icpRegion === r.key ? "var(--accent)" : "transparent",
-                    color: icpRegion === r.key ? "var(--white)" : "var(--text-slate)" }}>
-                  {r.label}
-                </button>
-              ))}
+              {([{ key: "eu", label: "European ICP" }, { key: "us", label: "US ICP" }] as const).map(r => {
+                const usLocked = r.key === "us" && !US_MARKET_ENABLED; // US off → shown but disabled (placeholder)
+                const disabled = icpEditMode || usLocked;
+                return (
+                  <button key={r.key} type="button" disabled={disabled} onClick={() => setIcpRegion(r.key)}
+                    title={usLocked ? "US market support is coming later" : undefined}
+                    style={{ padding: "7px 16px", borderRadius: 4, border: "none", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
+                      opacity: usLocked ? 0.45 : (icpEditMode && icpRegion !== r.key ? 0.4 : 1),
+                      background: icpRegion === r.key ? "var(--accent)" : "transparent",
+                      color: icpRegion === r.key ? "var(--white)" : "var(--text-slate)" }}>
+                    {r.label}{usLocked ? " · soon" : ""}
+                  </button>
+                );
+              })}
             </div>
             <div style={{ padding: "16px 40px", borderBottom: "1px solid var(--border-light)", background: "var(--surface-tint)" }}>
               <p style={{ color: "var(--text-body)", fontSize: 13, lineHeight: 1.6, fontStyle: "italic" }}>
@@ -2410,7 +2420,7 @@ export default function Home() {
             { key: "scoring", label: "How scoring works (ICP)", content: (
               <>
                 <p style={ps}>After a company is researched, the AI scores it against the <strong>Lysoveta ICP Criteria</strong> (see that tab). It assigns an ICP fit score and a priority tier (Early Mover, Follower, or Enabler).</p>
-                <p style={ps}>There are separate profiles for <strong>Europe</strong> and the <strong>US</strong> (both on the ICP Criteria tab). Each company is scored against the profile that matches its primary market.</p>
+                {US_MARKET_ENABLED && <p style={ps}>There are separate profiles for <strong>Europe</strong> and the <strong>US</strong> (both on the ICP Criteria tab). Each company is scored against the profile that matches its primary market.</p>}
                 <p style={ps}>Only companies that <strong>pass</strong> the ICP are shown for you to save. The rest are set aside — kept internally so they aren&apos;t re-discovered in future searches.</p>
                 <p style={ps}>The ICP itself is <strong>editable</strong> — on the <strong>Lysoveta ICP Criteria</strong> tab, click <strong>✎ Edit Criteria</strong> to adjust the text for either market. Nothing saves automatically: you press <strong>Review changes with AI</strong>, which checks your text reads as clear scoring instructions and flags any gaps (advice only), then you press <strong>Save changes</strong> to make it live. Changes are shared, take effect on the next search, and every save is kept in <strong>Version history</strong> so you can roll back.</p>
               </>

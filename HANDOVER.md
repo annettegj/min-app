@@ -90,10 +90,12 @@ a **Log out** button + the signed-in email sit top-right. See §10.
    line), a **Target market** selector (Europe / US / No preference — a *soft* discovery steer, not a
    hard filter), a queue pop-up when ≥ 5 companies are waiting, and a **Step 3 decision** switch
    (currently **locked on Automatic**).
-3. **Lysoveta ICP Criteria** — the ICP the AI scores against, on **two sub-tabs**: **European** and
-   **US**. **Editable** (✎ Edit Criteria → free-form Markdown textarea → Save) — stored in the
-   `icp_docs` table, with a version snapshot on every save (Version history → "Load into editor" to
-   revert). Falls back to `config/icp.md` / `config/icp_us.md` until first edited.
+3. **Lysoveta ICP Criteria** — the ICP the AI scores against. **Editable** (✎ Edit Criteria → free-form
+   Markdown textarea → Save) — stored in the `icp_docs` table, with a version snapshot on every save
+   (Version history → "Load into editor" to revert). Falls back to `config/icp.md` / `config/icp_us.md`
+   until first edited. Two sub-tabs (**European** / **US**), but the **US sub-tab is a disabled
+   placeholder** while `US_MARKET_ENABLED` is false (see `lib/features.ts`) — same for the target-market
+   selector on tab 2 (locked to Europe).
 4. **How It Works** — an in-app help guide (left-hand section menu) covering the pipeline, waiting
    list, scoring, source stats, signing in, and exception states in plain language.
 
@@ -196,6 +198,7 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - `app/api/icp/apply/route.ts` — **worker** endpoint: rewrites the ICP draft to address one review point (forced `revised_icp` tool call), returns `{ content }`. The UI shows it as a **diff** (`diffLines`, a small local line-level LCS in `page.tsx`) and only loads it into the editor on "Use this version" — never auto-saved.
 - `app/api/test-claude/route.ts` — diagnostic (checks key/credits + a web_search test).
 - `lib/models.ts` — **single source of truth for the Claude model** (`CLAUDE_MODEL`). Every model call imports it. See [§ Which model, and why](#which-model-and-why).
+- `lib/features.ts` — feature flags. `US_MARKET_ENABLED` (currently **`false`**) gates all US-market support: the US ICP sub-tab (shown as a disabled "· soon" placeholder), the target-market selector (locked to Europe), and US-ICP routing in Step 3 (everything scores against the European ICP). Nothing is deleted — flip to `true` to re-enable it all at once. Imported by both `page.tsx` and `lib/search.ts`.
 - `app/api/search/route.ts` — OLD synchronous route, unused by the client (safe to delete).
 - **`sources` / `search_terms` DB tables** — the authoritative, UI-editable search configuration
   (see [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md#where-the-configuration-lives-database-not-the-file-anymore)).

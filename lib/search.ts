@@ -4,6 +4,7 @@ import path from "path";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import sourcesConfig from "@/config/sources.json";
 import { CLAUDE_MODEL } from "@/lib/models";
+import { US_MARKET_ENABLED } from "@/lib/features";
 
 
 // ---- Types ----
@@ -691,8 +692,9 @@ export function buildStep3Prompt(companies: EnrichedCompany[], icp: { eu: string
   const icpUs = icp.us;
   // The US ICP is used only once real content replaces the placeholder — until then, everything is
   // scored against the European ICP (unchanged behaviour), so US companies are never mis-scored
-  // against a placeholder.
-  const usReady = icpUs.trim().length > 0 && !icpUs.includes("US_ICP_PLACEHOLDER");
+  // against a placeholder. Also gated by US_MARKET_ENABLED: while US support is switched off,
+  // everything is scored against the European ICP regardless of the US ICP's content.
+  const usReady = US_MARKET_ENABLED && icpUs.trim().length > 0 && !icpUs.includes("US_ICP_PLACEHOLDER");
 
   const icpBlock = usReady
     ? `You have TWO ICP documents — apply the one that matches each company's primary market.
