@@ -185,6 +185,11 @@ export default function Home() {
   // Advisory AI review of an edit before it's saved (never blocks — user can save anyway).
   const [icpChecking, setIcpChecking] = useState(false);
   const [icpCheck, setIcpCheck] = useState<{ ok: boolean | null; summary: string; issues: { severity: string; text: string }[]; error?: string } | null>(null);
+  // Applying a single suggestion: the AI rewrites the draft for that point; the result loads back
+  // into the editor (not saved). icpApplying = index being applied; note/error give feedback.
+  const [icpApplying, setIcpApplying] = useState<number | null>(null);
+  const [icpApplyNote, setIcpApplyNote] = useState("");
+  const [icpApplyError, setIcpApplyError] = useState("");
 
   // --- Database tab state ---
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -502,15 +507,42 @@ export default function Home() {
   }
   function enterIcpEdit() {
     setIcpDraft(icpDocs?.[icpRegion] ?? "");
-    setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpEditMode(true);
+    setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpEditMode(true);
   }
-  function cancelIcpEdit() { setIcpEditMode(false); setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); }
+  function cancelIcpEdit() { setIcpEditMode(false); setIcpError(""); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); }
+
+  // Apply one review suggestion: the AI rewrites the draft for that single point; the revised text is
+  // loaded into the editor (NOT saved) so the user can review/edit and save when ready.
+  async function applyIcpFix(issueText: string, idx: number) {
+    setIcpApplying(idx); setIcpApplyError("");
+    try {
+      const workerBase = process.env.NEXT_PUBLIC_WORKER_URL ?? "";
+      const res = await fetch(`${workerBase}/api/icp/apply`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: icpDraft, market: icpRegion, issue: issueText }),
+      });
+      const data = await res.json();
+      if (!res.ok || typeof data.content !== "string") throw new Error(data.error ?? "Could not apply the suggestion.");
+      setIcpDraft(data.content);
+      // Drop the applied point from the panel; the rest still apply to the now-updated draft.
+      setIcpCheck(prev => {
+        if (!prev) return prev;
+        const remaining = prev.issues.filter((_, i) => i !== idx);
+        return remaining.length ? { ...prev, issues: remaining } : null;
+      });
+      setIcpApplyNote("Updated the text above to address that point. Review it (edit further if you like), then Save changes when you're ready.");
+    } catch (err) {
+      setIcpApplyError(err instanceof Error ? err.message : "Could not apply the suggestion.");
+    } finally {
+      setIcpApplying(null);
+    }
+  }
 
   // Save flow: run an advisory AI review first. If it comes back clean, save straight away; if it
   // finds issues (or can't run), show them and let the user save anyway or keep editing.
   async function reviewIcp() {
     if (!icpDraft.trim()) { setIcpError("The ICP text can't be empty."); return; }
-    setIcpError(""); setIcpCheck(null); setIcpChecking(true);
+    setIcpError(""); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError(""); setIcpChecking(true);
     try {
       const workerBase = process.env.NEXT_PUBLIC_WORKER_URL ?? "";
       const res = await fetch(`${workerBase}/api/icp/check`, {
@@ -541,7 +573,7 @@ export default function Home() {
     // Snapshot this version so it can be reverted later (best-effort — a failed snapshot doesn't block the save).
     await supabase.from("icp_doc_versions").insert({ market: icpRegion, content: icpDraft, saved_by: authEmail ?? null });
     await loadIcp();
-    setIcpSaving(false); setIcpEditMode(false); setIcpHistoryOpen(false); setIcpCheck(null);
+    setIcpSaving(false); setIcpEditMode(false); setIcpHistoryOpen(false); setIcpCheck(null); setIcpApplyNote(""); setIcpApplyError("");
   }
   async function toggleIcpHistory() {
     const next = !icpHistoryOpen;
@@ -2072,6 +2104,12 @@ export default function Home() {
                   </button>
                 </div>
 
+                {icpApplyNote && (
+                  <div style={{ marginTop: 12, border: "1px solid var(--border-card)", borderLeft: "3px solid var(--success, #2e7d32)", borderRadius: 4, padding: "10px 14px", background: "var(--surface)" }}>
+                    <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.55 }}>✓ {icpApplyNote}</p>
+                  </div>
+                )}
+
                 {/* Advisory AI review — shown when the check found issues or couldn't run. Never blocks saving. */}
                 {icpCheck && (
                   <div style={{ marginTop: 14, border: "1px solid var(--border-card)", borderRadius: 4, borderLeft: `3px solid ${icpCheck.issues.some(i => i.severity === "critical") ? "var(--danger-text)" : "var(--accent)"}`, padding: "14px 16px", background: "var(--surface)" }}>
@@ -2084,15 +2122,22 @@ export default function Home() {
                       <>
                         {icpCheck.summary && <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6, marginBottom: 8 }}>{icpCheck.summary}</p>}
                         {icpCheck.issues.length > 0 && (
-                          <ul style={{ margin: "0 0 10px", paddingLeft: 18 }}>
+                          <div style={{ margin: "0 0 10px", display: "flex", flexDirection: "column", gap: 8 }}>
                             {icpCheck.issues.map((iss, idx) => (
-                              <li key={idx} style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.55, marginBottom: 4 }}>
-                                <strong style={{ color: iss.severity === "critical" ? "var(--danger-text)" : "var(--navy-mid)" }}>{iss.severity === "critical" ? "Critical: " : "Suggestion: "}</strong>{iss.text}
-                              </li>
+                              <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                                <span style={{ flex: 1, fontSize: 13, color: "var(--text)", lineHeight: 1.55 }}>
+                                  <strong style={{ color: iss.severity === "critical" ? "var(--danger-text)" : "var(--navy-mid)" }}>{iss.severity === "critical" ? "Critical: " : "Suggestion: "}</strong>{iss.text}
+                                </span>
+                                <button type="button" onClick={() => applyIcpFix(iss.text, idx)} disabled={icpApplying !== null || icpSaving}
+                                  style={{ ...btnSecondary, padding: "4px 12px", fontSize: 12, flexShrink: 0, opacity: (icpApplying !== null || icpSaving) ? 0.6 : 1 }}>
+                                  {icpApplying === idx ? "Applying…" : "Apply fix"}
+                                </button>
+                              </div>
                             ))}
-                          </ul>
+                          </div>
                         )}
-                        <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>This is advice, not a gate — you can save as-is, or keep editing and address the points above.</p>
+                        {icpApplyError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginBottom: 8 }}>Couldn’t apply that suggestion ({icpApplyError}). You can edit the text manually or try again.</p>}
+                        <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>“Apply fix” lets the AI rewrite the text for that one point — the update lands in the editor above for you to review, and nothing is saved until you press <strong>Save changes</strong>. This is advice, not a gate.</p>
                       </>
                     )}
                     <div style={{ display: "flex", gap: 10 }}>

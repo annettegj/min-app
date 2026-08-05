@@ -189,6 +189,7 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - `app/api/reject/route.ts` — marks companies rejected (preserves `enriched_data`).
 - `app/api/icp/route.ts` — serves the `config/icp*.md` files (the fallback/seed the UI merges with the `icp_docs` DB rows).
 - `app/api/icp/check/route.ts` — **worker** endpoint (needs the Anthropic key): the advisory AI review of an edited ICP. Returns `{ ok, summary, issues[] }`; the UI shows it and lets the user save anyway.
+- `app/api/icp/apply/route.ts` — **worker** endpoint: rewrites the ICP draft to address one review point (forced `revised_icp` tool call), returns `{ content }`. The UI loads it into the editor — not auto-saved.
 - `app/api/test-claude/route.ts` — diagnostic (checks key/credits + a web_search test).
 - `app/api/search/route.ts` — OLD synchronous route, unused by the client (safe to delete).
 - **`sources` / `search_terms` DB tables** — the authoritative, UI-editable search configuration
@@ -252,9 +253,10 @@ Open http://localhost:3000. You need a `.env.local` with the Supabase vars + `AN
 
 1. **US expansion** — add US companies/sources (vs. today's European focus).
 2. **Company Prospectus** — the disabled "Soon" tab.
-3. **Editable ICP tab** — ✅ steps 1–2 done: free-form editing + version history (`icp_docs`), and an
-   **advisory AI review** on save (`POST /api/icp/check` on the worker — reads the draft against a
-   rubric, lists gaps, never blocks). Planned next: a **test-on-sample-companies** preview.
+3. **Editable ICP tab** — ✅ steps 1–3 done: free-form editing + version history (`icp_docs`); an
+   **advisory AI review** on save (`POST /api/icp/check` — rubric, lists gaps, never blocks); and
+   **Apply fix** per review point (`POST /api/icp/apply` — AI rewrites the draft for that one point,
+   result loads into the editor, not auto-saved). Planned next: a **test-on-sample-companies** preview.
    - ✅ *Done:* source & term selection wired to the search; editable sources/terms (DB-backed,
      from the UI — draft edit mode with a single **Save changes** that diffs & applies); editable
      company database (edit fields + soft/hard delete); `web_fetch` for "web page" sources

@@ -161,8 +161,12 @@ roll back.
 When you press **Save changes**, an **AI review** first reads your text and checks it works as clear
 scoring instructions (target market, tiers, a scoring method, exclusions, no contradictions). If it's
 clean it saves straight away; if it spots gaps it lists them — but this is **advice, not a gate**, so
-you can **Save anyway** or **Keep editing**. *(A test-on-sample-companies preview is the planned next
-step.)*
+you can **Save anyway** or **Keep editing**.
+
+Each point in the review has an **Apply fix** button. Click it and the AI rewrites the text to
+address just that point — the updated version lands back in the editor for you to read and adjust.
+**Nothing is saved by applying a fix**; you review the change (and edit more if you want), then press
+**Save changes** yourself. *(A test-on-sample-companies preview is the planned next step.)*
 
 ## Tips
 
