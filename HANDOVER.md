@@ -165,6 +165,8 @@ on an always-on server (Render / `next dev`), never serverless.
   Read by `getIcpDocs` (worker) and the ICP tab; empty → falls back to `config/icp*.md`.
 - **`icp_doc_versions`** — a snapshot of the ICP `content` on every save (`market`, `content`,
   `saved_by`, `created_at`) for the version-history / revert feature.
+- **`youtube_cursors`** / **`youtube_seen`** — YouTube discovery pagination (migration 016): the per-query
+  next-page token, and every processed video id, so YouTube keeps surfacing new videos across runs.
 
 > **Migration notes:**
 > - `results` column on `search_jobs` (automatic Step 3): `alter table search_jobs add column results jsonb;`
@@ -211,7 +213,8 @@ on an always-on server (Render / `next dev`), never serverless.
 - `db/migrations/*.sql` — DB schema + seed (001 = sources/search_terms tables; 002+ = added sources;
   008 = source `market` tags; 011 = `app_users` login; 012 = source performance counters +
   `companies.source_name`; 013 = `app_settings` for the source-warning thresholds; 014 = `icp_docs`
-  + `icp_doc_versions` for the editable ICP; 015 = `companies.added_at` + `companies.status`).
+  + `icp_doc_versions` for the editable ICP; 015 = `companies.added_at` + `companies.status`;
+  016 = `youtube_cursors` + `youtube_seen` for YouTube pagination/de-dup).
 - [SOURCES.md](SOURCES.md) — running log of every source evaluated for discovery: works / held / rejected, and why.
 
 ## 8. Running locally

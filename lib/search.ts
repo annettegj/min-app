@@ -374,33 +374,57 @@ async function discoverViaYouTube(
   const sourceName = youtubeSources[0]?.name ?? "YouTube";
   emit(`[search] Step 1 (youtube) technique: YouTube search on ${concepts.length} term(s)${prefix ? ` (bias: "${prefix}")` : ""}`);
 
-  // 1) search.list per concept → collect video ids
+  // Pagination + de-dup state lives in the DB (migration 016) so YouTube keeps finding NEW videos
+  // across runs instead of re-fetching the same top results. youtube_cursors holds each query's
+  // "next page" bookmark; youtube_seen holds every video id already processed.
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+
+  // 1) search.list per concept → collect video ids, advancing each query's page bookmark.
   const videoIds: string[] = [];
   for (const concept of concepts) {
     const q = `${prefix} ${concept}`.trim();
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${PER_TERM}&regionCode=${REGION}&relevanceLanguage=${LANG}&q=${encodeURIComponent(q)}&key=${apiKey}`;
+    // Resume from where this query left off last run (if anywhere).
+    const { data: cursor } = await supabase.from("youtube_cursors").select("next_page_token").eq("query", q).maybeSingle();
+    const pageToken = cursor?.next_page_token ?? "";
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${PER_TERM}&regionCode=${REGION}&relevanceLanguage=${LANG}&q=${encodeURIComponent(q)}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}&key=${apiKey}`;
     try {
       const res = await fetch(searchUrl, { signal: activeSignal ?? undefined });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         const reason = (() => { try { return (JSON.parse(body) as { error?: { message?: string; errors?: { reason?: string }[] } }).error; } catch { return null; } })();
+        // A stale/expired pageToken can 400 — clear it so the next run restarts this query cleanly.
+        if (res.status === 400 && pageToken) await supabase.from("youtube_cursors").upsert({ query: q, next_page_token: null, updated_at: new Date().toISOString() }, { onConflict: "query" });
         emit(`[search] Step 1 (youtube)   ✗ search "${q}" failed — HTTP ${res.status}: ${reason?.message ?? body.slice(0, 300)}${reason?.errors?.[0]?.reason ? ` [${reason.errors[0].reason}]` : ""}`);
         continue;
       }
-      const data = (await res.json()) as { items?: { id?: { videoId?: string } }[] };
+      const data = (await res.json()) as { items?: { id?: { videoId?: string } }[]; nextPageToken?: string };
       const ids = (data.items ?? []).map((it) => it.id?.videoId).filter((v): v is string => !!v);
       videoIds.push(...ids);
-      emit(`[search] Step 1 (youtube)   ✓ "${q}" → ${ids.length} videos`);
+      // Save the next-page bookmark; when there's no next page we've reached the end → clear it so the
+      // next run starts over from the top (by then there may be newly published videos).
+      await supabase.from("youtube_cursors").upsert({ query: q, next_page_token: data.nextPageToken ?? null, updated_at: new Date().toISOString() }, { onConflict: "query" });
+      emit(`[search] Step 1 (youtube)   ✓ "${q}" → ${ids.length} videos${pageToken ? " (continued)" : ""}${data.nextPageToken ? "" : " (end of results — will restart next run)"}`);
     } catch (err) {
       emit(`[search] Step 1 (youtube)   ✗ search "${q}" errored — ${(err as { message?: string })?.message ?? "unknown"}`);
     }
   }
 
-  const uniqueIds = Array.from(new Set(videoIds)).slice(0, 50); // videos.list accepts up to 50 ids
-  if (uniqueIds.length === 0) {
+  const allIds = Array.from(new Set(videoIds));
+  if (allIds.length === 0) {
     emit(`[search] Step 1 (youtube): no videos found`);
     return [];
   }
+  // Skip videos we've already processed in earlier runs — never read the same video twice.
+  const { data: seenRows } = await supabase.from("youtube_seen").select("video_id").in("video_id", allIds);
+  const seen = new Set((seenRows ?? []).map((r: { video_id: string }) => r.video_id));
+  const uniqueIds = allIds.filter((id) => !seen.has(id)).slice(0, 50); // videos.list accepts up to 50 ids
+  if (uniqueIds.length === 0) {
+    emit(`[search] Step 1 (youtube): all ${allIds.length} videos already processed — nothing new this run`);
+    return [];
+  }
+  // Mark them processed up front so a later failure never causes the same videos to be re-read.
+  await supabase.from("youtube_seen").upsert(uniqueIds.map((id) => ({ video_id: id })), { onConflict: "video_id" });
+  emit(`[search] Step 1 (youtube): ${uniqueIds.length} new video(s) to read (${seen.size} already seen)`);
 
   // 2) videos.list (1 quota unit) → full titles + descriptions
   let videosText = "";

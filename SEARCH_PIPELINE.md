@@ -129,11 +129,16 @@ shape — merged in with the other paths.
 - **Quota:** `search.list` costs 100 units, `videos.list` 1 — the free 10,000/day budget is ample.
 - **Character:** experimental and noisier than trade media, US/English-leaning — treat as a
   complementary source; the ICP step filters downstream.
-- **Avoids duplicates two ways:**
-  1. Known company names (from `companies` + `discovery_queue`) are passed into the prompt so the
-     model only returns companies we don't already have.
-  2. In code, results are filtered against a normalized set of existing/rejected/queued names
-     (`normalizeName` strips legal suffixes and parentheticals, so "Doppelherz GmbH" == "Doppelherz").
+- **Keeps finding NEW videos over time (migration 016):** YouTube returns results in pages. Each
+  query's "next page" token is stored in **`youtube_cursors`**, so every run advances to the next page
+  instead of re-fetching the same top results; when a query runs out of pages the token is cleared and
+  it restarts from the top next run (catching newly published videos). Every processed video id is
+  stored in **`youtube_seen`**, so a video is never read twice — the run only spends quota/tokens on
+  genuinely new videos (up to 50 per run). A stale/expired page token (HTTP 400) is cleared so the
+  query restarts cleanly.
+- **Avoids duplicate companies two ways:** known company names are passed into the prompt, and results
+  are filtered against a normalized set of existing/rejected/queued names (`normalizeName` strips legal
+  suffixes and parentheticals, so "Doppelherz GmbH" == "Doppelherz").
 - **Output:** up to ~10 new `{ name, source_name }` objects, upserted into `discovery_queue` with
   `status = "pending"`.
 
