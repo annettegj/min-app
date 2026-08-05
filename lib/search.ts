@@ -661,7 +661,7 @@ async function enrichAll(
 }
 
 // ---- Step 3: prompt builder ----
-// Builds the manual evaluation prompt — no API call. User pastes this into Claude Chat.
+// Builds the ICP-evaluation prompt used by evaluateCompanies() (the automatic Step 3 API call).
 
 // Reads the ICP documents from the DB (UI-editable, migration 014), falling back to the config files
 // per market when the DB has no row for that market — so behaviour is unchanged until someone edits
@@ -747,11 +747,11 @@ Return ONLY a raw JSON array, no markdown. For each company include:
 [{"name":"Company Name","website_url":"https://example.com","description":"Why relevant for Lysoveta.","priority_tier":"early_mover","icp_score":4,"geography":"UK","product_category":"Premium/science-driven brand","max_price_eur":69,"price_currency":"GBP"}]`;
 }
 
-// ---- Step 3: automatic ICP matching ----
-// Runs the SAME evaluation as the manual flow, but via the Anthropic API instead of Claude Chat.
-// No web_search — this is pure reasoning over the already-enriched data, so it is cheap and fast.
-// Returns the passing companies, or null on any failure (API error, aborted, unparseable JSON) so
-// the caller can fall back to the manual paste flow and never lose a finished job.
+// ---- Step 3: ICP matching ----
+// Scores the enriched companies against the ICP via the Anthropic API. No web_search — pure reasoning
+// over the already-enriched data, so it is cheap and fast. Returns the passing companies, or null on
+// any failure (API error, aborted, unparseable JSON); the enriched companies are already saved, so a
+// failed run can simply be retried.
 
 async function evaluateCompanies(
   client: Anthropic,
@@ -830,13 +830,11 @@ async function getSearchConfig(
 
 export async function searchForCompanies(
   jobId: number | null = null,
-  step3Mode: "auto" | "manual" = "auto",
   searchConcepts?: string[],
   sourceNames?: string[],
   targetMarket?: "eu" | "us" | "both"
 ): Promise<{
   enriched: EnrichedCompany[];
-  step3Prompt: string;
   results?: EvaluatedCompany[];
   debug: SearchDebug;
   noCompaniesFound?: boolean;
@@ -1012,7 +1010,6 @@ export async function searchForCompanies(
     emit("[search] ===== NO NEW COMPANIES — queue is empty and Step 1 found nothing new =====");
     return {
       enriched: [],
-      step3Prompt: "",
       debug: {
         step1_discovered: step1Discovered,
         step1_skipped: step1Skipped,
@@ -1063,25 +1060,20 @@ export async function searchForCompanies(
   const failed = toEnrich.length - enriched.length;
   emit(`[search] ===== Steps 1-2 done: ${enriched.length} enriched, ${failed} failed =====`);
 
-  // Load the ICP once (DB-editable, falls back to the config files) and reuse it for both the
-  // manual-paste prompt and the automatic evaluation below.
+  // Load the ICP once (DB-editable, falls back to the config files) for the evaluation below.
   const icp = await getIcpDocs(supabase);
 
-  // Build the manual-paste prompt regardless — it doubles as the fallback if automatic Step 3
-  // evaluation fails, so a finished (expensive) job is never lost.
-  const step3Prompt = buildStep3Prompt(enriched, icp);
-
-  // Step 3: ICP matching. In "auto" mode we run it here via the Anthropic API. In "manual" mode we
-  // skip it and the user pastes the prompt into Claude Chat, exactly as before. Runs BEFORE
-  // clearTimeout so it is still covered by the overall abort budget.
+  // Step 3: ICP matching via the Anthropic API. Runs BEFORE clearTimeout so it is still covered by the
+  // overall abort budget. If it fails, `results` stays undefined — the enriched companies are already
+  // saved (cached), so re-running the search re-scores them cheaply.
   let results: EvaluatedCompany[] | undefined;
-  if (step3Mode === "auto" && enriched.length > 0) {
+  if (enriched.length > 0) {
     await reportProgress(`Evaluating ${enriched.length} companies against the ICP…`);
     const evaluated = await evaluateCompanies(client, enriched, icp);
     if (evaluated) {
       results = evaluated;
-      // Companies enriched in Step 2 but NOT returned by Step 3 are rejected (this mirrors the
-      // manual flow's AI-rejection). Setting rejected=true preserves enriched_data.
+      // Companies enriched in Step 2 but NOT returned by Step 3 are AI-rejected. Setting
+      // rejected=true preserves enriched_data.
       const passed = new Set(evaluated.map((c) => c.name));
       const aiRejected = enriched.filter((c) => !passed.has(c.name)).map((c) => c.name);
       if (aiRejected.length > 0) {
@@ -1089,7 +1081,7 @@ export async function searchForCompanies(
         emit(`[search] Step 3: ${aiRejected.length} companies rejected by ICP matching`);
       }
     } else {
-      emit(`[search] Step 3: automatic evaluation failed — falling back to manual paste`);
+      emit(`[search] Step 3: automatic evaluation failed — companies are saved; re-run to re-score`);
     }
   }
 
@@ -1098,7 +1090,6 @@ export async function searchForCompanies(
 
   return {
     enriched,
-    step3Prompt,
     results,
     debug: {
       step1_discovered: step1Discovered,

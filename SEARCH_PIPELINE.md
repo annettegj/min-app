@@ -23,7 +23,7 @@ flowchart TD
 The search is **long-running (~15 min)**, so it does NOT run inside the HTTP request. Instead:
 
 1. `POST {NEXT_PUBLIC_WORKER_URL}/api/search/start` creates a `search_jobs` row and fires
-   `searchForCompanies(jobId, step3Mode, searchConcepts, sourceNames)` **fire-and-forget**, then
+   `searchForCompanies(jobId, searchConcepts, sourceNames, targetMarket)` **fire-and-forget**, then
    returns the `jobId` immediately. `searchConcepts` and `sourceNames` are the terms and sources the
    user ticked in the UI (empty → the worker uses the defaults / all active sources).
 2. The work continues on the server after the response is sent — this only works on an **always-on
@@ -232,16 +232,13 @@ source with a **hit rate = `companies_found` ÷ `times_used`** (rendered as a %)
   that do NOT come back are marked `rejected = true` in `companies` (preserving `enriched_data`).
 - **Runs before `clearTimeout`**, so it's covered by the 30-min budget.
 
-### Automatic vs. manual, and the fallback
+### If Step 3 fails
 
-- `step3Mode = "auto"` (the default, and currently the only option — the UI switch is locked) runs
-  the evaluation via the API as above.
-- `step3Mode = "manual"` skips the API call and just builds the prompt; the UI then shows a box for
-  the user to paste the prompt into Claude Chat and paste the JSON back. (Disabled in the UI now,
-  but the code path still exists.)
-- **Fallback:** if automatic evaluation fails (API error, aborted, or unparseable JSON),
-  `evaluateCompanies` returns `null`; the job stores the manual prompt instead and the UI falls back
-  to the paste box. A finished (expensive) job is therefore never lost.
+Step 3 always runs automatically via the API (there is no manual mode). If `evaluateCompanies`
+returns `null` (API error, aborted, or unparseable JSON), the job finishes with `results = null` and
+a message saying scoring didn't complete. Nothing is lost — the enriched companies were already saved
+to `companies` (cached), so **searching again re-scores them cheaply** (Step 2 is a cache hit). The UI
+shows a "scoring didn't complete — search again to score them" error with a retry.
 
 ---
 

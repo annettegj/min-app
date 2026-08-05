@@ -88,8 +88,8 @@ a **Log out** button + the signed-in email sit top-right. See §10.
    Configuration** panel (draft-based edit mode for terms & sources — up to 3 terms / 4 sources, each
    source showing its **EU/US/Global** market badge and its **"used · queued · saved"** performance
    line), a **Target market** selector (Europe / US / No preference — a *soft* discovery steer, not a
-   hard filter), a queue pop-up when ≥ 5 companies are waiting, and a **Step 3 decision** switch
-   (currently **locked on Automatic**).
+   hard filter) and a queue pop-up when ≥ 5 companies are waiting. Step 3 (ICP scoring) always runs
+   automatically after Steps 1–2.
 3. **Lysoveta ICP Criteria** — the ICP the AI scores against. **Editable** (✎ Edit Criteria → free-form
    Markdown textarea → Save) — stored in the `icp_docs` table, with a version snapshot on every save
    (Version history → "Load into editor" to revert). Falls back to `config/icp.md` / `config/icp_us.md`
@@ -103,12 +103,11 @@ Plus a disabled **Company Prospectus (Soon)** tab.
 
 ## 5. Search pipeline (background job + polling)
 
-> For a detailed, step-by-step walkthrough (data shapes, caching, dedup, the auto/manual fallback,
-> config knobs), see **[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md)**. The summary below is enough to
-> orient yourself.
+> For a detailed, step-by-step walkthrough (data shapes, caching, dedup, config knobs), see
+> **[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md)**. The summary below is enough to orient yourself.
 
 Kicked off by `POST {NEXT_PUBLIC_WORKER_URL}/api/search/start`, which creates a `search_jobs` row,
-fires `searchForCompanies(jobId, step3Mode, searchConcepts, sourceNames, targetMarket)`
+fires `searchForCompanies(jobId, searchConcepts, sourceNames, targetMarket)`
 fire-and-forget, and returns the `jobId` immediately. The browser then polls `search_jobs` +
 `search_logs` every 3s and shows "Step X of 3", an elapsed timer, and a live log panel. Only works
 on an always-on server (Render / `next dev`), never serverless.
@@ -129,17 +128,11 @@ on an always-on server (Render / `next dev`), never serverless.
   uses, `max_tokens` 8000. Enriches up to 5 pending companies per run in parallel. Saves each to
   `companies` incrementally (`added = false`). Cache-checks `enriched_data` to avoid re-enriching.
 - **Step 3 — ICP matching** (`evaluateCompanies`): `claude-sonnet-5`, **no web_search**,
-  `max_tokens` 16000. Runs the ICP scoring that used to be manual. Only companies that pass are
-  returned (stored in `search_jobs.results`); enriched companies that don't pass are marked
-  `rejected`. **Fallback:** if automatic evaluation fails, the job stores the manual prompt instead
-  and the UI shows a paste box — a finished (expensive) job is never lost.
+  `max_tokens` 16000. Runs automatically after Steps 1–2. Only companies that pass are returned
+  (stored in `search_jobs.results`); enriched companies that don't pass are marked `rejected`. If it
+  fails, `results` is null — the enriched companies are already saved (cached), so searching again
+  re-scores them cheaply; the UI shows a "scoring didn't complete — search again" message.
 - **Overall timeout:** 30 minutes (shared `AbortController`), covering steps 1+2+3.
-
-### Step 3 mode
-
-`step3Mode` is sent from the UI (`"auto"` | `"manual"`). The UI switch is **locked on `"auto"`**
-for now; to re-enable manual mode, restore the `setStep3Mode` setter in `app/page.tsx` and wire the
-switch buttons back up (there's a comment in the code explaining exactly how).
 
 ## 6. Database (Supabase)
 
@@ -151,9 +144,9 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 - **`discovery_queue`** — `name`, `source_name`, `status` (pending/processing),
   `processing_started_at`, `discovered_at`. Rows stuck "processing" > 10 min are reset to pending
   at search start.
-- **`search_jobs`** — `status` (running/done/no_companies/error), `message`, `step3_prompt`,
-  `enriched` (jsonb), **`results` (jsonb — passing companies from automatic Step 3)**,
-  `timed_out` (bool), `error`, timestamps. Drives polling.
+- **`search_jobs`** — `status` (running/done/no_companies/error), `message`, `enriched` (jsonb),
+  **`results` (jsonb — passing companies from Step 3)**, `timed_out` (bool), `error`, timestamps.
+  Drives polling. (`step3_prompt` column is legacy/unused since manual Step 3 was removed.)
 - **`search_logs`** — `job_id`, `message`, `created_at` (one row per log line). Drives the log panel.
 - **`sources`** — UI-editable search config, plus per-source performance counters `times_used` and
   `companies_found` (migration 012). With `companies.source_name`, these drive the
@@ -181,9 +174,9 @@ switch buttons back up (there's a comment in the code explaining exactly how).
 
 ## 7. Key files
 
-- `app/page.tsx` — the entire UI (client component). Search-terms selector, Step 3 switch, Excel
-  export, polling, results review, and the Company Database edit/remove/clear flows. Also holds the
-  shared button style objects (`btnPrimary`, `btnSecondary`) and `inputStyle`.
+- `app/page.tsx` — the entire UI (client component). Search-terms/sources selector, Excel export,
+  polling, results review, the ICP editor, and the Company Database edit/remove/clear flows. Also
+  holds the shared button style objects (`btnPrimary`, `btnSecondary`) and `inputStyle`.
 - `app/layout.tsx` — page metadata (browser-tab title, description, `lang`).
 - `app/globals.css` — global styles: the colour-palette CSS variables, the site-wide button hover
   rule, and the default button border-radius. See [DESIGN.md](DESIGN.md).
@@ -191,8 +184,8 @@ switch buttons back up (there's a comment in the code explaining exactly how).
   `evaluateCompanies`, `buildStep3Prompt`, `searchForCompanies`. `emit()` logs to terminal +
   `search_logs`.
 - `lib/supabase.ts` — the Supabase client.
-- `app/api/search/start/route.ts` — starts the background job (+ CORS). Reads `step3Mode`,
-  `searchConcepts`, and `sourceNames` (the user's selected terms/sources) from the request body.
+- `app/api/search/start/route.ts` — starts the background job (+ CORS). Reads `searchConcepts`,
+  `sourceNames`, and `targetMarket` (the user's selected terms/sources/market) from the request body.
 - `app/api/reject/route.ts` — marks companies rejected (preserves `enriched_data`).
 - `app/api/icp/route.ts` — serves the `config/icp*.md` files (the fallback/seed the UI merges with the `icp_docs` DB rows).
 - `app/api/icp/check/route.ts` — **worker** endpoint (needs the Anthropic key): the advisory AI review of an edited ICP. Its rubric judges only whether the text works as **clear scoring instructions for an AI** (target market, tiers, a scoring method + scale, exclusions, internal consistency) — explicitly NOT whether the business criteria are "correct". Returns `{ ok, summary, issues[] }`; the UI shows it and lets the user save anyway.

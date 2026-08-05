@@ -273,17 +273,9 @@ export default function Home() {
   const [hiddenIds, setHiddenIds] = useState<Set<number>>(new Set());
 
   // --- Search tab state ---
-  const [agentState, setAgentState] = useState<"idle" | "stale_warning" | "searching" | "step3" | "done" | "error">("idle")
+  const [agentState, setAgentState] = useState<"idle" | "stale_warning" | "searching" | "done" | "error">("idle")
   const [agentError, setAgentError] = useState<{ title: string; detail: string; canRetry: boolean } | null>(null)
   const [staleCompanies, setStaleCompanies] = useState<string[]>([]);
-  const [step3Prompt, setStep3Prompt] = useState("");
-  const [step3Paste, setStep3Paste] = useState("");
-  const [step3CopyDone, setStep3CopyDone] = useState(false);
-  // Step 3 mode: "auto" runs ICP matching via the Anthropic API in the worker; "manual" builds the
-  // prompt to paste into Claude Chat. Sent to the worker when the search starts. Currently LOCKED on
-  // "auto" — the UI switch is disabled. To re-enable it, restore the setter: `[step3Mode, setStep3Mode]`
-  // and wire the switch buttons' onClick/disabled back up.
-  const [step3Mode] = useState<"auto" | "manual">("auto");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pendingCompanies, setPendingCompanies] = useState<PendingCompany[]>([]);
   const [addingState, setAddingState] = useState<"idle" | "form" | "saving" | "saved">("idle");
@@ -324,7 +316,6 @@ export default function Home() {
 
   // --- Background search job (start + poll) ---
   const [searchProgress, setSearchProgress] = useState("");
-  const [searchTimedOut, setSearchTimedOut] = useState(false);
   const [activeSearchJobId, setActiveSearchJobId] = useState<number | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [showLog, setShowLog] = useState(false);
@@ -359,7 +350,7 @@ export default function Home() {
   // Which of the 3 steps are we on? (1 = discovery, 2 = enrichment, 3 = ICP matching)
   // While the job is still running, drive the indicator from the progress message: "evaluat…" →
   // step 3 (automatic ICP matching), "enrich…" → step 2, otherwise step 1.
-  const currentStep = agentState === "step3" || agentState === "done"
+  const currentStep = agentState === "done"
     ? 3
     : searchProgress.toLowerCase().includes("evaluat") ? 3
     : searchProgress.toLowerCase().includes("enrich") ? 2 : 1;
@@ -1007,11 +998,8 @@ export default function Home() {
   async function handleAgentSearch() {
     setAgentError(null);
     setSearchResults([]);
-    setStep3Paste("");
-    setStep3CopyDone(false);
     setAddingState("idle");
     setPendingCompanies([]);
-    setSearchTimedOut(false);
 
     if (DEMO_MODE) {
       setAgentState("searching");
@@ -1048,7 +1036,7 @@ export default function Home() {
       const res = await fetch(`${workerBase}/api/search/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ step3Mode, searchConcepts: selectedTerms, sourceNames: selectedSources, targetMarket }),
+        body: JSON.stringify({ searchConcepts: selectedTerms, sourceNames: selectedSources, targetMarket }),
       });
       const data = await res.json();
 
@@ -1098,16 +1086,19 @@ export default function Home() {
           const map: Record<string, string> = {};
           for (const e of enriched) { if (e.source_name) map[e.name] = e.source_name; }
           setSourceNameMap(map);
-          setStep3Prompt(job.step3_prompt ?? "");
-          setSearchTimedOut(!!job.timed_out);
-          // Automatic Step 3 succeeded → jump straight to the selectable results. Otherwise (manual
-          // mode, or automatic evaluation failed) fall back to the manual paste box.
+          // Step 3 succeeded → jump straight to the selectable results. If it's null, scoring didn't
+          // complete; the enriched companies are saved, so the user can just search again to re-score.
           const autoResults = (job.results ?? null) as SearchResult[] | null;
           if (autoResults) {
             setSearchResults(autoResults.map((r) => ({ ...r, selected: false })));
             setAgentState("done");
           } else {
-            setAgentState("step3");
+            setAgentError({
+              title: "Scoring didn’t complete",
+              detail: "The companies were researched and saved, but the ICP scoring step didn’t finish. Nothing is lost — search again to score them (already-researched companies are reused, so it’s quick).",
+              canRetry: true,
+            });
+            setAgentState("error");
           }
         } else if (job.status === "no_companies") {
           stopPolling();
@@ -1136,32 +1127,6 @@ export default function Home() {
         canRetry: true,
       });
       setAgentState("error");
-    }
-  }
-
-  async function handleStep3Submit() {
-    const raw = step3Paste.trim().replace(/```(?:json)?\s*/g, "").replace(/```/g, "");
-    const match = raw.match(/\[[\s\S]*\]/);
-    if (!match) return;
-    try {
-      const parsed = JSON.parse(match[0]);
-      setSearchResults(parsed.map((r: { name: string; website_url: string; description: string; priority_tier?: string | null; icp_score?: number | null }) => ({ ...r, selected: false })));
-
-      // Mark companies that were enriched (step 2) but not returned by step 3 (AI-rejected) as rejected
-      const returnedNames = new Set(parsed.map((r: { name: string }) => r.name));
-      const aiRejected = Object.keys(sourceNameMap).filter(name => !returnedNames.has(name));
-      if (aiRejected.length > 0) {
-        await fetch("/api/reject", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ names: aiRejected }),
-        });
-        console.log(`[step3] AI-rejected ${aiRejected.length} companies:`, aiRejected);
-      }
-
-      setAgentState("done");
-    } catch {
-      alert("Could not parse the response — check that you copied the correct JSON array.");
     }
   }
 
@@ -1808,24 +1773,6 @@ export default function Home() {
 
                 {/* Search action */}
                 <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", padding: "72px 32px 48px", textAlign: "center", position: "relative" }}>
-                  {/* Step 3 decision — segmented on/off switch in the top-right corner */}
-                  <div style={{ position: "absolute", top: 16, right: 20, display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)" }}>Step 3 decision:</span>
-                    <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }} title="Locked on Automatic for now">
-                      {([
-                        { value: "auto", label: "Automatic" },
-                        { value: "manual", label: "Manual" },
-                      ] as const).map((opt) => {
-                        const active = step3Mode === opt.value;
-                        return (
-                          <button key={opt.value} type="button" disabled
-                            style={{ background: active ? "var(--accent)" : "var(--white)", color: active ? "var(--white)" : "var(--switch-off-text)", border: "none", borderRadius: 0, padding: "6px 16px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", cursor: "not-allowed" }}>
-                            {opt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
                   <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
 
                   {/* Target market — soft region steer for discovery */}
@@ -1957,55 +1904,6 @@ export default function Home() {
                     <button onClick={() => { setAgentState("idle"); setAgentError(null); }}
                       style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border-card)", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                       Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {agentState === "step3" && (
-              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
-                {searchTimedOut && (
-                  <div style={{ background: "var(--banner-warn-bg)", borderBottom: "1px solid var(--banner-warn-border)", padding: "14px 20px" }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "var(--banner-warn-text)", marginBottom: 4 }}>⚠️ The search timed out after 30 minutes</p>
-                    <p style={{ fontSize: 12.5, color: "var(--banner-warn-text)", lineHeight: 1.6 }}>
-                      Nothing was lost: companies found in Step 1 are saved in the queue, and companies that finished enrichment in Step 2 are in the company database. The next search will automatically pick up where this one left off. You can still evaluate the companies that were enriched below.
-                    </p>
-                  </div>
-                )}
-                <div style={{ background: "var(--header)", padding: "12px 20px" }}>
-                  <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Step 3 — Manual Evaluation</p>
-                  <p style={{ color: "var(--on-dark)", fontSize: 12, marginTop: 2 }}>Steps 1 and 2 are done. Copy the prompt below and paste it into Claude Chat to evaluate the companies.</p>
-                </div>
-                <div style={{ padding: "24px 24px 0" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-slate)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>1. Copy this prompt and paste it into Claude Chat</p>
-                  <div style={{ position: "relative" }}>
-                    <textarea readOnly value={step3Prompt} rows={6}
-                      style={{ width: "100%", fontSize: 12, fontFamily: "monospace", color: "var(--text)", background: "var(--surface-code)", border: "1px solid var(--border-card)", padding: "12px", resize: "vertical", boxSizing: "border-box" }} />
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(step3Prompt); setStep3CopyDone(true); }}
-                      style={{ position: "absolute", top: 8, right: 8, background: step3CopyDone ? "var(--success-bright)" : "var(--accent)", color: "var(--white)", border: "none", padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                      {step3CopyDone ? "Copied ✓" : "Copy"}
-                    </button>
-                  </div>
-                </div>
-                <div style={{ padding: "20px 24px 24px" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-slate)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>2. Paste the response from Claude Chat here</p>
-                  <textarea
-                    value={step3Paste}
-                    onChange={e => setStep3Paste(e.target.value)}
-                    placeholder='Paste the JSON response here, e.g. [{"name":"...","priority_tier":"early_mover","icp_score":4,"description":"...","website_url":"..."}]'
-                    rows={6}
-                    style={{ width: "100%", fontSize: 12, fontFamily: "monospace", color: "var(--text)", background: "var(--surface-input)", border: "1px solid var(--border-card)", padding: "12px", resize: "vertical", boxSizing: "border-box" }}
-                  />
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 12 }}>
-                    <button onClick={() => { resetProcessingToQueue(); setAgentState("idle"); }}
-                      style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border-card)", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                      Cancel
-                    </button>
-                    <button onClick={handleStep3Submit} disabled={!step3Paste.trim()}
-                      style={{ background: step3Paste.trim() ? "var(--accent)" : "var(--border-input)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: step3Paste.trim() ? "pointer" : "default" }}>
-                      Show results →
                     </button>
                   </div>
                 </div>

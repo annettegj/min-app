@@ -66,13 +66,12 @@ This is where you run a search.
    *(Why the 3-and-4 limit? A search runs `terms × sources` web searches with a hard budget of 12,
    and 3 × 4 = 12 fills it exactly — picking more can't run and just slows things down. Full
    reasoning in [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md#why-the-caps-up-to-3-terms--4-sources).)*
-2. **Step 3 — ICP matching** is set to **Automatic**: the app scores companies against the ICP for
-   you. (The manual option is disabled for now.)
-3. Click **Search for New Companies**. A search takes roughly **15 minutes** and will time out after
-   **30 minutes**.
-4. While it runs you'll see **"Step X of 3"**, an elapsed timer, and a **Search Log** panel you can
+2. Click **Search for New Companies**. A search takes roughly **15 minutes** and will time out after
+   **30 minutes**. (Step 3 — ICP matching — runs automatically at the end; the app scores each company
+   against the ICP for you.)
+3. While it runs you'll see **"Step X of 3"**, an elapsed timer, and a **Search Log** panel you can
    expand to watch what the app is doing behind the scenes.
-5. When it finishes, you get a list of companies that passed the ICP matching. Tick the ones you
+4. When it finishes, you get a list of companies that passed the ICP matching. Tick the ones you
    want, fill in/adjust any fields, and **save** them to the Company Database. Companies you don't
    save are set aside.
 
