@@ -6,206 +6,18 @@ import { DEFAULT_ICP_REVIEW_INSTRUCTIONS, ICP_REVIEW_INSTRUCTIONS_KEY } from "@/
 import { US_MARKET_ENABLED } from "@/lib/features";
 import { ICP_TEST_COMPANIES_KEY, EXPECTED_LABELS, expectedMatch, type IcpTestExample, type ExpectedCategory } from "@/lib/icpTest";
 import mockResultsData from "@/config/mock-results.json";
-import sourcesConfig from "@/config/sources.json";
-
-// Set to true to skip the real search and use mock data for demos
-const DEMO_MODE = false;
-
-// Disables the live "Search for New Companies" button in deployed environments
-// (the real search is too long-running for serverless). Set NEXT_PUBLIC_DISABLE_SEARCH=true
-// on Vercel; leave unset locally so the search works during development.
-const SEARCH_DISABLED = process.env.NEXT_PUBLIC_DISABLE_SEARCH === "true";
-
-const GEOGRAPHIES = ["All", "EU", "UK", "US", "APAC", "Global"];
-const GEO_OPTIONS = ["EU", "UK", "US", "APAC", "Global"];
-const CATEGORIES = ["All", "Premium/science-driven brand", "Pharma Rx", "Established CHC", "Distributor/enabler"];
-const CAT_OPTIONS = CATEGORIES.slice(1);
-const TIERS = ["All", "Early Mover", "Follower", "Enabler"];
-
-// Search-configuration preview options — read directly from config/sources.json (one-way:
-// config → app), so the UI always mirrors the actual sources and search concepts the code uses.
-// Menu of selectable search terms: the curated concepts first, then the wider keyword bank (deduped).
-const SEARCH_TERM_OPTIONS = Array.from(new Set([
-  ...((sourcesConfig as { search_concepts?: string[] }).search_concepts ?? []),
-  ...((sourcesConfig as { keyword_bank?: string[] }).keyword_bank ?? []),
-]));
-const SOURCE_OPTIONS = ((sourcesConfig as { sources?: { name: string; type?: string; url?: string; market?: string }[] }).sources ?? [])
-  .map(s => ({ name: s.name, type: s.type ?? "web site", url: s.url ?? "", market: s.market ?? "", times_used: 0, companies_found: 0 }));
-
-type Company = {
-  id: number;
-  name: string;
-  geography: string;
-  product_category: string;
-  max_price: number | null;
-  price_currency: string | null;
-  icp_fit: number;
-  website_url?: string;
-  source_name?: string;
-  description?: string;
-  priority_tier?: string | null;
-  rejected?: boolean;
-  added?: boolean;
-  added_at?: string | null;
-  enriched_at?: string | null;
-  status?: string | null;
-};
-
-// Outreach status the user can set per company (migration 015). Values are stored; labels are shown.
-const STATUS_OPTIONS = [
-  { value: "not_contacted", label: "Not contacted" },
-  { value: "contacted", label: "Contacted" },
-  { value: "in_dialogue", label: "In dialogue" },
-  { value: "not_relevant", label: "Not relevant" },
-];
-
-type SearchResult = {
-  name: string;
-  website_url: string;
-  description: string;
-  priority_tier?: string | null;
-  icp_score?: number | null;
-  geography?: string | null;
-  product_category?: string | null;
-  max_price_eur?: number | null;
-  price_currency?: string | null;
-  selected: boolean;
-};
-
-type PendingCompany = SearchResult & {
-  geography: string;
-  product_category: string;
-  max_price: string;
-  icp_fit: number;
-};
-
-type EditDraft = {
-  geography: string; product_category: string; max_price: string; price_currency: string;
-  icp_fit: number; priority_tier: string; website_url: string; description: string;
-};
-
-// --- Shared styles ---
-const inputStyle: React.CSSProperties = {
-  width: "100%", border: "1px solid var(--border-input)", padding: "8px 10px",
-  fontSize: 13, color: "var(--navy)", background: "var(--surface-input)", outline: "none", borderRadius: 4,
-};
-const labelStyle: React.CSSProperties = {
-  display: "block", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em",
-  textTransform: "uppercase", color: "var(--text-slate)", marginBottom: 6,
-};
-
-// --- Button hierarchy (one teal accent = primary; neutral = secondary; red = destructive) ---
-// Spread these and override padding/size per call site, e.g. style={{ ...btnPrimary, padding: "12px 36px" }}.
-const btnBase: React.CSSProperties = {
-  padding: "10px 24px", fontSize: 12, fontWeight: 700, letterSpacing: "0.06em",
-  textTransform: "uppercase", cursor: "pointer", borderRadius: 4,
-};
-const btnPrimary: React.CSSProperties = { ...btnBase, background: "var(--accent)", color: "var(--white)", border: "none" };
-const btnSecondary: React.CSSProperties = { ...btnBase, background: "var(--white)", color: "var(--ink)", border: "1px solid var(--border)" };
-// Full-width dashed "create" affordance for the config lists (add source / add search term).
-const addBtnStyle: React.CSSProperties = {
-  background: "transparent", border: "1px dashed var(--border)", color: "var(--accent)",
-  padding: "8px 14px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em",
-  textTransform: "uppercase", cursor: "pointer", borderRadius: 4, width: "100%",
-};
-const hintStyle: React.CSSProperties = { fontSize: 11, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 };
-const reqStyle: React.CSSProperties = { color: "var(--danger-text)", fontWeight: 700, marginLeft: 3 };
-const optStyle: React.CSSProperties = { fontSize: 10, fontWeight: 400, color: "var(--text-dim)", textTransform: "none", letterSpacing: 0, marginLeft: 6 };
-
-// Small EU / US / Global tag shown next to a source so the user knows which market it leans toward.
-function MarketBadge({ market }: { market?: string | null }) {
-  if (!market) return null;
-  const m = market.toUpperCase();
-  const isEU = m === "EU", isUS = m === "US";
-  return (
-    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", padding: "1px 5px", borderRadius: 3, marginLeft: 6, textTransform: "uppercase", whiteSpace: "nowrap",
-      background: isEU ? "var(--badge-green-bg)" : isUS ? "var(--banner-info-bg)" : "var(--surface-hover)",
-      color: isEU ? "var(--success)" : isUS ? "var(--banner-info-text)" : "var(--text-muted)" }}>{market}</span>
-  );
-}
-
-// Simple pilot login screen (NOT secure — see migration 011). Calls back to the parent to log in /
-// create an account against the plain app_users table; the callbacks return an error string or null.
-function AuthScreen({ onLogin, onSignup }: { onLogin: (e: string, p: string) => Promise<string | null>; onSignup: (e: string, p: string) => Promise<string | null> }) {
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const submit = async () => {
-    if (!email.trim() || !password) { setError("Enter an email and a password."); return; }
-    setBusy(true); setError("");
-    const err = mode === "login" ? await onLogin(email, password) : await onSignup(email, password);
-    if (err) { setError(err); setBusy(false); } // on success the parent swaps to the app
-  };
-  return (
-    <div style={{ minHeight: "100vh", background: "var(--page)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "Inter, sans-serif" }}>
-      <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 420, width: "100%", boxShadow: "0 12px 40px rgba(12,28,46,0.12)" }}>
-        <div style={{ background: "var(--header)", padding: "18px 24px", borderBottom: "3px solid var(--accent)" }}>
-          <p style={{ color: "var(--white)", fontSize: 18, fontWeight: 700 }}>Lysoveta Customer Finder</p>
-        </div>
-        <div style={{ padding: "24px 26px" }}>
-          <div style={{ display: "flex", gap: 4, marginBottom: 18 }}>
-            {(["login", "signup"] as const).map(m => (
-              <button key={m} type="button" onClick={() => { setMode(m); setError(""); }}
-                style={{ flex: 1, padding: "8px", borderRadius: 4, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, background: mode === m ? "var(--accent)" : "var(--surface)", color: mode === m ? "var(--white)" : "var(--text-slate)" }}>
-                {m === "login" ? "Log in" : "Create account"}
-              </button>
-            ))}
-          </div>
-          <label style={labelStyle}>Email</label>
-          <input type="email" value={email} autoFocus onChange={e => setEmail(e.target.value)} onKeyDown={e => { if (e.key === "Enter") submit(); }} placeholder="you@company.com" style={{ ...inputStyle, marginBottom: 12 }} />
-          <label style={labelStyle}>Password</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => { if (e.key === "Enter") submit(); }} placeholder="Lysoveta123" style={inputStyle} />
-          {error && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 10 }}>{error}</p>}
-          <button type="button" onClick={submit} disabled={busy} style={{ ...btnPrimary, width: "100%", marginTop: 16, padding: "11px", opacity: busy ? 0.6 : 1 }}>
-            {busy ? "…" : mode === "login" ? "Log in →" : "Create account →"}
-          </button>
-          <div style={{ background: "var(--banner-warn-bg)", border: "1px solid var(--banner-warn-border)", borderRadius: 4, padding: "10px 12px", marginTop: 16 }}>
-            <p style={{ fontSize: 11.5, color: "var(--banner-warn-text)", lineHeight: 1.55 }}>
-              This is a pilot login with <strong>no real security yet</strong> — please don&apos;t reuse a password you use elsewhere. Pick something simple like <strong>Lysoveta123</strong>. Proper security is handled at handover.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --- Search-configuration draft types (edit mode edits a local draft; Save commits the diff) ---
-type SourceFields = { name: string; type: "web site" | "web page" | "youtube"; url: string; search_prefix: string; note: string; market: string };
-type SourceRecord = SourceFields & { id: number; times_used: number; companies_found: number };
-type DraftTerm = { key: string; id: number | null; term: string; is_default: boolean };
-type DraftSource = SourceFields & { key: string; id: number | null };
-
-const AUTH_KEY = "cf_auth"; // localStorage key for the simple pilot login
-const AUTH_MAX_AGE = 14 * 24 * 60 * 60 * 1000; // auto-logout after 2 weeks
-
-// A simple line-level diff (LCS) for showing what the AI changed in an ICP draft before it's applied.
-// Returns segments in order: "equal" (unchanged), "remove" (old line dropped), "add" (new line).
-type DiffSeg = { type: "equal" | "add" | "remove"; text: string };
-function diffLines(oldText: string, newText: string): DiffSeg[] {
-  const a = oldText.split("\n");
-  const b = newText.split("\n");
-  const n = a.length, m = b.length;
-  // LCS length table.
-  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    }
-  }
-  const out: DiffSeg[] = [];
-  let i = 0, j = 0;
-  while (i < n && j < m) {
-    if (a[i] === b[j]) { out.push({ type: "equal", text: a[i] }); i++; j++; }
-    else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push({ type: "remove", text: a[i] }); i++; }
-    else { out.push({ type: "add", text: b[j] }); j++; }
-  }
-  while (i < n) { out.push({ type: "remove", text: a[i] }); i++; }
-  while (j < m) { out.push({ type: "add", text: b[j] }); j++; }
-  return out;
-}
+import { MarketBadge } from "@/app/components/common/MarketBadge";
+import { AuthScreen } from "@/app/components/common/AuthScreen";
+import { inputStyle, labelStyle, btnPrimary, btnSecondary, addBtnStyle, hintStyle, reqStyle, optStyle } from "@/lib/styles";
+import { diffLines, icpColor, displayHostname, safeHref, fmtAddedDate } from "@/lib/format";
+import {
+  DEMO_MODE, SEARCH_DISABLED, GEOGRAPHIES, GEO_OPTIONS, CATEGORIES, CAT_OPTIONS, TIERS,
+  SEARCH_TERM_OPTIONS, SOURCE_OPTIONS, STATUS_OPTIONS, EMPTY_ADD_FORM, AUTH_KEY, AUTH_MAX_AGE,
+} from "@/lib/uiConstants";
+import type {
+  Company, SearchResult, PendingCompany, EditDraft,
+  SourceFields, SourceRecord, DraftTerm, DraftSource, DiffSeg, IcpTestRow,
+} from "@/lib/uiTypes";
 
 export default function Home() {
   // Simple pilot login. undefined = still checking localStorage; null = logged out; string = email.
@@ -233,7 +45,6 @@ export default function Home() {
   // A proposed AI rewrite awaiting the user's OK — shown as a diff before it goes into the editor.
   const [icpDiff, setIcpDiff] = useState<{ revised: string; segments: DiffSeg[]; issueIdx: number } | null>(null);
   // Optional "test on example companies" — scores real enriched companies against the current draft.
-  type IcpTestRow = { name: string; icp_score: number; priority_tier: string; geography: string; product_category: string; included: boolean; reason: string; expected: ExpectedCategory };
   const [icpTesting, setIcpTesting] = useState(false);
   const [icpTestResults, setIcpTestResults] = useState<IcpTestRow[] | null>(null);
   const [icpTestError, setIcpTestError] = useState("");
@@ -286,7 +97,6 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showOnlySelected, setShowOnlySelected] = useState(false);
   // Manual "Add company" form (pop-up) — lets users enter a company they came across themselves.
-  const EMPTY_ADD_FORM = { name: "", website_url: "", geography: "EU", product_category: CAT_OPTIONS[0], max_price: "", price_currency: "", icp_fit: 3, priority_tier: "", description: "", source_name: "" };
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState(EMPTY_ADD_FORM);
   const [addSaving, setAddSaving] = useState(false);
@@ -463,11 +273,6 @@ export default function Home() {
     setSearchState("done");
   }
 
-  // "Date added" to the database — falls back to enriched_at for rows saved before added_at existed.
-  function fmtAddedDate(c: Company): string {
-    const iso = c.added_at ?? c.enriched_at;
-    return iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
-  }
   // Update a company's outreach status (optimistic — writes straight to the DB).
   async function updateCompanyStatus(id: number, status: string) {
     setCompanies(prev => prev.map(c => c.id === id ? { ...c, status } : c));
@@ -1302,24 +1107,6 @@ export default function Home() {
       setAgentState("idle");
     }
   }
-
-  // Safely derives a clean hostname for display; falls back to the raw string if the URL is malformed
-  function displayHostname(url: string): string {
-    try {
-      return new URL(url).hostname.replace(/^www\./, "");
-    } catch {
-      return url;
-    }
-  }
-
-  // Ensures a URL has a protocol so it works as an external href (not treated as a relative link)
-  function safeHref(url: string): string {
-    if (!url) return "#";
-    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
-  }
-
-  const icpColor = (score: number) =>
-    score >= 4 ? "var(--success-bright)" : score === 3 ? "var(--warning-bright)" : "var(--danger)";
 
   const selectedCount = searchResults.filter(r => r.selected).length;
 
