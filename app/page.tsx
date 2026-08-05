@@ -2636,7 +2636,7 @@ export default function Home() {
                   <option value="US">US</option>
                   <option value="Global">Global</option>
                 </select>
-                <p style={hintStyle}>Which market this source leans toward — shown as a tag in the list. Informational; it doesn&apos;t affect scoring or discovery.</p>
+                <p style={hintStyle}>Which market this source leans toward — shown as a tag in the list.</p>
               </div>
               {newSource.type === "web site" ? (
                 <>
@@ -2644,7 +2644,7 @@ export default function Home() {
                     <label style={labelStyle}>Search prefix <span style={reqStyle}>*</span></label>
                     <input type="text" value={newSource.search_prefix} onChange={e => setNewSource({ ...newSource, search_prefix: e.target.value })}
                       placeholder="e.g. nutraingredients.com Europe" style={inputStyle} />
-                    <p style={hintStyle}>Put in front of each search term to target this site — the search becomes <em>“&lt;prefix&gt; &lt;term&gt;”</em>, e.g. <em>nutraingredients.com longevity</em>. Usually just the domain.</p>
+                    <p style={hintStyle}>A fixed text added in front of <em>every</em> search term to aim the search at this specific source. Unlike the search terms (which change from search to search), this stays the same each time the source is used — the query becomes <em>“&lt;prefix&gt; &lt;term&gt;”</em>. Usually the site&apos;s domain, optionally with a region, e.g. <em>nutraingredients.com Europe</em>.</p>
                   </div>
                   <div>
                     <label style={labelStyle}>Homepage URL <span style={optStyle}>optional</span></label>
@@ -2670,7 +2670,7 @@ export default function Home() {
               <div>
                 <label style={labelStyle}>Note to the AI <span style={optStyle}>optional</span></label>
                 <textarea value={newSource.note} onChange={e => setNewSource({ ...newSource, note: e.target.value })} rows={3}
-                  placeholder={'e.g. Serves the US edition by default — always keep "Europe" in the query.'}
+                  placeholder={'e.g. This site defaults to its US edition — always keep "Europe" in the query so results aren\'t US-only.'}
                   style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
                 <p style={hintStyle}>Passed to the AI as an instruction for this source (paywall tips, region focus, etc.).</p>
               </div>
