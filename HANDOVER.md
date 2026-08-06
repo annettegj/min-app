@@ -3,6 +3,9 @@
 > Audience: whoever operates, maintains, or takes ownership of this app (AKBM IT, future
 > developers, Sprint). For end-user instructions see [USER_GUIDE.md](USER_GUIDE.md); for the
 > visual/design system (colours, buttons, hover, rounding) see [DESIGN.md](DESIGN.md).
+> For *why* things are built the way they are (analysis, alternatives, future options) see
+> [DECISIONS.md](DECISIONS.md); for a full catalogue of the app's constraints see
+> [LIMITATIONS.md](LIMITATIONS.md).
 > Last updated: 2026-08 (post-summer, pre-AKBM-handover).
 
 ## 1. What it is

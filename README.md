@@ -15,6 +15,10 @@ and letting a user review, save, and export the matches.
 - **[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md)** — a detailed, step-by-step walkthrough of the
   three-step search (discovery → enrichment → ICP matching), incl. per-source performance counters.
 - **[SOURCES.md](SOURCES.md)** — the running log of every source evaluated, with verdicts and why.
+- **[DECISIONS.md](DECISIONS.md)** — the choices we made, the thinking behind them, the alternatives
+  weighed, and how each could evolve (plain language; good input for the final report).
+- **[LIMITATIONS.md](LIMITATIONS.md)** — a complete, plain-language catalogue of what the app can't do
+  or where it falls short, feature by feature.
 - **[DESIGN.md](DESIGN.md)** — the visual/design system: colour palette, button hierarchy, hover,
   and rounded corners, with a "how do I change X" reference.
 
