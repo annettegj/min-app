@@ -466,6 +466,19 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     setAddingState("form");
   }
 
+  // Remove a company from the "Fill in Details" review step — it turned out not to be relevant.
+  // Rejects it (so it won't resurface in future searches) and drops it from both the pending list and
+  // the results, mirroring the ✕ on the results list. If the last one is removed, go back to results.
+  function removePending(i: number) {
+    const c = pendingCompanies[i];
+    if (!c) return;
+    fetch("/api/reject", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ names: [c.name] }) });
+    const next = pendingCompanies.filter((_, idx) => idx !== i);
+    setPendingCompanies(next);
+    setSearchResults(prev => prev.filter(r => r.name !== c.name));
+    if (next.length === 0) setAddingState("idle");
+  }
+
   function updatePending(i: number, field: string, value: string | number | string[]) {
     setPendingCompanies(prev => prev.map((c, idx) => idx === i ? { ...c, [field]: value } : c));
   }
@@ -576,7 +589,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     sourceHitRate, sourceIsLow, fmtHitRate, fmtSavedRate,
     // job handlers
     deleteFromQueue, resetProcessingToQueue, handleAgentSearch,
-    toggleResult, handleAddSelected, updatePending, handleSave,
+    toggleResult, handleAddSelected, updatePending, removePending, handleSave,
   };
 }
 

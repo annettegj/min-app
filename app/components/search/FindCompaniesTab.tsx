@@ -43,7 +43,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
     clearQueue, saveSettings,
     sourceHitRate, sourceIsLow, fmtHitRate, fmtSavedRate,
     deleteFromQueue, resetProcessingToQueue, handleAgentSearch,
-    toggleResult, handleAddSelected, updatePending, handleSave,
+    toggleResult, handleAddSelected, updatePending, removePending, handleSave,
   } = useSearch(reloadCompanies);
 
   return (
@@ -589,7 +589,15 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
             </div>
             {pendingCompanies.map((c, i) => (
               <div key={i} style={{ padding: "20px", borderBottom: "1px solid var(--border-light)" }}>
-                <p style={{ fontWeight: 700, color: "var(--navy)", fontSize: 14, marginBottom: 4 }}>{c.name}</p>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                  <p style={{ fontWeight: 700, color: "var(--navy)", fontSize: 14, marginBottom: 4 }}>{c.name}</p>
+                  <button type="button" onClick={() => removePending(i)} title="Not relevant — remove from this list"
+                    style={{ background: "transparent", border: "1px solid var(--border-light)", color: "var(--text-dim)", padding: "4px 10px", fontSize: 12, cursor: "pointer", flexShrink: 0, borderRadius: 4 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-danger)"; e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.borderColor = "var(--danger)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.borderColor = "var(--border-light)"; }}>
+                    Remove ✕
+                  </button>
+                </div>
                 <a href={safeHref(c.website_url)} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 12 }}>{c.website_url}</a>
                 {c.description && (
                   <p style={{ fontSize: 13, color: "var(--text-body)", marginTop: 8, lineHeight: 1.6 }}>{c.description}</p>
