@@ -24,9 +24,9 @@ export function HowItWorksTab() {
     ) },
     { key: "database", label: "Company Database", content: (
       <>
-        <p style={ps}>Your saved companies live here. Use the filters at the top (geography, category, price range, ICP fit, priority tier), then <strong>Find Companies</strong> to apply them — or <strong>Show All Companies</strong>. Click a row to expand its description. Each row shows the <strong>date added</strong> and an editable <strong>Status</strong> (Not contacted / Contacted / In dialogue / Not relevant) for tracking outreach — it saves the moment you change it.</p>
+        <p style={ps}>Your saved companies live here. Use the filters at the top (geography, product category, <strong>source</strong>, price range, ICP fit, priority tier), then <strong>Find Companies</strong> to apply them — or <strong>Show All Companies</strong>. Geography, product category and priority tier are <strong>multi-select</strong> — tick as many as you like (empty means &quot;all&quot;). Click a row to expand its description. Each row shows the <strong>date added</strong> and an editable <strong>Status</strong> (Not contacted / Contacted / In dialogue / Not relevant) for tracking outreach — it saves the moment you change it.</p>
         <ul style={uls}>
-          <li style={lis}><strong>+ Add Company</strong> — manually add a company (name required, plus website, geography, category, price, tier, ICP fit, and notes) without running a search. Saved straight to the database.</li>
+          <li style={lis}><strong>+ Add Company</strong> — manually add a company (name required, plus website, geography, product category, price, tier, ICP fit, and notes) without running a search; geography and product category let you pick several. Saved straight to the database.</li>
           <li style={lis}><strong>Select rows</strong> — tick companies (or the header box for all shown), then <strong>View only selected</strong> to show just those (<strong>Show all</strong> brings the rest back; ticks stay). Since the export takes what&apos;s shown, this is how to export just your picks. <strong>Clear selection</strong> unticks everything.</li>
           <li style={lis}><strong>Export as Excel</strong> — downloads the companies currently shown (respects your filters, hidden rows, and any &quot;view only selected&quot;).</li>
           <li style={lis}><strong>Clear Results</strong> — empties the shown table; doesn&apos;t delete anything.</li>
@@ -45,6 +45,7 @@ export function HowItWorksTab() {
           <li style={lis}><strong>3. Scoring (ICP)</strong> — the AI reads everything gathered for the batch and scores each company against the Lysoveta ICP, giving a fit score, a priority tier (Early Mover / Follower / Enabler), and a short reason. Only companies that pass are shown for you to review and save.</li>
         </ul>
         <p style={ps}>Discovery only runs when the waiting list is below 5 — otherwise a run just researches what&apos;s already waiting (see <em>The waiting list</em>).</p>
+        <p style={ps}>When it finishes, tick the companies you want and click <strong>Add to Database</strong>. That opens a <strong>Fill in Details</strong> step where you can review and adjust each company&apos;s fields before saving — and if one turns out not to fit on a closer look, its <strong>Remove ✕</strong> drops it. Then save the rest. (After a search, your term/source ticks reset for a clean next run.)</p>
         <p style={muted}>The first search after a quiet period can take ~30 seconds to start (the server “wakes up” after being idle). That&apos;s normal.</p>
       </>
     ) },
@@ -57,7 +58,9 @@ export function HowItWorksTab() {
           <li style={lis}><strong>Single page</strong> — one specific URL, read once (e.g. a “best supplements” list).</li>
           <li style={lis}><strong>YouTube</strong> — searches YouTube for your terms and pulls brand names from the videos.</li>
         </ul>
-        <p style={ps}>You can pick up to 3 terms and 4 sources per search. The limit isn&apos;t arbitrary: a search runs <em>terms × sources</em> web searches with a budget of 12, and 3 × 4 = 12 fills it exactly — picking more can&apos;t all run.</p>
+        <p style={ps}>Each source type has its own column. By default a column shows only the sources marked <strong>&quot;Recommended, high quality&quot;</strong> (in a shaded box), with a <strong>&quot;Show all …&quot;</strong> link to reveal the rest — so the list stays short. Tick <strong>&quot;Recommended, high quality source&quot;</strong> when editing a source to add it to that shortlist. Each source also shows a <strong>&quot;last used&quot;</strong> date.</p>
+        <p style={ps}>A <strong>single page</strong> is read once, so after a search it moves into a <strong>&quot;Completed single pages&quot;</strong> list (bottom-right) and out of the selectable list — you can&apos;t waste a search on it. If you think a page has since been updated, open that list and click <strong>Add back to source list</strong>.</p>
+        <p style={ps}>You can pick up to 3 terms and 4 sources per search. The limit isn&apos;t arbitrary: a search runs <em>terms × website-sources</em> web searches with a budget of 12, and 3 × 4 = 12 fills it exactly — picking more can&apos;t all run.</p>
         <p style={{ fontWeight: 700, color: "var(--navy)", margin: "16px 0 6px" }}>How well is each source doing?</p>
         <p style={ps}>Under every source you&apos;ll see a small line — for example <strong>“used 5 · queued 12 · saved 2”</strong> — so you can tell which sources actually pull their weight:</p>
         <ul style={uls}>
@@ -65,7 +68,7 @@ export function HowItWorksTab() {
           <li style={lis}><strong>queued</strong> — how many new companies it has added to the waiting list over time.</li>
           <li style={lis}><strong>saved</strong> — how many of its companies ended up approved in your database.</li>
         </ul>
-        <p style={muted}>These numbers start from zero and build up as you search — a brand-new source shows “Not used yet”. Companies saved before this feature existed don&apos;t count toward <em>saved</em>.</p>
+        <p style={muted}>These numbers start from zero and build up as you search — a brand-new source shows “Not used yet”, and used ones also show the date they were last used. Companies saved before this feature existed don&apos;t count toward <em>saved</em>.</p>
         <p style={{ fontWeight: 700, color: "var(--navy)", margin: "16px 0 6px" }}>Low-performing sources get a warning</p>
         <p style={ps}>Click <strong>Source performance</strong> (top of the Search Configuration panel) to open a table of every source with its <strong>hit rate</strong> — how many companies it finds per search (companies found ÷ times used). A source whose hit rate drops below a threshold (default <strong>1%</strong>), once it&apos;s been used a few times, is flagged with a <strong style={{ color: "var(--danger-text)" }}>⚠ Low hit rate</strong> warning — both in that table and under the source in the main list — suggesting you edit or remove it.</p>
         <p style={muted}>You can change the threshold (and how many uses a source needs before it can be flagged) right in that window — it&apos;s a shared setting, so it affects the warnings everyone sees.</p>
@@ -83,6 +86,7 @@ export function HowItWorksTab() {
         {US_MARKET_ENABLED && <p style={ps}>There are separate profiles for <strong>Europe</strong> and the <strong>US</strong> (both on the ICP Criteria tab). Each company is scored against the profile that matches its primary market.</p>}
         <p style={ps}>Only companies that <strong>pass</strong> the ICP are shown for you to save. The rest are set aside — kept internally so they aren&apos;t re-discovered in future searches.</p>
         <p style={ps}>The ICP itself is <strong>editable</strong> — on the <strong>Lysoveta ICP Criteria</strong> tab, click <strong>✎ Edit Criteria</strong> to adjust the text for either market. Nothing saves automatically: you press <strong>Review changes with AI</strong>, which checks your text reads as clear scoring instructions and flags any gaps (advice only), then you press <strong>Save changes</strong> to make it live. Changes are shared, take effect on the next search, and every save is kept in <strong>Version history</strong> so you can roll back.</p>
+        <p style={ps}>Next to the ICP is a <strong>Product categories</strong> card — the one place to manage the list of categories a company can be tagged with (used in the Company Database and suggested by the AI after a search). Click <strong>✎ Manage</strong> to add, rename, or remove them. The priority tiers (Early Mover / Follower / Enabler) are fixed and not edited here.</p>
       </>
     ) },
     { key: "exceptions", label: "When something goes wrong", content: (
@@ -92,7 +96,7 @@ export function HowItWorksTab() {
           <li style={lis}><strong>“No new companies found”</strong> — everything found was already in your database, rejected, or waiting. The sources may not have published anything new, or the terms keep hitting the same companies. Try again later, or adjust/add sources and terms.</li>
           <li style={lis}><strong>“A previous search didn&apos;t finish”</strong> — if a company got stuck while being researched, the app stops the run and puts those companies back in the waiting list so nothing is lost. You can remove one that keeps hanging, or just search again to retry them.</li>
           <li style={lis}><strong>A source can&apos;t be read</strong> — some pages block automated reading (paywalls, robots rules) or are JavaScript-only (e.g. many trade-show exhibitor lists). Those are simply skipped, and the run continues with the others.</li>
-          <li style={lis}><strong>A fixed list adds nothing new</strong> — single-page and “best of” sources give the same names each time, so after the first harvest they stop producing new companies. That&apos;s expected — deactivate or remove them once mined.</li>
+          <li style={lis}><strong>A fixed list adds nothing new</strong> — single-page “best of” sources give the same names each time, so after the first read they stop producing new companies. That&apos;s expected: the app moves them into a <strong>“Completed single pages”</strong> list automatically, and you can <strong>Add back to source list</strong> if a page has been updated.</li>
           <li style={lis}><strong>The 30-minute limit</strong> — if a run ever stalls, it&apos;s stopped automatically after 30 minutes so it can never hang forever. Anything already researched and saved is kept.</li>
           <li style={lis}><strong>You closed or reloaded the page</strong> — research is saved company-by-company as it completes, so finished work is never lost; those companies are reused (for free) on the next search.</li>
           <li style={lis}><strong>An error screen</strong> — if something fails (e.g. a service or configuration problem), you get a message explaining what you can do, usually with a <em>Try again</em> button.</li>

@@ -27,17 +27,20 @@ you'll be asked again. There's a **Log out** button at the top-right.
 
 ### 1. Company Database
 
-Your saved companies. Use the filters at the top (geography, category, price range, ICP fit,
-priority tier) to narrow the list, then **Find Companies** to apply them (or **Show All Companies**).
-Click a row to expand its description. Each row also shows the **date it was added** to the database
+Your saved companies. Use the filters at the top (geography, product category, **source**, price
+range, ICP fit, priority tier) to narrow the list, then **Find Companies** to apply them (or **Show
+All Companies**). Geography, product category and priority tier are **multi-select** — click the box
+and tick as many as you like (leave it empty to mean "all"); a company matches if it has any of the
+values you picked. Click a row to expand its description. Each row also shows the **date it was added** to the database
 and an editable **Status** — a dropdown (Not contacted / Contacted / In dialogue / Not relevant) you
 can change any time to track outreach; the change saves immediately. Both are included in the Excel
 export.
 
 - **+ Add Company** (top-right) — manually add a company you came across, without running a search.
-  A pop-up form asks for the name (required) plus website, geography, category, price, priority tier,
-  ICP fit (you set the stars yourself for now), source, and a description. It's saved straight to the
-  database and shown right away.
+  A pop-up form asks for the name (required) plus website, geography, product category, price,
+  priority tier, ICP fit (you set the stars yourself for now), source, and a description. Geography
+  and product category let you pick **several** values. It's saved straight to the database and shown
+  right away.
 - **Select specific companies** — each row has a checkbox (and there's a "select all" box in the
   header). Once you've ticked some, the header shows **View only selected** (hides everything else so
   only your picks show — click **Show all** to bring the rest back, your ticks stay) and
@@ -53,9 +56,10 @@ export.
 
 Click **Edit list** (top-right of the results) to turn on edit mode. Each row then shows two icons:
 
-- **✎ (pencil)** — opens an inline form to edit the company's fields (geography, category, price,
-  ICP fit, priority tier, website, description). **Save** writes the change to the database;
-  **Cancel** discards it. *(The company name can't be edited.)*
+- **✎ (pencil)** — opens an inline form to edit the company's fields (geography, product category,
+  price, ICP fit, priority tier, website, description). Geography and product category can hold
+  **several** values. **Save** writes the change to the database; **Cancel** discards it. *(The
+  company name can't be edited.)*
 - **✕** — opens a small dialog with two choices:
   - **Remove from this view only** — hides the row from the current list and the Excel export. It's
     **not deleted** — click **Restore hidden** (top of the results) to bring hidden rows back, or
@@ -73,10 +77,13 @@ Click **Done editing** to leave edit mode.
 This is where you run a search.
 
 1. **Search terms** — tick up to **3** terms, and **Sources** — tick up to **4** — for this search.
-   Leave a list all unticked to use the defaults (the default terms / all sources). Each list shows
-   a few items with a scrollbar; **Show all** expands it fully and **Show fewer** collapses it back.
-   *(Why the 3-and-4 limit? A search runs `terms × sources` web searches with a hard budget of 12,
-   and 3 × 4 = 12 fills it exactly — picking more can't run and just slows things down. Full
+   Leave a list all unticked to use the defaults (the default terms / all sources). Sources are
+   grouped into three columns by type — **Website**, **Single page** and **YouTube**. By default each
+   column shows only the sources marked **"Recommended, high quality"** (in a shaded box), with a
+   **"Show all …"** link under the column to reveal the rest; a column with none marked recommended
+   just shows them all. Each source shows a small **"last used"** date so you can see how fresh it is.
+   *(Why the 3-and-4 limit? A search runs `terms × website-sources` web searches with a hard budget of
+   12, and 3 × 4 = 12 fills it exactly — picking more can't run and just slows things down. Full
    reasoning in [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md#why-the-caps-up-to-3-terms--4-sources).)*
 2. Click **Search for New Companies**. A search takes roughly **15 minutes** and will time out after
    **30 minutes**. (Step 3 — ICP matching — runs automatically at the end; the app scores each company
@@ -84,8 +91,11 @@ This is where you run a search.
 3. While it runs you'll see **"Step X of 3"**, an elapsed timer, and a **Search Log** panel you can
    expand to watch what the app is doing behind the scenes.
 4. When it finishes, you get a list of companies that passed the ICP matching. Tick the ones you
-   want, fill in/adjust any fields, and **save** them to the Company Database. Companies you don't
-   save are set aside.
+   want and click **Add to Database** — that opens a **Fill in Details** step where you can review and
+   adjust each company's fields before saving. If one turns out not to be relevant on a closer look,
+   use its **Remove ✕** there to drop it. Then **save** the rest to the Company Database. Companies
+   you don't save are set aside. (After a search finishes, your term/source ticks reset for a clean
+   next run, and the Search Log closes itself once you've saved.)
 
 > The first search after a quiet period can take ~30 seconds just to start up — the server "wakes
 > up" after being idle. That's normal.
@@ -110,13 +120,17 @@ the real configuration until you press **Save changes**.
 - **Edit a source** — click the source to open a form pre-filled with all its fields; change what
   you need and press **Update source**. The fields are:
   - **Name** — how it's shown in the list.
-  - **Type** — **Website** (searched repeatedly) or **Single page** (one URL, read once).
+  - **Type** — **Website** (searched repeatedly), **Single page** (one URL, read once), or
+    **YouTube** (searches YouTube for the terms and pulls brands from the videos).
   - **Search prefix** *(website, required)* — what's put in front of each term to target the site,
     e.g. `nutraingredients.com Europe`.
   - **Homepage URL** *(website, optional)* / **Page URL** *(single page, required)*.
   - **Note to the AI** *(optional)* — a plain-language instruction for that source, e.g.
     *"Serves the US edition by default — always keep 'Europe' in the query"* or
     *"Paywalled — read company names from the titles."* This is passed to the AI during the search.
+  - **Recommended, high quality source** *(checkbox)* — tick it to show this source in the short
+    default list (the shaded box) at the top of its column. Untick to keep it in the full list behind
+    "Show all …".
 - **Add** — **+ Add new search term** adds a blank field to type into; **+ Add new source** opens
   the same form, empty.
 - **Remove** — click the **✕** next to a term or source.
@@ -132,6 +146,11 @@ whole draft.
 > companies from it. This is ideal for a fixed list (e.g. a "best brands 2026" round-up) — but note
 > it finds nothing *new* on a re-run, since the page doesn't change. If a site blocks automated
 > reading, that page is simply skipped.
+>
+> Because they're one-shot, a single page that's already been searched moves into a **"Completed
+> single pages"** list (bottom-right of the Search Configuration panel) and out of the selectable
+> list, so you don't waste a search on it. If you think a page has since been updated, open that list
+> and click **Add back to source list** to make it selectable again.
 
 #### How well is each source doing?
 
@@ -142,9 +161,10 @@ so you can see which sources are actually worth keeping:
 - **queued** — how many new companies it has added to the waiting list over time.
 - **saved** — how many of its companies ended up approved in your Company Database.
 
-A source that hasn't run yet shows **"Not used yet"**. The numbers **start from zero and build up**
-as you keep searching, so give a new source a few runs before judging it — and companies you saved
-before this feature existed don't count toward *saved*.
+A source that hasn't run yet shows **"Not used yet"**; used ones also show the **date they were last
+used**. The numbers **start from zero and build up** as you keep searching, so give a new source a few
+runs before judging it — and companies you saved before this feature existed don't count toward
+*saved*. (Search terms show a "last used" date too.)
 
 **Low-performing sources get a warning.** Click **Source performance** at the top of the Search
 Configuration panel to open a table of every source with its **hit rate** — how many companies it
@@ -198,6 +218,12 @@ in 2 early movers, 1 follower, 1 enabler, and 2 rejected from your database), ad
 mark what you **expect** each to be. The test then shows **Expected** next to the actual result and a
 **Match** column (✓ / ⚠) that flags any company the ICP scores differently than you expected — a quick
 way to sanity-check an edit. (Only companies that have been researched can be used as examples.)
+
+**Product categories.** Next to the ICP is a **Product categories** card — the one place to manage the
+list of categories a company can be tagged with (used in the Company Database filters, the add/edit
+forms, and suggested by the AI after a search). Click **✎ Manage** to add, rename, or remove
+categories; changes apply everywhere. (The priority tiers — Early Mover / Follower / Enabler — are
+fixed and not edited here.)
 
 ## Tips
 
