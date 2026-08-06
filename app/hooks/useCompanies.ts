@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { EMPTY_ADD_FORM, STATUS_OPTIONS } from "@/lib/uiConstants";
-import { fmtAddedDate } from "@/lib/format";
+import { fmtAddedDate, parseMulti, joinMulti } from "@/lib/format";
 import type { Company, EditDraft, AddCompanyForm } from "@/lib/uiTypes";
 
-type SearchParams = null | { geography: string; category: string; priceMin: string; priceMax: string; icpMin: number; tier: string };
+// geography + category are multi-value: empty list = no constraint (all); otherwise a company
+// matches if ANY of its values overlaps ANY selected value.
+type SearchParams = null | { geography: string[]; category: string[]; priceMin: string; priceMax: string; icpMin: number; tier: string };
 
 // Owns the entire Company Database domain: the saved companies, the filter panel + results, inline
 // edit / soft-delete, row selection + view-only, the manual "Add company" form, Excel export, and the
@@ -12,8 +14,8 @@ type SearchParams = null | { geography: string; category: string; priceMin: stri
 // the search flow / source-performance modal), and the result is passed to <CompanyDatabaseTab>.
 export function useCompanies() {
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [geography, setGeography] = useState("All");
-  const [category, setCategory] = useState("");
+  const [geography, setGeography] = useState<string[]>([]);
+  const [category, setCategory] = useState<string[]>([]);
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
   const [icpMin, setIcpMin] = useState(1);
@@ -65,8 +67,8 @@ export function useCompanies() {
     const { error } = await supabase.from("companies").upsert({
       name,
       website_url: addForm.website_url.trim() || null,
-      geography: addForm.geography,
-      product_category: addForm.product_category,
+      geography: joinMulti(addForm.geography),
+      product_category: joinMulti(addForm.product_category),
       max_price: addForm.max_price ? Number(addForm.max_price) : null,
       price_currency: addForm.price_currency || null,
       icp_fit: addForm.icp_fit,
@@ -81,7 +83,7 @@ export function useCompanies() {
     if (error) { setAddFormError("Could not save: " + error.message); setAddSaving(false); return; }
     await loadCompanies();
     setAddSaving(false); setAddOpen(false);
-    setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" });
+    setSearchParams({ geography: [], category: [], priceMin: "", priceMax: "", icpMin: 1, tier: "All" });
     setSearchState("done");
   }
 
@@ -94,8 +96,8 @@ export function useCompanies() {
   const results = useMemo(() => {
     if (!searchParams) return [];
     return companies.filter((c) => {
-      if (searchParams.geography !== "All" && c.geography !== searchParams.geography) return false;
-      if (searchParams.category && c.product_category !== searchParams.category) return false;
+      if (searchParams.geography.length && !parseMulti(c.geography).some((g) => searchParams.geography.includes(g))) return false;
+      if (searchParams.category.length && !parseMulti(c.product_category).some((pc) => searchParams.category.includes(pc))) return false;
       if (searchParams.priceMin && (c.max_price ?? 0) < Number(searchParams.priceMin)) return false;
       if (searchParams.priceMax && (c.max_price ?? 0) > Number(searchParams.priceMax)) return false;
       if (c.icp_fit < searchParams.icpMin) return false;
@@ -147,8 +149,8 @@ export function useCompanies() {
       for (const c of visibleResults) {
         ws.addRow({
           name: c.name,
-          geography: c.geography,
-          product_category: c.product_category,
+          geography: parseMulti(c.geography).join("; "),
+          product_category: parseMulti(c.product_category).join("; "),
           max_price: c.max_price ?? "",
           price_currency: c.price_currency ?? "",
           icp_fit: c.icp_fit,
@@ -185,8 +187,8 @@ export function useCompanies() {
     setConfirmRemoveId(null);
     setEditError("");
     const draft: EditDraft = {
-      geography: c.geography ?? "",
-      product_category: c.product_category ?? "",
+      geography: parseMulti(c.geography),
+      product_category: parseMulti(c.product_category),
       max_price: c.max_price != null ? String(c.max_price) : "",
       price_currency: c.price_currency ?? "",
       icp_fit: c.icp_fit ?? 3,
@@ -210,8 +212,8 @@ export function useCompanies() {
     const { error } = await supabase
       .from("companies")
       .update({
-        geography: editDraft.geography,
-        product_category: editDraft.product_category,
+        geography: joinMulti(editDraft.geography),
+        product_category: joinMulti(editDraft.product_category),
         max_price: editDraft.max_price ? Number(editDraft.max_price) : null,
         price_currency: editDraft.price_currency || null,
         icp_fit: editDraft.icp_fit,

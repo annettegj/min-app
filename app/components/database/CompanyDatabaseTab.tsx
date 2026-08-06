@@ -1,8 +1,9 @@
 import { Fragment } from "react";
 import { inputStyle, labelStyle, btnPrimary, btnSecondary } from "@/lib/styles";
-import { GEOGRAPHIES, CATEGORIES, TIERS, GEO_OPTIONS, CAT_OPTIONS, STATUS_OPTIONS } from "@/lib/uiConstants";
-import { icpColor, displayHostname, safeHref, fmtAddedDate } from "@/lib/format";
+import { TIERS, GEO_OPTIONS, CAT_OPTIONS, STATUS_OPTIONS } from "@/lib/uiConstants";
+import { icpColor, displayHostname, safeHref, fmtAddedDate, parseMulti } from "@/lib/format";
 import { AddCompanyModal } from "@/app/components/database/AddCompanyModal";
+import { MultiSelect } from "@/app/components/common/MultiSelect";
 import type { CompaniesApi } from "@/app/hooks/useCompanies";
 
 // The Company Database tab: filter panel, results table (inline edit / soft-delete / status /
@@ -23,7 +24,7 @@ export function CompanyDatabaseTab({ api }: { api: CompaniesApi }) {
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <button onClick={() => guardUnsavedEdit(() => { setSearchParams({ geography: "All", category: "", priceMin: "", priceMax: "", icpMin: 1, tier: "All" }); setSearchState("done"); })}
+        <button onClick={() => guardUnsavedEdit(() => { setSearchParams({ geography: [], category: [], priceMin: "", priceMax: "", icpMin: 1, tier: "All" }); setSearchState("done"); })}
           style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
           onMouseEnter={e => (e.currentTarget.style.background = "var(--surface)")}
           onMouseLeave={e => (e.currentTarget.style.background = "var(--white)")}>
@@ -43,16 +44,12 @@ export function CompanyDatabaseTab({ api }: { api: CompaniesApi }) {
 
           <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
             <label style={labelStyle}>Geography</label>
-            <select value={geography} onChange={(e) => setGeography(e.target.value)} style={inputStyle}>
-              {GEOGRAPHIES.map((g) => <option key={g}>{g}</option>)}
-            </select>
+            <MultiSelect options={GEO_OPTIONS} value={geography} onChange={setGeography} placeholder="All geographies" />
           </div>
 
           <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
             <label style={labelStyle}>Product Category</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
-              {CATEGORIES.map(c => <option key={c} value={c === "All" ? "" : c}>{c}</option>)}
-            </select>
+            <MultiSelect options={CAT_OPTIONS} value={category} onChange={setCategory} placeholder="All categories" />
           </div>
 
           <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
@@ -220,8 +217,8 @@ export function CompanyDatabaseTab({ api }: { api: CompaniesApi }) {
                       <td style={{ padding: "12px 14px", color: "var(--text-body)", fontSize: 12 }}>
                         {c.source_name ?? <span style={{ color: "var(--text-faint)" }}>—</span>}
                       </td>
-                      <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.geography}</td>
-                      <td style={{ padding: "12px 14px", color: "var(--text-body)" }}>{c.product_category}</td>
+                      <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{parseMulti(c.geography).join(", ") || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
+                      <td style={{ padding: "12px 14px", color: "var(--text-body)" }}>{parseMulti(c.product_category).join(", ") || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
                       <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : c.price_currency === "EUR" ? "€" : ""}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
                       <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
                         {c.priority_tier === "early_mover" && (
@@ -252,15 +249,11 @@ export function CompanyDatabaseTab({ api }: { api: CompaniesApi }) {
                               <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16, marginBottom: 16 }}>
                                 <div>
                                   <label style={labelStyle}>Geography</label>
-                                  <select value={editDraft.geography} onChange={e => setEditDraft({ ...editDraft, geography: e.target.value })} style={inputStyle}>
-                                    {GEO_OPTIONS.map(g => <option key={g}>{g}</option>)}
-                                  </select>
+                                  <MultiSelect options={GEO_OPTIONS} value={editDraft.geography} onChange={next => setEditDraft({ ...editDraft, geography: next })} placeholder="Select…" />
                                 </div>
                                 <div>
                                   <label style={labelStyle}>Product category</label>
-                                  <select value={editDraft.product_category} onChange={e => setEditDraft({ ...editDraft, product_category: e.target.value })} style={inputStyle}>
-                                    {CAT_OPTIONS.map(cat => <option key={cat}>{cat}</option>)}
-                                  </select>
+                                  <MultiSelect options={CAT_OPTIONS} value={editDraft.product_category} onChange={next => setEditDraft({ ...editDraft, product_category: next })} placeholder="Select…" />
                                 </div>
                                 <div>
                                   <label style={labelStyle}>Max price</label>

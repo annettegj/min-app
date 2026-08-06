@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { US_MARKET_ENABLED } from "@/lib/features";
 import mockResultsData from "@/config/mock-results.json";
 import { DEMO_MODE, SEARCH_TERM_OPTIONS, SOURCE_OPTIONS } from "@/lib/uiConstants";
+import { parseMulti, joinMulti } from "@/lib/format";
 import type {
   SearchResult, PendingCompany,
   SourceFields, SourceRecord, DraftTerm, DraftSource,
@@ -434,15 +435,15 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     const selected = searchResults.filter(r => r.selected);
     setPendingCompanies(selected.map(r => ({
       ...r,
-      geography: r.geography ?? "",
-      product_category: r.product_category ?? "",
+      geography: parseMulti(r.geography),
+      product_category: parseMulti(r.product_category),
       max_price: r.max_price_eur != null ? String(r.max_price_eur) : "",
       icp_fit: r.icp_score ?? 3,
     })));
     setAddingState("form");
   }
 
-  function updatePending(i: number, field: string, value: string | number) {
+  function updatePending(i: number, field: string, value: string | number | string[]) {
     setPendingCompanies(prev => prev.map((c, idx) => idx === i ? { ...c, [field]: value } : c));
   }
 
@@ -453,8 +454,8 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
       name: c.name,
       website_url: c.website_url,
       description: c.description,
-      geography: c.geography,
-      product_category: c.product_category,
+      geography: joinMulti(c.geography),
+      product_category: joinMulti(c.product_category),
       max_price: c.max_price ? Number(c.max_price) : null,
       price_currency: c.price_currency || null,
       icp_fit: c.icp_fit,

@@ -2,6 +2,7 @@
 
 import { US_MARKET_ENABLED } from "@/lib/features";
 import { MarketBadge } from "@/app/components/common/MarketBadge";
+import { MultiSelect } from "@/app/components/common/MultiSelect";
 import { QueueModal } from "@/app/components/search/QueueModal";
 import { SourcePerfModal } from "@/app/components/search/SourcePerfModal";
 import { SourceModal } from "@/app/components/search/SourceModal";
@@ -474,17 +475,11 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginTop: 14 }}>
                   <div>
                     <label style={labelStyle}>Geography</label>
-                    <select value={c.geography} onChange={(e) => updatePending(i, "geography", e.target.value)} style={inputStyle}>
-                      <option value="">Select…</option>
-                      {GEO_OPTIONS.map(g => <option key={g}>{g}</option>)}
-                    </select>
+                    <MultiSelect options={GEO_OPTIONS} value={c.geography} onChange={next => updatePending(i, "geography", next)} placeholder="Select…" />
                   </div>
                   <div>
                     <label style={labelStyle}>Product Category</label>
-                    <select value={c.product_category} onChange={(e) => updatePending(i, "product_category", e.target.value)} style={inputStyle}>
-                      <option value="">Select…</option>
-                      {CAT_OPTIONS.map(cat => <option key={cat}>{cat}</option>)}
-                    </select>
+                    <MultiSelect options={CAT_OPTIONS} value={c.product_category} onChange={next => updatePending(i, "product_category", next)} placeholder="Select…" />
                   </div>
                   <div>
                     <label style={labelStyle}>Max. Price</label>

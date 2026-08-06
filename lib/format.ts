@@ -44,6 +44,17 @@ export function safeHref(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
+// Multi-value fields (geography, product_category) are stored comma-separated in a single text
+// column. parseMulti splits a stored value into a trimmed list; joinMulti writes a list back.
+// A legacy single value (e.g. "EU") is simply a one-item list, so this is fully backward compatible.
+export function parseMulti(v: string | null | undefined): string[] {
+  if (!v) return [];
+  return v.split(",").map((s) => s.trim()).filter(Boolean);
+}
+export function joinMulti(list: string[]): string {
+  return list.map((s) => s.trim()).filter(Boolean).join(", ");
+}
+
 // "Date added" to the database — falls back to enriched_at for rows saved before added_at existed.
 export function fmtAddedDate(c: Company): string {
   const iso = c.added_at ?? c.enriched_at;

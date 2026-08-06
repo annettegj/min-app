@@ -32,7 +32,7 @@ export const STATUS_OPTIONS = [
 ];
 
 // Blank state for the manual "Add company" form.
-export const EMPTY_ADD_FORM: AddCompanyForm = { name: "", website_url: "", geography: "EU", product_category: CAT_OPTIONS[0], max_price: "", price_currency: "", icp_fit: 3, priority_tier: "", description: "", source_name: "" };
+export const EMPTY_ADD_FORM: AddCompanyForm = { name: "", website_url: "", geography: ["EU"], product_category: [CAT_OPTIONS[0]], max_price: "", price_currency: "", icp_fit: 3, priority_tier: "", description: "", source_name: "" };
 
 export const AUTH_KEY = "cf_auth"; // localStorage key for the simple pilot login
 export const AUTH_MAX_AGE = 14 * 24 * 60 * 60 * 1000; // auto-logout after 2 weeks

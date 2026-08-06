@@ -34,15 +34,18 @@ export type SearchResult = {
   selected: boolean;
 };
 
-export type PendingCompany = SearchResult & {
-  geography: string;
-  product_category: string;
+// Omit the single-value geography/product_category from SearchResult so we can re-type them as lists.
+export type PendingCompany = Omit<SearchResult, "geography" | "product_category"> & {
+  // geography + product_category are multi-value (comma-separated in the DB), held as lists in memory.
+  geography: string[];
+  product_category: string[];
   max_price: string;
   icp_fit: number;
 };
 
 export type EditDraft = {
-  geography: string; product_category: string; max_price: string; price_currency: string;
+  // geography + product_category are multi-value (held as lists; joined to a comma string on save).
+  geography: string[]; product_category: string[]; max_price: string; price_currency: string;
   icp_fit: number; priority_tier: string; website_url: string; description: string;
 };
 
@@ -54,7 +57,8 @@ export type DraftSource = SourceFields & { key: string; id: number | null };
 
 // The manual "Add company" form shape.
 export type AddCompanyForm = {
-  name: string; website_url: string; geography: string; product_category: string;
+  // geography + product_category are multi-value (held as lists; joined to a comma string on save).
+  name: string; website_url: string; geography: string[]; product_category: string[];
   max_price: string; price_currency: string; icp_fit: number; priority_tier: string;
   description: string; source_name: string;
 };
