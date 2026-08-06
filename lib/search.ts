@@ -782,12 +782,12 @@ Instructions:
 
 Return ONLY a raw JSON array, no markdown. For each company include:
 - name, website_url, description, priority_tier, icp_score (as before)
-- geography: one of "EU", "UK", "US", "APAC", "Global" — based on european_markets and distribution. Use "EU" if they primarily sell in EU countries. Use "Global" if they sell across multiple regions.
-- product_category: one of ${categories.map((c) => `"${c}"`).join(", ")} — pick the best fit based on product_focus and self_presentation.
+- geography: an ARRAY of one or more of "EU", "UK", "US", "APAC", "Global" — based on european_markets and distribution. Use ONE value when a company clearly operates in a single region (e.g. ["UK"]); use MULTIPLE only when it genuinely sells across regions (e.g. ["EU","UK"]). Use ["Global"] when it spans many regions worldwide.
+- product_category: an ARRAY of one or more of ${categories.map((c) => `"${c}"`).join(", ")} — pick the single best fit in most cases (e.g. ["Premium/science-driven brand"]); use MULTIPLE only when the company genuinely spans more than one (e.g. a science-driven brand that also has a Pharma Rx line). Do not add extra categories that only loosely apply.
 - max_price_eur: the highest single price found for any of their products (their price ceiling), as a NUMBER in the company's ORIGINAL currency — do NOT convert to EUR (the field name is legacy). Use null if price_found is false.
 - price_currency: the 3-letter currency code for that price (GBP, EUR, USD, etc.). Use null if price_found is false.
 
-[{"name":"Company Name","website_url":"https://example.com","description":"Why relevant for Lysoveta.","priority_tier":"early_mover","icp_score":4,"geography":"UK","product_category":"Premium/science-driven brand","max_price_eur":69,"price_currency":"GBP"}]`;
+[{"name":"Company Name","website_url":"https://example.com","description":"Why relevant for Lysoveta.","priority_tier":"early_mover","icp_score":4,"geography":["UK"],"product_category":["Premium/science-driven brand"],"max_price_eur":69,"price_currency":"GBP"}]`;
 }
 
 // ---- Step 3: ICP matching ----
@@ -826,7 +826,15 @@ async function evaluateCompanies(
       emit(`[search] Step 3: no JSON array found in the response`);
       return null;
     }
-    const results = JSON.parse(match[0]) as EvaluatedCompany[];
+    // Normalise the multi-value fields: the model is asked for arrays (geography / product_category),
+    // but tolerate a plain string too. Store as the comma-separated form used everywhere downstream.
+    const toCsv = (v: unknown): string =>
+      Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean).join(", ") : (v == null ? "" : String(v).trim());
+    const results = (JSON.parse(match[0]) as Record<string, unknown>[]).map((r) => ({
+      ...r,
+      geography: toCsv(r.geography),
+      product_category: toCsv(r.product_category),
+    })) as EvaluatedCompany[];
     emit(
       `[search] Step 3: ${results.length} of ${companies.length} companies passed ICP matching`
     );
