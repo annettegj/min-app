@@ -86,19 +86,27 @@ a **Log out** button + the signed-in email sit top-right. See §10.
    before filtering/clearing/exporting. **+ Add Company** opens a form to enter a company manually
    (user sets ICP fit themselves for now) — upserted with `added=true`, `source_name` defaulting to
    "Manually added". Rows have checkboxes → **View only selected** / **Clear selection** (the Excel
-   export follows what's shown).
+   export follows what's shown). **Geography** and **Product category** are **multi-value** everywhere
+   (filter, add, edit): a reusable `MultiSelect` checkbox dropdown, stored comma-separated in the one
+   text column (a legacy single value is just a one-item list). The filter matches on overlap (empty =
+   all); the table shows the values as comma-separated text.
 2. **Find New Companies** — runs the search (see pipeline below). Includes the **Search
    Configuration** panel (draft-based edit mode for terms & sources — up to 3 terms / 4 sources, each
    source showing its **EU/US/Global** market badge and its **"used · queued · saved"** performance
    line), a **Target market** selector (Europe / US / No preference — a *soft* discovery steer, not a
-   hard filter) and a queue pop-up when ≥ 5 companies are waiting. Step 3 (ICP scoring) always runs
-   automatically after Steps 1–2.
+   hard filter) and a queue pop-up when ≥ 5 companies are waiting. Sources can be flagged
+   **"Recommended high quality source"** (`sources.featured`); each type column then shows only its
+   recommended set in a boxed group, with a per-column **"Show all …"** toggle for the rest (a column
+   with none flagged shows all — the fallback). Selected terms/sources reset once a search completes.
+   Step 3 (ICP scoring) always runs automatically after Steps 1–2.
 3. **Lysoveta ICP Criteria** — the ICP the AI scores against. **Editable** (✎ Edit Criteria → free-form
    Markdown textarea → Save) — stored in the `icp_docs` table, with a version snapshot on every save
    (Version history → "Load into editor" to revert). Falls back to `config/icp.md` / `config/icp_us.md`
    until first edited. Two sub-tabs (**European** / **US**), but the **US sub-tab is a disabled
    placeholder** while `US_MARKET_ENABLED` is false (see `lib/features.ts`) — same for the target-market
-   selector on tab 2 (locked to Europe).
+   selector on tab 2 (locked to Europe). Also holds a **Product categories** card (the single
+   app-wide place to add / rename / remove the `product_category` vocabulary — see `product_categories`
+   table); the Database/search dropdowns and the Step 3 prompt all read from it.
 4. **How It Works** — an in-app help guide (left-hand section menu) covering the pipeline, waiting
    list, scoring, source stats, signing in, and exception states in plain language.
 
@@ -139,7 +147,9 @@ on an always-on server (Render / `next dev`), never serverless.
 
 ## 6. Database (Supabase)
 
-- **`companies`** — source of truth. Columns: `name`, `geography`, `product_category`, `max_price`,
+- **`companies`** — source of truth. Columns: `name`, `geography`, `product_category` (both are
+  **multi-value**: comma-separated in the single text column — parse/join via `parseMulti`/`joinMulti`
+  in `lib/format.ts`), `max_price`,
   `price_currency`, `icp_fit`, `website_url`, `source_name`, `description`, `priority_tier`,
   `enriched_data` (jsonb), `enriched_at`, `added_at` (when saved to the DB), `status` (outreach state,
   default `not_contacted` — migration 015), `rejected` (bool), `added` (bool).
@@ -155,8 +165,13 @@ on an always-on server (Render / `next dev`), never serverless.
 - **`search_logs`** — `job_id`, `message`, `created_at` (one row per log line). Drives the log panel.
 - **`sources`** — UI-editable search config, plus per-source performance counters `times_used` and
   `companies_found` (migration 012). With `companies.source_name`, these drive the
-  **"used X · queued Y · saved Z"** line under each source. See
+  **"used X · queued Y · saved Z"** line under each source. `featured` (bool, migration 018) marks a
+  source as "recommended high quality" — shown in the short default list in the search tab. See
   [SEARCH_PIPELINE.md → Source performance counters](SEARCH_PIPELINE.md#source-performance-counters).
+- **`product_categories`** — the editable `product_category` vocabulary (`name`, `active`, `sort_order`),
+  migration 017. Read by the UI dropdowns (via `useCategories`, edited in the ICP tab) and by the
+  Step 3 prompt (`getProductCategories` in `lib/search.ts`); both fall back to the built-in defaults if
+  the table is missing/empty.
 - **`app_users`** — the pilot login table (`email`, `password` in plaintext), migration 011. See §10.
 - **`app_settings`** — shared key/value settings (migration 013). Holds the source-warning thresholds
   `source_warn_threshold_pct` (default `1`) and `source_warn_min_uses` (default `5`), edited from the
@@ -178,6 +193,10 @@ on an always-on server (Render / `next dev`), never serverless.
 > - Source warning (migration 013): `app_settings` table with the editable hit-rate thresholds.
 > - Editable ICP (migration 014): `icp_docs` + `icp_doc_versions` tables. Empty is fine — the config
 >   files remain the fallback until someone edits the ICP from the app.
+> - Editable product categories (migration 017): `product_categories` table. Absent/empty → the
+>   built-in defaults are used, so nothing breaks before it's applied.
+> - Featured sources (migration 018): `sources.featured` bool. Until applied, saving a source fails,
+>   so apply it before editing sources; the search tab just shows all sources (no featured filtering).
 
 ## 7. Key files
 
@@ -198,17 +217,23 @@ on an always-on server (Render / `next dev`), never serverless.
     calls `useSearch(reloadCompanies)` itself; `savedBySource` + `reloadCompanies` come from
     `useCompanies` via props, and `onGoToDatabase` switches the parent's tab after a save.
   - `app/components/icp/IcpTab.tsx` + `app/hooks/useIcpEditor.ts` — the ICP editor (load/edit/review/
-    apply-diff/test/commit/history). `IcpTab` calls the hook itself (nothing else needs it).
+    apply-diff/test/commit/history). `IcpTab` calls `useIcpEditor` itself; the product-category editor
+    (`useCategories`, created in `page.tsx`) is passed in as `categoriesApi`.
+  - `app/hooks/useCategories.ts` — the editable `product_category` vocabulary (list + draft/diff-save),
+    created once in `page.tsx` and passed to `IcpTab` (edit, via `ManageCategoriesModal`) and to the
+    Database + search tabs (read-only, as the `categories` prop for the dropdowns).
   - `app/components/about/HowItWorksTab.tsx` — the static "How It Works" tab (no hook).
   - `app/components/search/{QueueModal,SourcePerfModal,SourceModal}.tsx`,
-    `app/components/database/AddCompanyModal.tsx`, `app/components/icp/{ReviewInfoModal,ManageExamplesModal}.tsx`
+    `app/components/database/AddCompanyModal.tsx`, `app/components/icp/{ReviewInfoModal,ManageExamplesModal,ManageCategoriesModal}.tsx`
     — presentational modals, all props-driven (no state of their own).
-  - `app/components/common/{AuthScreen,MarketBadge}.tsx` — the login screen and the source market badge.
+  - `app/components/common/{AuthScreen,MarketBadge,MultiSelect}.tsx` — the login screen, the source
+    market badge, and the reusable multi-select checkbox dropdown (portal-rendered so it's never
+    clipped) used for the multi-value geography / product-category fields.
   - `lib/styles.ts` — shared style objects (`inputStyle`, `labelStyle`, `btnPrimary`, `btnSecondary`,
     `addBtnStyle`, …). `lib/uiConstants.ts` — UI constants + option lists (`GEO_OPTIONS`, `SOURCE_OPTIONS`,
-    `AUTH_KEY`, `DEMO_MODE`, …). `lib/uiTypes.ts` — shared UI types (`Company`, `SearchResult`, …).
-    `lib/format.ts` — presentation helpers (`diffLines` line-level LCS, `icpColor`, `safeHref`,
-    `displayHostname`, `fmtAddedDate`).
+    `CAT_OPTIONS` (category fallback), `AUTH_KEY`, `DEMO_MODE`, …). `lib/uiTypes.ts` — shared UI types
+    (`Company`, `SearchResult`, …). `lib/format.ts` — presentation helpers (`diffLines` line-level LCS,
+    `icpColor`, `safeHref`, `displayHostname`, `fmtAddedDate`, `parseMulti`/`joinMulti`).
 - `app/layout.tsx` — page metadata (browser-tab title, description, `lang`).
 - `app/globals.css` — global styles: the colour-palette CSS variables, the site-wide button hover
   rule, and the default button border-radius. See [DESIGN.md](DESIGN.md).
@@ -242,7 +267,8 @@ on an always-on server (Render / `next dev`), never serverless.
   008 = source `market` tags; 011 = `app_users` login; 012 = source performance counters +
   `companies.source_name`; 013 = `app_settings` for the source-warning thresholds; 014 = `icp_docs`
   + `icp_doc_versions` for the editable ICP; 015 = `companies.added_at` + `companies.status`;
-  016 = `youtube_cursors` + `youtube_seen` for YouTube pagination/de-dup).
+  016 = `youtube_cursors` + `youtube_seen` for YouTube pagination/de-dup; 017 = `product_categories`
+  (editable category vocabulary); 018 = `sources.featured` (recommended sources)).
 - [SOURCES.md](SOURCES.md) — running log of every source evaluated for discovery: works / held / rejected, and why.
 
 ## 8. Running locally
@@ -330,9 +356,13 @@ single model is simpler. `sources.json` may still set `enrichment_model` to over
      (`discoverViaYouTube`, Data API v3); per-geography ICP (EU + US) with automatic routing;
      target-market discovery steer + source `market` tags; adaptive per-source language handling;
      pilot login (`app_users`); **per-source performance counts** ("used · queued · saved") with a
-     **hit-rate low-performer warning** (editable, shared thresholds in `app_settings`).
+     **hit-rate low-performer warning** (editable, shared thresholds in `app_settings`);
+     **multi-value geography + product category** across the UI *and* the AI (Step 3 returns arrays);
+     **editable product-category vocabulary** (`product_categories`, edited in the ICP tab); and
+     **recommended/featured sources** (`sources.featured`) with a curated-by-default source list.
 6. **ICP validation** — compare the tool's ICP scores against AKBM's Excel of ~100 companies.
 7. **Source-performance v2 (optional)** — the modal shows hit rate (found ÷ used) with a ⚠ warning
-   today; a future step could add a quality signal (saved ÷ queued) or auto-deactivate dead sources.
+   today, and sources can be manually flagged "recommended"; a future step could auto-suggest which
+   low performers to un-feature or auto-deactivate dead sources once stats are mature.
 8. **Softer rejection** — un-reject / review rejected companies.
 8. **AKBM handover** — ownership of repo/hosting/API keys, security, data residency, auth.

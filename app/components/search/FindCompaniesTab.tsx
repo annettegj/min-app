@@ -114,7 +114,9 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                     </>
                   ) : (
                     <>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, maxHeight: termsExpanded ? "none" : 232, overflowY: termsExpanded ? "visible" : "auto", paddingRight: 6 }}>
+                      {/* Same maxHeight cap (320) as each source column's scroll area, so the four
+                          columns line up — and the terms list never follows a source's "Show all". */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, paddingRight: 6, maxHeight: termsExpanded ? "none" : 320, overflowY: termsExpanded ? "visible" : "auto" }}>
                         {termOptions.map(t => {
                           const checked = selectedTerms.includes(t);
                           const atMax = selectedTerms.length >= 3;
@@ -131,7 +133,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                       {termOptions.length > 8 && (
                         <button type="button" onClick={() => setTermsExpanded(v => !v)}
                           style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 0", marginTop: 4, textAlign: "left" }}>
-                          {termsExpanded ? "Show fewer ▴" : `Show all ${termOptions.length} ▾`}
+                          {termsExpanded ? "Show fewer ▴" : `Show all terms (${termOptions.length}) ▾`}
                         </button>
                       )}
                     </>
