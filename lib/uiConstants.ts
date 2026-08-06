@@ -21,7 +21,7 @@ export const SEARCH_TERM_OPTIONS = Array.from(new Set([
   ...((sourcesConfig as { keyword_bank?: string[] }).keyword_bank ?? []),
 ]));
 export const SOURCE_OPTIONS = ((sourcesConfig as { sources?: { name: string; type?: string; url?: string; market?: string }[] }).sources ?? [])
-  .map(s => ({ name: s.name, type: s.type ?? "web site", url: s.url ?? "", market: s.market ?? "", times_used: 0, companies_found: 0 }));
+  .map(s => ({ name: s.name, type: s.type ?? "web site", url: s.url ?? "", market: s.market ?? "", times_used: 0, companies_found: 0, featured: false }));
 
 // Outreach status the user can set per company (migration 015). Values are stored; labels are shown.
 export const STATUS_OPTIONS = [

@@ -46,13 +46,15 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   const keyRef = useRef(0);
   const nextKey = () => `k${keyRef.current++}`;
   // Add/edit-source modal — edits the DRAFT, not the DB. editingSourceKey === null means "add new".
-  const [newSource, setNewSource] = useState<SourceFields>({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "" });
+  const [newSource, setNewSource] = useState<SourceFields>({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "", featured: false });
   const [editingSourceKey, setEditingSourceKey] = useState<string | null>(null);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
   const [sourceInfoOpen, setSourceInfoOpen] = useState(false);
   const [termsExpanded, setTermsExpanded] = useState(false);
   // Per source-type column (Website / Single page / YouTube) expand state, keyed by heading.
   const [expandedSourceGroups, setExpandedSourceGroups] = useState<Record<string, boolean>>({});
+  // Per source-type column: when collapsed (default) the column shows only its "recommended high
+  // quality" (featured) sources — or all of them if none are flagged yet. Expanding shows the full list.
   const toggleSourceGroup = (h: string) => setExpandedSourceGroups(prev => ({ ...prev, [h]: !prev[h] }));
   const [configBusy, setConfigBusy] = useState(false);
   const [configError, setConfigError] = useState("");
@@ -108,13 +110,13 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
       supabase.from("search_terms").select("id, term, is_default").eq("active", true).order("id"),
     ]);
     if (srcs) {
-      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null; market?: string | null; times_used?: number | null; companies_found?: number | null }) => ({
+      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null; market?: string | null; times_used?: number | null; companies_found?: number | null; featured?: boolean | null }) => ({
         id: s.id, name: s.name, type: (s.type ?? "web site") as "web site" | "web page" | "youtube",
         url: s.url ?? "", search_prefix: s.search_prefix ?? "", note: s.note ?? "", market: s.market ?? "",
-        times_used: s.times_used ?? 0, companies_found: s.companies_found ?? 0,
+        times_used: s.times_used ?? 0, companies_found: s.companies_found ?? 0, featured: s.featured ?? false,
       }));
       setSourceRecords(recs);
-      setSourceOptions(recs.map(s => ({ name: s.name, type: s.type, url: s.url, market: s.market, times_used: s.times_used, companies_found: s.companies_found })));
+      setSourceOptions(recs.map(s => ({ name: s.name, type: s.type, url: s.url, market: s.market, times_used: s.times_used, companies_found: s.companies_found, featured: s.featured })));
       setSelectedSources(prev => prev.filter(n => recs.some(r => r.name === n)));
     }
     if (terms) {
@@ -128,7 +130,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   // --- Draft editing (local until "Save changes") ---
   function enterConfigEdit() {
     setDraftTerms(termRecords.map(t => ({ key: nextKey(), id: t.id, term: t.term, is_default: t.is_default })));
-    setDraftSources(sourceRecords.map(s => ({ key: nextKey(), id: s.id, name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market })));
+    setDraftSources(sourceRecords.map(s => ({ key: nextKey(), id: s.id, name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market, featured: s.featured, times_used: s.times_used, companies_found: s.companies_found })));
     setConfigError("");
     setConfigEditMode(true);
   }
@@ -142,11 +144,11 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   const addDraftTerm = () => setDraftTerms(prev => [...prev, { key: nextKey(), id: null, term: "", is_default: false }]);
   const removeDraftSource = (key: string) => setDraftSources(prev => prev.filter(s => s.key !== key));
   function openAddSource() {
-    setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "" });
+    setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "", featured: false });
     setEditingSourceKey(null); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true);
   }
   function openEditSource(s: DraftSource) {
-    setNewSource({ name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market });
+    setNewSource({ name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market, featured: s.featured });
     setEditingSourceKey(s.key); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true);
   }
   // Modal "Done" — validate the single source and write it into the draft (no DB call).
@@ -156,11 +158,13 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     if (newSource.type === "web site" && !newSource.search_prefix.trim()) { setConfigError("A website source needs a search prefix (e.g. nutraingredients.com)."); return; }
     if (newSource.type === "web page" && !newSource.url.trim()) { setConfigError("A single-page source needs a URL."); return; }
     const keepPrefix = newSource.type === "web site" || newSource.type === "youtube";
-    const fields: SourceFields = { name, type: newSource.type, url: newSource.type === "youtube" ? "" : newSource.url.trim(), search_prefix: keepPrefix ? newSource.search_prefix.trim() : "", note: newSource.note.trim(), market: newSource.market };
+    const fields: SourceFields = { name, type: newSource.type, url: newSource.type === "youtube" ? "" : newSource.url.trim(), search_prefix: keepPrefix ? newSource.search_prefix.trim() : "", note: newSource.note.trim(), market: newSource.market, featured: newSource.featured };
     if (editingSourceKey) setDraftSources(prev => prev.map(s => s.key === editingSourceKey ? { ...s, ...fields } : s));
-    else setDraftSources(prev => [...prev, { key: nextKey(), id: null, ...fields }]);
+    else setDraftSources(prev => [...prev, { key: nextKey(), id: null, ...fields, times_used: 0, companies_found: 0 }]);
     setSourceModalOpen(false); setConfigError("");
   }
+  // Toggle "recommended high quality source" inline in the config editor (no modal needed).
+  const toggleDraftSourceFeatured = (key: string) => setDraftSources(prev => prev.map(s => s.key === key ? { ...s, featured: !s.featured } : s));
 
   // Diff the draft against the loaded records and apply inserts/updates/deletes in one go.
   async function saveConfig() {
@@ -180,7 +184,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
       const termInserts = terms.filter(t => t.id == null).map(t => ({ term: t.term, is_default: t.is_default }));
       const termUpdates = terms.filter(t => t.id != null).filter(t => { const o = termRecords.find(r => r.id === t.id); return o && o.term !== t.term; });
       // SOURCES diff
-      const toRow = (s: SourceFields) => ({ type: s.type, name: s.name.trim(), url: s.url.trim() || null, search_prefix: (s.type === "web site" || s.type === "youtube") ? (s.search_prefix.trim() || null) : null, note: s.note.trim() || null, market: s.market.trim() || null });
+      const toRow = (s: SourceFields) => ({ type: s.type, name: s.name.trim(), url: s.url.trim() || null, search_prefix: (s.type === "web site" || s.type === "youtube") ? (s.search_prefix.trim() || null) : null, note: s.note.trim() || null, market: s.market.trim() || null, featured: s.featured });
       const draftSrcIds = new Set(srcs.filter(s => s.id != null).map(s => s.id));
       const srcDeletes = sourceRecords.filter(r => !draftSrcIds.has(r.id)).map(r => r.id);
       const srcInserts = srcs.filter(s => s.id == null).map(toRow);
@@ -188,7 +192,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
         const o = sourceRecords.find(r => r.id === s.id);
         if (!o) return false;
         return o.name !== s.name.trim() || o.type !== s.type || o.url !== s.url.trim()
-          || o.search_prefix !== ((s.type === "web site" || s.type === "youtube") ? s.search_prefix.trim() : "") || o.note !== s.note.trim() || o.market !== s.market.trim();
+          || o.search_prefix !== ((s.type === "web site" || s.type === "youtube") ? s.search_prefix.trim() : "") || o.note !== s.note.trim() || o.market !== s.market.trim() || o.featured !== s.featured;
       });
 
       // Deletes first, so a rename/re-add can reuse a freed unique name.
@@ -278,6 +282,13 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   // Refresh the queue count whenever we return to an idle/finished state (e.g. after a search).
   useEffect(() => {
     if (agentState === "idle" || agentState === "done" || agentState === "stale_warning") loadPendingCount();
+  }, [agentState]);
+
+  // Once a search has completed successfully, clear the source/term checkboxes so the next search
+  // starts fresh (errors keep the selections so "Try again" can reuse them). The config panel is
+  // hidden during the results view, so this reset is invisible until the user returns to it.
+  useEffect(() => {
+    if (agentState === "done") { setSelectedTerms([]); setSelectedSources([]); }
   }, [agentState]);
 
   async function deleteFromQueue(name: string) {
@@ -510,6 +521,11 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
       setAddingState("saved");
       setSearchResults([]);
       setAgentState("idle");
+      // Search is fully done and companies are saved — close the live log and clear it so the
+      // "Companies added" screen isn't cluttered by the finished search log.
+      setShowLog(false);
+      setActiveSearchJobId(null);
+      setLogLines([]);
     }
   }
 
@@ -540,7 +556,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     currentStep, elapsedLabel, selectedCount,
     // config handlers
     enterConfigEdit, cancelConfigEdit, updateDraftTerm, removeDraftTerm, addDraftTerm,
-    removeDraftSource, openAddSource, openEditSource, applySource, saveConfig,
+    removeDraftSource, toggleDraftSourceFeatured, openAddSource, openEditSource, applySource, saveConfig,
     // queue / settings handlers
     loadPendingCount, clearQueue, saveSettings,
     // helpers

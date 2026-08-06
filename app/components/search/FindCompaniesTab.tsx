@@ -38,7 +38,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
     perfSaving, perfEditThreshold, setPerfEditThreshold,
     currentStep, elapsedLabel, selectedCount,
     enterConfigEdit, cancelConfigEdit, updateDraftTerm, removeDraftTerm, addDraftTerm,
-    removeDraftSource, openAddSource, openEditSource, applySource, saveConfig,
+    removeDraftSource, toggleDraftSourceFeatured, openAddSource, openEditSource, applySource, saveConfig,
     clearQueue, saveSettings,
     sourceHitRate, sourceIsLow, fmtHitRate, fmtSavedRate,
     deleteFromQueue, resetProcessingToQueue, handleAgentSearch,
@@ -145,87 +145,146 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                   </div>
                   {configEditMode ? (
                     <>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto", paddingRight: 6 }}>
-                        {draftSources.map(s => (
-                          <div key={s.key} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                            <button type="button" title="Remove source" onClick={() => removeDraftSource(s.key)}
-                              style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 6px", borderRadius: 4, marginTop: 7, flexShrink: 0 }}>✕</button>
-                            <button type="button" onClick={() => openEditSource(s)}
-                              style={{ flex: 1, textAlign: "left", background: "var(--surface-input)", border: "1px solid var(--border-input)", borderRadius: 4, padding: "8px 10px", cursor: "pointer", color: "var(--navy)" }}>
-                              <span style={{ fontSize: 13, fontWeight: 600 }}>{s.name || "(unnamed source)"}</span>
-                              <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 2, wordBreak: "break-all" }}>
-                                {s.type === "web page" ? "Single page" : s.type === "youtube" ? "YouTube" : "Website"}
-                                {s.type === "web page" && s.url ? ` · ${s.url.replace(/^https?:\/\//, "")}` : ""}
-                                {(s.type === "web site" || s.type === "youtube") && s.search_prefix ? ` · ${s.search_prefix}` : ""}
-                                {s.market ? ` · ${s.market}` : ""}
-                                <span style={{ color: "var(--accent)", fontWeight: 700 }}> · Edit ✎</span>
-                              </span>
-                            </button>
-                          </div>
-                        ))}
-                        {draftSources.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>No sources yet — add one below.</p>}
+                      <p style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>Tick <strong>Recommended</strong> to show a source in the short default list. Click a source name to edit its details.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 20, marginTop: 4 }}>
+                        {[
+                          { heading: "Website", type: "web site" },
+                          { heading: "Single page", type: "web page" },
+                          { heading: "YouTube", type: "youtube" },
+                        ].map(group => {
+                          const items = draftSources.filter(s => (s.type ?? "web site") === group.type);
+                          if (items.length === 0) return null;
+                          return (
+                            <div key={group.heading}>
+                              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{group.heading}</p>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
+                                {items.map(s => {
+                                  const tu = s.times_used ?? 0, cf = s.companies_found ?? 0;
+                                  const saved = savedBySource.get(s.name) ?? 0;
+                                  return (
+                                    <div key={s.key} style={{ background: "var(--surface-input)", border: "1px solid var(--border-input)", borderRadius: 4, padding: "8px 10px" }}>
+                                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
+                                        <button type="button" onClick={() => openEditSource(s)}
+                                          style={{ flex: 1, textAlign: "left", background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "var(--navy)" }}>
+                                          <span style={{ fontSize: 13, fontWeight: 600 }}>{s.name || "(unnamed source)"}</span>
+                                          <MarketBadge market={s.market} />
+                                          <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 11 }}> · Edit ✎</span>
+                                        </button>
+                                        <button type="button" title="Remove source" onClick={() => removeDraftSource(s.key)}
+                                          style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "0 4px", flexShrink: 0 }}>✕</button>
+                                      </div>
+                                      <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
+                                        {tu > 0 || cf > 0 || saved > 0 ? `used ${tu} · queued ${cf} · saved ${saved}` : "Not used yet"}
+                                      </span>
+                                      {sourceIsLow(tu, cf) && (
+                                        <span style={{ display: "block", fontSize: 10.5, color: "var(--danger-text)", fontWeight: 700, marginTop: 2 }}>
+                                          ⚠ Low hit rate ({fmtHitRate(tu, cf)})
+                                        </span>
+                                      )}
+                                      <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, cursor: "pointer", fontSize: 11.5, color: "var(--text-slate)", fontWeight: 600 }}>
+                                        <input type="checkbox" checked={s.featured} onChange={() => toggleDraftSourceFeatured(s.key)}
+                                          style={{ accentColor: "var(--accent)", width: 14, height: 14, flexShrink: 0 }} />
+                                        Recommended
+                                      </label>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div style={{ marginTop: "auto", paddingTop: 14 }}>
+                      {draftSources.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>No sources yet — add one below.</p>}
+                      <div style={{ marginTop: 14 }}>
                         <button type="button" onClick={openAddSource} style={addBtnStyle}>+ Add new source</button>
                       </div>
                     </>
-                  ) : (
+                  ) : (() => {
+                    const groups = [
+                      { heading: "Website", showAllLabel: "websites", items: sourceOptions.filter(s => (s.type ?? "web site") === "web site") },
+                      { heading: "Single page", showAllLabel: "single pages", items: sourceOptions.filter(s => s.type === "web page") },
+                      { heading: "YouTube", showAllLabel: "YouTube sources", items: sourceOptions.filter(s => s.type === "youtube") },
+                    ];
+                    // One source row (checkbox + name + stats). Reused for the recommended box and the rest.
+                    const renderRow = (s: (typeof sourceOptions)[number]) => {
+                      const isPage = s.type === "web page";
+                      const checked = selectedSources.includes(s.name);
+                      const atMax = selectedSources.length >= 4;
+                      return (
+                        <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
+                          <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                            onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
+                            style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
+                          <span>
+                            {s.name}<MarketBadge market={s.market} />
+                            {isPage && s.url && (
+                              <a href={/^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                style={{ display: "block", fontSize: 10, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all", textDecoration: "underline" }}>
+                                {s.url.replace(/^https?:\/\//, "")}
+                              </a>
+                            )}
+                            <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
+                              {s.times_used > 0 || s.companies_found > 0 || (savedBySource.get(s.name) ?? 0) > 0
+                                ? `used ${s.times_used} · queued ${s.companies_found} · saved ${savedBySource.get(s.name) ?? 0}`
+                                : "Not used yet"}
+                            </span>
+                            {sourceIsLow(s.times_used, s.companies_found) && (
+                              <span style={{ display: "block", fontSize: 10.5, color: "var(--danger-text)", fontWeight: 700, marginTop: 2 }}>
+                                ⚠ Low hit rate ({fmtHitRate(s.times_used, s.companies_found)}) — consider editing or removing
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      );
+                    };
+                    return (
+                    <>
                     <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 20, marginTop: 4 }}>
-                      {[
-                        { heading: "Website", items: sourceOptions.filter(s => (s.type ?? "web site") === "web site") },
-                        { heading: "Single page", items: sourceOptions.filter(s => s.type === "web page") },
-                        { heading: "YouTube", items: sourceOptions.filter(s => s.type === "youtube") },
-                      ].map(group => {
+                      {groups.map(group => {
                         if (group.items.length === 0) return null;
+                        const featured = group.items.filter(s => s.featured);
+                        const others = group.items.filter(s => !s.featured);
+                        const hasFeatured = featured.length > 0;
                         const expanded = !!expandedSourceGroups[group.heading];
+                        const hasHidden = hasFeatured && others.length > 0; // non-recommended hidden here
                         return (
                           <div key={group.heading}>
                             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{group.heading}</p>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: expanded ? "none" : 200, overflowY: expanded ? "visible" : "auto", paddingRight: 4 }}>
-                              {group.items.map(s => {
-                                const isPage = s.type === "web page";
-                                const checked = selectedSources.includes(s.name);
-                                const atMax = selectedSources.length >= 4;
-                                return (
-                                  <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
-                                    <input type="checkbox" checked={checked} disabled={!checked && atMax}
-                                      onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
-                                      style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
-                                    <span>
-                                      {s.name}<MarketBadge market={s.market} />
-                                      {isPage && s.url && (
-                                        <a href={/^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
-                                          onClick={e => e.stopPropagation()}
-                                          style={{ display: "block", fontSize: 10, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all", textDecoration: "underline" }}>
-                                          {s.url.replace(/^https?:\/\//, "")}
-                                        </a>
-                                      )}
-                                      <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
-                                        {s.times_used > 0 || s.companies_found > 0 || (savedBySource.get(s.name) ?? 0) > 0
-                                          ? `used ${s.times_used} · queued ${s.companies_found} · saved ${savedBySource.get(s.name) ?? 0}`
-                                          : "Not used yet"}
-                                      </span>
-                                      {sourceIsLow(s.times_used, s.companies_found) && (
-                                        <span style={{ display: "block", fontSize: 10.5, color: "var(--danger-text)", fontWeight: 700, marginTop: 2 }}>
-                                          ⚠ Low hit rate ({fmtHitRate(s.times_used, s.companies_found)}) — consider editing or removing
-                                        </span>
-                                      )}
-                                    </span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                            {group.items.length > 4 && (
+                            {hasFeatured ? (
+                              // One shared scroll container so the column never has two scrollbars.
+                              <div style={{ maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
+                                {/* Recommended set — visually boxed so it's clear this is a curated subset. */}
+                                <div style={{ background: "var(--surface-tint)", border: "1px solid var(--border-light)", borderRadius: 4, padding: "8px 10px" }}>
+                                  <p style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>Recommended, high quality sources</p>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                    {featured.map(renderRow)}
+                                  </div>
+                                </div>
+                                {expanded && others.length > 0 && (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+                                    {others.map(renderRow)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
+                                {group.items.map(renderRow)}
+                              </div>
+                            )}
+                            {hasHidden && (
                               <button type="button" onClick={() => toggleSourceGroup(group.heading)}
-                                style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 11.5, fontWeight: 700, padding: "6px 0 0", textAlign: "left" }}>
-                                {expanded ? "Show fewer ▴" : `Show all ${group.items.length} ▾`}
+                                style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 11.5, fontWeight: 700, padding: "8px 0 0", textAlign: "left" }}>
+                                {expanded ? "Show fewer ▴" : `Show all ${group.showAllLabel} (${group.items.length}) ▾`}
                               </button>
                             )}
                           </div>
                         );
                       })}
                     </div>
-                  )}
+                    </>
+                    );
+                  })()}
                 </div>
               </div>
               {configError && <p style={{ padding: "0 20px 16px", fontSize: 12, color: "var(--danger-text)" }}>{configError}</p>}

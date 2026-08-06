@@ -95,6 +95,16 @@ export function SourceModal({ source, setSource, editing, infoOpen, setInfoOpen,
               style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
             <p style={hintStyle}>Passed to the AI as an instruction for this source (paywall tips, region focus, etc.).</p>
           </div>
+          <div>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
+              <input type="checkbox" checked={source.featured} onChange={e => setSource({ ...source, featured: e.target.checked })}
+                style={{ accentColor: "var(--accent)", width: 16, height: 16, marginTop: 2, flexShrink: 0 }} />
+              <span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--navy)" }}>Recommended high quality source</span>
+                <span style={{ ...hintStyle, marginTop: 2 }}>Shown in the short default list in the search tab. Leave off to keep it in the full list behind “Show all sources”.</span>
+              </span>
+            </label>
+          </div>
         </div>
         {error && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 14 }}>{error}</p>}
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
