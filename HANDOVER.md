@@ -89,7 +89,9 @@ a **Log out** button + the signed-in email sit top-right. See §10.
    export follows what's shown). **Geography** and **Product category** are **multi-value** everywhere
    (filter, add, edit): a reusable `MultiSelect` checkbox dropdown, stored comma-separated in the one
    text column (a legacy single value is just a one-item list). The filter matches on overlap (empty =
-   all); the table shows the values as comma-separated text.
+   all); the table shows the values as comma-separated text. The filter panel also has a **Source**
+   multi-select (the distinct `source_name`s present) and a multi-select **Priority Tier**; **Min ICP
+   Fit Score** sits bottom-right.
 2. **Find New Companies** — runs the search (see pipeline below). Includes the **Search
    Configuration** panel (draft-based edit mode for terms & sources — up to 3 terms / 4 sources, each
    source showing its **EU/US/Global** market badge and its **"used · queued · saved"** performance
@@ -98,7 +100,12 @@ a **Log out** button + the signed-in email sit top-right. See §10.
    **"Recommended high quality source"** (`sources.featured`); each type column then shows only its
    recommended set in a boxed group, with a per-column **"Show all …"** toggle for the rest (a column
    with none flagged shows all — the fallback). Selected terms/sources reset once a search completes.
-   Step 3 (ICP scoring) always runs automatically after Steps 1–2.
+   **Single-page** sources are one-shot (read once via `web_fetch`); once used (`times_used > 0`) they
+   drop out of the selectable list into a collapsed **"Completed single pages"** section (bottom-right),
+   each with an **"Add back to source list"** action that re-adds it to the selection for the session
+   (client-side, no stat reset — a re-run only surfaces genuinely new companies). Sources and search
+   terms show a **"last used"** date (`last_used_at`). Step 3 (ICP scoring) always runs automatically
+   after Steps 1–2.
 3. **Lysoveta ICP Criteria** — the ICP the AI scores against. **Editable** (✎ Edit Criteria → free-form
    Markdown textarea → Save) — stored in the `icp_docs` table, with a version snapshot on every save
    (Version history → "Load into editor" to revert). Falls back to `config/icp.md` / `config/icp_us.md`
@@ -166,7 +173,10 @@ on an always-on server (Render / `next dev`), never serverless.
 - **`sources`** — UI-editable search config, plus per-source performance counters `times_used` and
   `companies_found` (migration 012). With `companies.source_name`, these drive the
   **"used X · queued Y · saved Z"** line under each source. `featured` (bool, migration 018) marks a
-  source as "recommended high quality" — shown in the short default list in the search tab. See
+  source as "recommended high quality" — shown in the short default list in the search tab.
+  `last_used_at` (migration 019) records the last discovery run that used the source — shown as a
+  "last used" date; `search_terms.last_used_at` does the same per term. Both are set in
+  `bumpSourceStats` / after discovery. See
   [SEARCH_PIPELINE.md → Source performance counters](SEARCH_PIPELINE.md#source-performance-counters).
 - **`product_categories`** — the editable `product_category` vocabulary (`name`, `active`, `sort_order`),
   migration 017. Read by the UI dropdowns (via `useCategories`, edited in the ICP tab) and by the
@@ -197,6 +207,9 @@ on an always-on server (Render / `next dev`), never serverless.
 >   built-in defaults are used, so nothing breaks before it's applied.
 > - Featured sources (migration 018): `sources.featured` bool. Until applied, saving a source fails,
 >   so apply it before editing sources; the search tab just shows all sources (no featured filtering).
+> - Last-used dates (migration 019): `last_used_at` on `sources` + `search_terms`, plus a one-time
+>   backfill of source dates from each source's most recent saved company (terms fill from the next
+>   search). Absent → the dates just show blank until the next run.
 
 ## 7. Key files
 
@@ -268,7 +281,8 @@ on an always-on server (Render / `next dev`), never serverless.
   `companies.source_name`; 013 = `app_settings` for the source-warning thresholds; 014 = `icp_docs`
   + `icp_doc_versions` for the editable ICP; 015 = `companies.added_at` + `companies.status`;
   016 = `youtube_cursors` + `youtube_seen` for YouTube pagination/de-dup; 017 = `product_categories`
-  (editable category vocabulary); 018 = `sources.featured` (recommended sources)).
+  (editable category vocabulary); 018 = `sources.featured` (recommended sources); 019 = `last_used_at`
+  on `sources` + `search_terms`).
 - [SOURCES.md](SOURCES.md) — running log of every source evaluated for discovery: works / held / rejected, and why.
 
 ## 8. Running locally
@@ -358,8 +372,11 @@ single model is simpler. `sources.json` may still set `enrichment_model` to over
      pilot login (`app_users`); **per-source performance counts** ("used · queued · saved") with a
      **hit-rate low-performer warning** (editable, shared thresholds in `app_settings`);
      **multi-value geography + product category** across the UI *and* the AI (Step 3 returns arrays);
-     **editable product-category vocabulary** (`product_categories`, edited in the ICP tab); and
-     **recommended/featured sources** (`sources.featured`) with a curated-by-default source list.
+     **editable product-category vocabulary** (`product_categories`, edited in the ICP tab);
+     **recommended/featured sources** (`sources.featured`) with a curated-by-default source list;
+     **Source + Priority-tier filters** in the Company Database; auto-archiving of used-up single
+     pages ("Completed single pages" + "Add back to source list"); and **last-used dates**
+     (`last_used_at`) on sources + search terms.
 6. **ICP validation** — compare the tool's ICP scores against AKBM's Excel of ~100 companies.
 7. **Source-performance v2 (optional)** — the modal shows hit rate (found ÷ used) with a ⚠ warning
    today, and sources can be manually flagged "recommended"; a future step could auto-suggest which
