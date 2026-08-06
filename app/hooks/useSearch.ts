@@ -36,6 +36,11 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   // defaults so there's something before the fetch resolves (and as a fallback).
   const [sourceOptions, setSourceOptions] = useState(SOURCE_OPTIONS);
   const [termOptions, setTermOptions] = useState(SEARCH_TERM_OPTIONS);
+  // term → last_used_at ISO (or null), for the "last used" line under each search term.
+  const [termLastUsed, setTermLastUsed] = useState<Record<string, string | null>>({});
+  // Completed single pages the user has chosen to re-add to the selectable list this session
+  // (client-side only — no stat reset, no DB write).
+  const [reactivatedPages, setReactivatedPages] = useState<Set<string>>(new Set());
   // Edit mode: a local DRAFT of the config. Nothing is written to the DB until "Save changes".
   const [configEditMode, setConfigEditMode] = useState(false);
   // Full DB records (with ids) — the baseline the draft is diffed against on save.
@@ -56,6 +61,12 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   // Per source-type column: when collapsed (default) the column shows only its "recommended high
   // quality" (featured) sources — or all of them if none are flagged yet. Expanding shows the full list.
   const toggleSourceGroup = (h: string) => setExpandedSourceGroups(prev => ({ ...prev, [h]: !prev[h] }));
+  // Re-add a completed single page to the selectable "Single page" list (and open that column so it's
+  // visible). It stays completed in the data — this only un-hides it from selection for this session.
+  const reactivateSource = (name: string) => {
+    setReactivatedPages(prev => new Set(prev).add(name));
+    setExpandedSourceGroups(prev => ({ ...prev, "Single page": true }));
+  };
   const [configBusy, setConfigBusy] = useState(false);
   const [configError, setConfigError] = useState("");
 
@@ -107,22 +118,23 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   async function loadSearchConfig() {
     const [{ data: srcs }, { data: terms }] = await Promise.all([
       supabase.from("sources").select("*").eq("active", true).order("id"),
-      supabase.from("search_terms").select("id, term, is_default").eq("active", true).order("id"),
+      supabase.from("search_terms").select("id, term, is_default, last_used_at").eq("active", true).order("id"),
     ]);
     if (srcs) {
-      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null; market?: string | null; times_used?: number | null; companies_found?: number | null; featured?: boolean | null }) => ({
+      const recs: SourceRecord[] = srcs.map((s: { id: number; name: string; type: string | null; url: string | null; search_prefix: string | null; note: string | null; market?: string | null; times_used?: number | null; companies_found?: number | null; featured?: boolean | null; last_used_at?: string | null }) => ({
         id: s.id, name: s.name, type: (s.type ?? "web site") as "web site" | "web page" | "youtube",
         url: s.url ?? "", search_prefix: s.search_prefix ?? "", note: s.note ?? "", market: s.market ?? "",
-        times_used: s.times_used ?? 0, companies_found: s.companies_found ?? 0, featured: s.featured ?? false,
+        times_used: s.times_used ?? 0, companies_found: s.companies_found ?? 0, featured: s.featured ?? false, last_used_at: s.last_used_at ?? null,
       }));
       setSourceRecords(recs);
-      setSourceOptions(recs.map(s => ({ name: s.name, type: s.type, url: s.url, market: s.market, times_used: s.times_used, companies_found: s.companies_found, featured: s.featured })));
+      setSourceOptions(recs.map(s => ({ name: s.name, type: s.type, url: s.url, market: s.market, times_used: s.times_used, companies_found: s.companies_found, featured: s.featured, last_used_at: s.last_used_at })));
       setSelectedSources(prev => prev.filter(n => recs.some(r => r.name === n)));
     }
     if (terms) {
-      const recs = terms.map((t: { id: number; term: string; is_default: boolean }) => ({ id: t.id, term: t.term, is_default: t.is_default }));
+      const recs = terms.map((t: { id: number; term: string; is_default: boolean; last_used_at?: string | null }) => ({ id: t.id, term: t.term, is_default: t.is_default }));
       setTermRecords(recs);
       setTermOptions(recs.map(t => t.term));
+      setTermLastUsed(Object.fromEntries(terms.map((t: { term: string; last_used_at?: string | null }) => [t.term, t.last_used_at ?? null])));
       setSelectedTerms(prev => prev.filter(x => recs.some(r => r.term === x)));
     }
   }
@@ -543,6 +555,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     newSource, setNewSource, editingSourceKey,
     sourceModalOpen, setSourceModalOpen, sourceInfoOpen, setSourceInfoOpen,
     termsExpanded, setTermsExpanded, expandedSourceGroups, toggleSourceGroup,
+    termLastUsed, reactivatedPages, reactivateSource,
     configBusy, configError, setConfigError,
     // background job / log / queue
     searchProgress, activeSearchJobId, logLines, showLog, setShowLog,

@@ -12,7 +12,7 @@ import type { CompaniesApi } from "@/app/hooks/useCompanies";
 export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; categories: string[] }) {
   const {
     guardUnsavedEdit, setSearchParams, setSearchState, openAddCompany,
-    geography, setGeography, category, setCategory, icpMin, setIcpMin, tier, setTier, priceMin, setPriceMin, priceMax, setPriceMax,
+    geography, setGeography, category, setCategory, source, setSource, sourceNames, icpMin, setIcpMin, tier, setTier, priceMin, setPriceMin, priceMax, setPriceMax,
     searchState, clearResults, handleSearch, visibleResults, hiddenIds, selectedIds, showOnlySelected, setShowOnlySelected,
     clearSelection, restoreHidden, results, editMode, toggleEditMode, setSelectedIds, expandedCompanyId, setExpandedCompanyId,
     startEdit, confirmRemoveId, setConfirmRemoveId, setEditError, toggleSelected, updateCompanyStatus,
@@ -24,7 +24,7 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <button onClick={() => guardUnsavedEdit(() => { setSearchParams({ geography: [], category: [], priceMin: "", priceMax: "", icpMin: 1, tier: "All" }); setSearchState("done"); })}
+        <button onClick={() => guardUnsavedEdit(() => { setSearchParams({ geography: [], category: [], source: [], priceMin: "", priceMax: "", icpMin: 1, tier: [] }); setSearchState("done"); })}
           style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
           onMouseEnter={e => (e.currentTarget.style.background = "var(--surface)")}
           onMouseLeave={e => (e.currentTarget.style.background = "var(--white)")}>
@@ -53,6 +53,24 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
           </div>
 
           <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
+            <label style={labelStyle}>Source</label>
+            <MultiSelect options={sourceNames} value={source} onChange={setSource} placeholder="All sources" />
+          </div>
+
+          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
+            <label style={labelStyle}>Priority Tier</label>
+            <MultiSelect options={TIERS.slice(1)} value={tier} onChange={setTier} placeholder="All tiers" />
+          </div>
+
+          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
+            <label style={labelStyle}>Price Range</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input type="number" placeholder="Min" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} style={inputStyle} />
+              <input type="number" placeholder="Max" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} style={inputStyle} />
+            </div>
+          </div>
+
+          <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border-light)" }}>
             <label style={labelStyle}>Min. ICP Fit Score</label>
             <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
               {[1, 2, 3, 4, 5].map((star) => (
@@ -64,25 +82,6 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
             </div>
             <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 4 }}>Showing {icpMin}★ and above</p>
           </div>
-
-          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-            <label style={labelStyle}>Priority Tier</label>
-            <select value={tier} onChange={(e) => setTier(e.target.value)} style={inputStyle}>
-              {TIERS.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-
-
-
-          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)" }}>
-            <label style={labelStyle}>Price Range</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input type="number" placeholder="Min" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} style={inputStyle} />
-              <input type="number" placeholder="Max" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} style={inputStyle} />
-            </div>
-          </div>
-
-          <div style={{ padding: "18px 20px" }} />
         </div>
       </div>
 

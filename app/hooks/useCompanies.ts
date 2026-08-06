@@ -5,8 +5,12 @@ import { fmtAddedDate, parseMulti, joinMulti } from "@/lib/format";
 import type { Company, EditDraft, AddCompanyForm } from "@/lib/uiTypes";
 
 // geography + category are multi-value: empty list = no constraint (all); otherwise a company
-// matches if ANY of its values overlaps ANY selected value.
-type SearchParams = null | { geography: string[]; category: string[]; priceMin: string; priceMax: string; icpMin: number; tier: string };
+// matches if ANY of its values overlaps ANY selected value. `source` filters on the single
+// `source_name` per company (empty = all).
+type SearchParams = null | { geography: string[]; category: string[]; source: string[]; priceMin: string; priceMax: string; icpMin: number; tier: string[] };
+
+// Priority-tier filter labels → the stored priority_tier values.
+const TIER_VALUE_BY_LABEL: Record<string, string> = { "Early Mover": "early_mover", "Follower": "follower", "Enabler": "enabler" };
 
 // Owns the entire Company Database domain: the saved companies, the filter panel + results, inline
 // edit / soft-delete, row selection + view-only, the manual "Add company" form, Excel export, and the
@@ -16,10 +20,11 @@ export function useCompanies() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [geography, setGeography] = useState<string[]>([]);
   const [category, setCategory] = useState<string[]>([]);
+  const [source, setSource] = useState<string[]>([]);
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
   const [icpMin, setIcpMin] = useState(1);
-  const [tier, setTier] = useState("All");
+  const [tier, setTier] = useState<string[]>([]);
   const [searchState, setSearchState] = useState<"idle" | "loading" | "done">("idle");
   const [searchParams, setSearchParams] = useState<SearchParams>(null);
   const [editingCompanyId, setEditingCompanyId] = useState<number | null>(null);
@@ -50,6 +55,12 @@ export function useCompanies() {
     }
     return m;
   }, [companies]);
+
+  // Distinct source names present in the loaded companies (for the Source filter dropdown).
+  const sourceNames = useMemo(
+    () => Array.from(new Set(companies.map(c => c.source_name).filter((n): n is string => !!n))).sort((a, b) => a.localeCompare(b)),
+    [companies]
+  );
 
   async function loadCompanies() {
     const { data } = await supabase.from("companies").select("*");
@@ -83,7 +94,7 @@ export function useCompanies() {
     if (error) { setAddFormError("Could not save: " + error.message); setAddSaving(false); return; }
     await loadCompanies();
     setAddSaving(false); setAddOpen(false);
-    setSearchParams({ geography: [], category: [], priceMin: "", priceMax: "", icpMin: 1, tier: "All" });
+    setSearchParams({ geography: [], category: [], source: [], priceMin: "", priceMax: "", icpMin: 1, tier: [] });
     setSearchState("done");
   }
 
@@ -98,12 +109,11 @@ export function useCompanies() {
     return companies.filter((c) => {
       if (searchParams.geography.length && !parseMulti(c.geography).some((g) => searchParams.geography.includes(g))) return false;
       if (searchParams.category.length && !parseMulti(c.product_category).some((pc) => searchParams.category.includes(pc))) return false;
+      if (searchParams.source.length && !searchParams.source.includes(c.source_name ?? "")) return false;
       if (searchParams.priceMin && (c.max_price ?? 0) < Number(searchParams.priceMin)) return false;
       if (searchParams.priceMax && (c.max_price ?? 0) > Number(searchParams.priceMax)) return false;
       if (c.icp_fit < searchParams.icpMin) return false;
-      if (searchParams.tier === "Early Mover" && c.priority_tier !== "early_mover") return false;
-      if (searchParams.tier === "Follower" && c.priority_tier !== "follower") return false;
-      if (searchParams.tier === "Enabler" && c.priority_tier !== "enabler") return false;
+      if (searchParams.tier.length && !searchParams.tier.map((l) => TIER_VALUE_BY_LABEL[l]).includes(c.priority_tier ?? "")) return false;
       return true;
     });
   }, [searchParams, companies]);
@@ -285,14 +295,14 @@ export function useCompanies() {
     setSearchState("loading");
     setSearchParams(null);
     setTimeout(() => {
-      setSearchParams({ geography, category, priceMin, priceMax, icpMin, tier });
+      setSearchParams({ geography, category, source, priceMin, priceMax, icpMin, tier });
       setSearchState("done");
     }, 500);
   }
 
   return {
-    companies, loadCompanies, savedBySource,
-    geography, setGeography, category, setCategory, priceMin, setPriceMin, priceMax, setPriceMax, icpMin, setIcpMin, tier, setTier,
+    companies, loadCompanies, savedBySource, sourceNames,
+    geography, setGeography, category, setCategory, source, setSource, priceMin, setPriceMin, priceMax, setPriceMax, icpMin, setIcpMin, tier, setTier,
     searchState, setSearchState, searchParams, setSearchParams, results, visibleResults,
     editingCompanyId, editDraft, setEditDraft, savingEdit, editError, confirmRemoveId, setConfirmRemoveId, setEditError, removing, removeTarget,
     editMode, hiddenIds, selectedIds, setSelectedIds, showOnlySelected, setShowOnlySelected, expandedCompanyId, setExpandedCompanyId,

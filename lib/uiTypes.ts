@@ -51,7 +51,7 @@ export type EditDraft = {
 
 // Search-configuration draft types (edit mode edits a local draft; Save commits the diff).
 export type SourceFields = { name: string; type: "web site" | "web page" | "youtube"; url: string; search_prefix: string; note: string; market: string; featured: boolean };
-export type SourceRecord = SourceFields & { id: number; times_used: number; companies_found: number };
+export type SourceRecord = SourceFields & { id: number; times_used: number; companies_found: number; last_used_at: string | null };
 export type DraftTerm = { key: string; id: number | null; term: string; is_default: boolean };
 export type DraftSource = SourceFields & { key: string; id: number | null; times_used?: number; companies_found?: number };
 

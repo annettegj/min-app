@@ -138,11 +138,12 @@ async function bumpSourceStats(
     names.map(async (name) => {
       const row = cur.get(name);
       if (!row) return; // no matching source row (e.g. a stray source_name) — skip
-      const times_used = (row.times_used ?? 0) + (usedSet.has(name) ? 1 : 0);
+      const used = usedSet.has(name);
+      const times_used = (row.times_used ?? 0) + (used ? 1 : 0);
       const companies_found = (row.companies_found ?? 0) + (foundByName.get(name) ?? 0);
       const { error: upErr } = await supabase
         .from("sources")
-        .update({ times_used, companies_found })
+        .update(used ? { times_used, companies_found, last_used_at: new Date().toISOString() } : { times_used, companies_found })
         .eq("name", name);
       if (upErr) emit(`[search] Stats: could not update "${name}" — ${upErr.message}`);
     })
@@ -1036,6 +1037,11 @@ export async function searchForCompanies(
     // contributed new companies get +found. Done after the queue insert so found reflects only what
     // was actually added.
     await bumpSourceStats(supabase, sourcesForRun.map((s) => s.name), foundByName);
+    // Record when each search term used this run was last run (best-effort — never blocks the search).
+    if (conceptsForRun.length > 0) {
+      const { error: termErr } = await supabase.from("search_terms").update({ last_used_at: new Date().toISOString() }).in("term", conceptsForRun);
+      if (termErr) emit(`[search] Stats: could not update term last_used — ${termErr.message}`);
+    }
   } else {
     emit(`[search] Step 1: skipped — queue has ${pendingCount} pending companies`);
   }

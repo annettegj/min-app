@@ -7,7 +7,7 @@ import { QueueModal } from "@/app/components/search/QueueModal";
 import { SourcePerfModal } from "@/app/components/search/SourcePerfModal";
 import { SourceModal } from "@/app/components/search/SourceModal";
 import { inputStyle, labelStyle, btnPrimary, btnSecondary, addBtnStyle } from "@/lib/styles";
-import { safeHref } from "@/lib/format";
+import { safeHref, fmtDate } from "@/lib/format";
 import { SEARCH_DISABLED, GEO_OPTIONS } from "@/lib/uiConstants";
 import { useSearch } from "@/app/hooks/useSearch";
 
@@ -30,6 +30,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
     newSource, setNewSource, editingSourceKey,
     sourceModalOpen, setSourceModalOpen, sourceInfoOpen, setSourceInfoOpen,
     termsExpanded, setTermsExpanded, expandedSourceGroups, toggleSourceGroup,
+    termLastUsed, reactivatedPages, reactivateSource,
     configBusy, configError, setConfigError,
     searchProgress, activeSearchJobId, logLines, showLog, setShowLog,
     pendingQueueCount, queueModalOpen, setQueueModalOpen, clearingQueue,
@@ -121,11 +122,16 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                           const checked = selectedTerms.includes(t);
                           const atMax = selectedTerms.length >= 3;
                           return (
-                            <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
+                            <label key={t} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
                               <input type="checkbox" checked={checked} disabled={!checked && atMax}
                                 onChange={() => setSelectedTerms(checked ? selectedTerms.filter(x => x !== t) : [...selectedTerms, t])}
-                                style={{ accentColor: "var(--accent)", width: 15, height: 15 }} />
-                              {t}
+                                style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
+                              <span>
+                                {t}
+                                <span style={{ display: "block", fontSize: 10, color: "var(--text-faint)", marginTop: 1 }}>
+                                  {termLastUsed[t] ? `Last used ${fmtDate(termLastUsed[t])}` : "Not used yet"}
+                                </span>
+                              </span>
                             </label>
                           );
                         })}
@@ -170,6 +176,9 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                                           style={{ flex: 1, textAlign: "left", background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "var(--navy)" }}>
                                           <span style={{ fontSize: 13, fontWeight: 600 }}>{s.name || "(unnamed source)"}</span>
                                           <MarketBadge market={s.market} />
+                                          {s.type === "web page" && tu > 0 && (
+                                            <span title="Read once — nothing new to find; hidden from selection" style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--text-muted)", background: "var(--surface-tint)", border: "1px solid var(--border-light)", borderRadius: 3, padding: "1px 5px" }}>completed</span>
+                                          )}
                                           <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 11 }}> · Edit ✎</span>
                                         </button>
                                         <button type="button" title="Remove source" onClick={() => removeDraftSource(s.key)}
@@ -204,7 +213,9 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                   ) : (() => {
                     const groups = [
                       { heading: "Website", showAllLabel: "websites", items: sourceOptions.filter(s => (s.type ?? "web site") === "web site") },
-                      { heading: "Single page", showAllLabel: "single pages", items: sourceOptions.filter(s => s.type === "web page") },
+                      // Single pages are one-shot: once read (times_used > 0) they drop out of the
+                      // selectable list into "Completed single pages" — unless the user re-added one.
+                      { heading: "Single page", showAllLabel: "single pages", items: sourceOptions.filter(s => s.type === "web page" && (s.times_used === 0 || reactivatedPages.has(s.name))) },
                       { heading: "YouTube", showAllLabel: "YouTube sources", items: sourceOptions.filter(s => s.type === "youtube") },
                     ];
                     // One source row (checkbox + name + stats). Reused for the recommended box and the rest.
@@ -231,6 +242,9 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                                 ? `used ${s.times_used} · queued ${s.companies_found} · saved ${savedBySource.get(s.name) ?? 0}`
                                 : "Not used yet"}
                             </span>
+                            {s.last_used_at && (
+                              <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)" }}>last used {fmtDate(s.last_used_at)}</span>
+                            )}
                             {sourceIsLow(s.times_used, s.companies_found) && (
                               <span style={{ display: "block", fontSize: 10.5, color: "var(--danger-text)", fontWeight: 700, marginTop: 2 }}>
                                 ⚠ Low hit rate ({fmtHitRate(s.times_used, s.companies_found)}) — consider editing or removing
@@ -289,6 +303,52 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                   })()}
                 </div>
               </div>
+              {/* Completed single pages — one-shot pages already read; kept for reference (bottom-right), not selectable. */}
+              {!configEditMode && (() => {
+                const completed = sourceOptions.filter(s => s.type === "web page" && s.times_used > 0 && !reactivatedPages.has(s.name));
+                if (completed.length === 0) return null;
+                const open = !!expandedSourceGroups["__completed_pages__"];
+                return (
+                  <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px 20px 24px" }}>
+                    <div style={{ maxWidth: 380, width: "100%" }}>
+                      <button type="button" onClick={() => toggleSourceGroup("__completed_pages__")}
+                        style={{ background: "transparent", border: "none", color: "var(--navy-mid)", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0, textAlign: "right", width: "100%" }}>
+                        Completed single pages ({completed.length}) {open ? "▴" : "▾"}
+                      </button>
+                      {open && (
+                        <div style={{ marginTop: 10 }}>
+                          <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10, lineHeight: 1.5 }}>
+                            Already read once — nothing new to find, so they&apos;re kept here for reference (not selectable).
+                          </p>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {completed.map(s => (
+                              <div key={s.name} style={{ background: "var(--surface-input)", border: "1px solid var(--border-input)", borderRadius: 4, padding: "8px 10px" }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--navy)" }}>{s.name}</span><MarketBadge market={s.market} />
+                                {s.url && (
+                                  <a href={/^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: "block", fontSize: 10, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all", textDecoration: "underline" }}>
+                                    {s.url.replace(/^https?:\/\//, "")}
+                                  </a>
+                                )}
+                                <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
+                                  used {s.times_used} · queued {s.companies_found} · saved {savedBySource.get(s.name) ?? 0}
+                                </span>
+                                {s.last_used_at && (
+                                  <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)" }}>last read {fmtDate(s.last_used_at)}</span>
+                                )}
+                                <button type="button" onClick={() => reactivateSource(s.name)}
+                                  style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 11, fontWeight: 700, padding: "6px 0 0", textAlign: "left" }}>
+                                  + Add back to source list
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
               {configError && <p style={{ padding: "0 20px 16px", fontSize: 12, color: "var(--danger-text)" }}>{configError}</p>}
               {configEditMode && (
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "0 20px 18px" }}>

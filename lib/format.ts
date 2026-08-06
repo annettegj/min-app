@@ -55,6 +55,11 @@ export function joinMulti(list: string[]): string {
   return list.map((s) => s.trim()).filter(Boolean).join(", ");
 }
 
+// Short date for an ISO timestamp (e.g. a source/term's last_used_at). "—" when absent.
+export function fmtDate(iso: string | null | undefined): string {
+  return iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
+}
+
 // "Date added" to the database — falls back to enriched_at for rows saved before added_at existed.
 export function fmtAddedDate(c: Company): string {
   const iso = c.added_at ?? c.enriched_at;
