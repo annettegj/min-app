@@ -181,9 +181,34 @@ on an always-on server (Render / `next dev`), never serverless.
 
 ## 7. Key files
 
-- `app/page.tsx` — the entire UI (client component). Search-terms/sources selector, Excel export,
-  polling, results review, the ICP editor, and the Company Database edit/remove/clear flows. Also
-  holds the shared button style objects (`btnPrimary`, `btnSecondary`) and `inputStyle`.
+- `app/page.tsx` — the app **shell** only (client component, ~150 lines): pilot login/logout, the
+  active-tab state, the header/tab-nav, the four tab renders, and the footer. All feature logic lives
+  in the per-tab components + hooks below. It calls `useCompanies()` once and passes it to both the
+  Database tab (as `api`) and the Search tab (`savedBySource` + `loadCompanies`), so the two share one
+  instance of the companies state.
+- **UI architecture (the page.tsx split).** Each tab is a component that owns its JSX + modals; its
+  state and handlers live in a matching hook (call the hook **once** — a shared hook is called in
+  `page.tsx` and passed down as a prop, never called twice). Layout:
+  - `app/components/database/CompanyDatabaseTab.tsx` + `app/hooks/useCompanies.ts` — the company list,
+    filters, inline edit/remove/clear, selection, Excel export, and the `savedBySource` memo. The hook
+    is created in `page.tsx` and passed in as `api` (the Search tab reuses the same instance).
+  - `app/components/search/FindCompaniesTab.tsx` + `app/hooks/useSearch.ts` — the whole Find New
+    Companies domain: search-config draft editing, the background agent job + polling refs, the
+    discovery queue, result review/save, and the source-performance settings/helpers. The component
+    calls `useSearch(reloadCompanies)` itself; `savedBySource` + `reloadCompanies` come from
+    `useCompanies` via props, and `onGoToDatabase` switches the parent's tab after a save.
+  - `app/components/icp/IcpTab.tsx` + `app/hooks/useIcpEditor.ts` — the ICP editor (load/edit/review/
+    apply-diff/test/commit/history). `IcpTab` calls the hook itself (nothing else needs it).
+  - `app/components/about/HowItWorksTab.tsx` — the static "How It Works" tab (no hook).
+  - `app/components/search/{QueueModal,SourcePerfModal,SourceModal}.tsx`,
+    `app/components/database/AddCompanyModal.tsx`, `app/components/icp/{ReviewInfoModal,ManageExamplesModal}.tsx`
+    — presentational modals, all props-driven (no state of their own).
+  - `app/components/common/{AuthScreen,MarketBadge}.tsx` — the login screen and the source market badge.
+  - `lib/styles.ts` — shared style objects (`inputStyle`, `labelStyle`, `btnPrimary`, `btnSecondary`,
+    `addBtnStyle`, …). `lib/uiConstants.ts` — UI constants + option lists (`GEO_OPTIONS`, `SOURCE_OPTIONS`,
+    `AUTH_KEY`, `DEMO_MODE`, …). `lib/uiTypes.ts` — shared UI types (`Company`, `SearchResult`, …).
+    `lib/format.ts` — presentation helpers (`diffLines` line-level LCS, `icpColor`, `safeHref`,
+    `displayHostname`, `fmtAddedDate`).
 - `app/layout.tsx` — page metadata (browser-tab title, description, `lang`).
 - `app/globals.css` — global styles: the colour-palette CSS variables, the site-wide button hover
   rule, and the default button border-radius. See [DESIGN.md](DESIGN.md).
@@ -197,12 +222,12 @@ on an always-on server (Render / `next dev`), never serverless.
 - `app/api/icp/route.ts` — serves the `config/icp*.md` files (the fallback/seed the UI merges with the `icp_docs` DB rows).
 - `app/api/icp/check/route.ts` — **worker** endpoint (needs the Anthropic key): the advisory AI review of an edited ICP. Its rubric judges only whether the text works as **clear scoring instructions for an AI** (target market, tiers, a scoring method + scale, exclusions, internal consistency) — explicitly NOT whether the business criteria are "correct". Returns `{ ok, summary, issues[] }`; the UI shows it and lets the user save anyway.
 - `lib/icpReview.ts` — the review rubric default (`DEFAULT_ICP_REVIEW_INSTRUCTIONS`) + `buildReviewPrompt()`. The **editable** rubric lives in `app_settings.icp_review_instructions`; the fixed scaffolding (ICP injection, `report_review` tool call, `ok` semantics) stays in this helper so an edit can't break the structured-output contract. Shared by the check route (server) and the UI (default/seed).
-- `app/api/icp/apply/route.ts` — **worker** endpoint: rewrites the ICP draft to address one review point (forced `revised_icp` tool call), returns `{ content }`. The UI shows it as a **diff** (`diffLines`, a small local line-level LCS in `page.tsx`) and only loads it into the editor on "Use this version" — never auto-saved.
+- `app/api/icp/apply/route.ts` — **worker** endpoint: rewrites the ICP draft to address one review point (forced `revised_icp` tool call), returns `{ content }`. The UI shows it as a **diff** (`diffLines`, a small local line-level LCS in `lib/format.ts`) and only loads it into the editor on "Use this version" — never auto-saved.
 - `app/api/icp/test/route.ts` — **worker** endpoint (optional "Test on example companies"): scores the user's fixed example set against the **current editor draft** and returns every company with score/tier/included plus the user's `expected` label (`report_test` tool call, scored blind). The set comes from `app_settings.icp_test_companies` (JSON `{name, expected}[]`); if unset it falls back to a dynamic mix of recent added + rejected. Read-only — writes nothing. Runnable before or after the review.
 - `lib/icpTest.ts` — types/const for the example set: `ICP_TEST_COMPANIES_KEY`, `IcpTestExample`, `EXPECTED_LABELS`, and `expectedMatch()` (ok/mismatch/none for the UI's Match column).
 - `app/api/test-claude/route.ts` — diagnostic (checks key/credits + a web_search test).
 - `lib/models.ts` — **single source of truth for the Claude model** (`CLAUDE_MODEL`). Every model call imports it. See [§ Which model, and why](#which-model-and-why).
-- `lib/features.ts` — feature flags. `US_MARKET_ENABLED` (currently **`false`**) gates all US-market support: the US ICP sub-tab (shown as a disabled "· soon" placeholder), the target-market selector (locked to Europe), and US-ICP routing in Step 3 (everything scores against the European ICP). Nothing is deleted — flip to `true` to re-enable it all at once. Imported by both `page.tsx` and `lib/search.ts`.
+- `lib/features.ts` — feature flags. `US_MARKET_ENABLED` (currently **`false`**) gates all US-market support: the US ICP sub-tab (shown as a disabled "· soon" placeholder), the target-market selector (locked to Europe), and US-ICP routing in Step 3 (everything scores against the European ICP). Nothing is deleted — flip to `true` to re-enable it all at once. Imported by the search UI (`FindCompaniesTab.tsx` / `useSearch.ts`), the ICP tab, and `lib/search.ts`.
 - `app/api/search/route.ts` — OLD synchronous route, unused by the client (safe to delete).
 - **`sources` / `search_terms` DB tables** — the authoritative, UI-editable search configuration
   (see [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md#where-the-configuration-lives-database-not-the-file-anymore)).
