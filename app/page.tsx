@@ -8,6 +8,7 @@ import { IcpTab } from "@/app/components/icp/IcpTab";
 import { CompanyDatabaseTab } from "@/app/components/database/CompanyDatabaseTab";
 import { FindCompaniesTab } from "@/app/components/search/FindCompaniesTab";
 import { useCompanies } from "@/app/hooks/useCompanies";
+import { useCategories } from "@/app/hooks/useCategories";
 import { AUTH_KEY, AUTH_MAX_AGE } from "@/lib/uiConstants";
 
 export default function Home() {
@@ -18,6 +19,9 @@ export default function Home() {
   // --- Company Database domain (state + handlers) ---
   const companiesApi = useCompanies();
   const { savedBySource, loadCompanies } = companiesApi;
+
+  // --- Product-category vocabulary (editable in the ICP tab; read by the other tabs) ---
+  const categoriesApi = useCategories();
 
   // --- Simple pilot login (against the plain app_users table; not secure) ---
   useEffect(() => {
@@ -121,15 +125,15 @@ export default function Home() {
       <div className="max-w-screen-2xl mx-auto w-full px-8 py-8 flex-1 flex flex-col gap-6">
 
         {/* ── TAB 1: Company Database ── */}
-        {tab === "database" && <CompanyDatabaseTab api={companiesApi} />}
+        {tab === "database" && <CompanyDatabaseTab api={companiesApi} categories={categoriesApi.categories} />}
 
         {/* ── TAB 2: Find New Companies ── */}
         {tab === "search" && (
-          <FindCompaniesTab savedBySource={savedBySource} reloadCompanies={loadCompanies} onGoToDatabase={() => setTab("database")} />
+          <FindCompaniesTab savedBySource={savedBySource} reloadCompanies={loadCompanies} onGoToDatabase={() => setTab("database")} categories={categoriesApi.categories} />
         )}
 
         {/* ── TAB 3: ICP Criteria ── */}
-        {tab === "icp" && <IcpTab authEmail={authEmail} />}
+        {tab === "icp" && <IcpTab authEmail={authEmail} categoriesApi={categoriesApi} />}
 
         {/* ── TAB: How It Works ── */}
         {tab === "about" && <HowItWorksTab />}

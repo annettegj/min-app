@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { inputStyle, labelStyle, btnPrimary, btnSecondary } from "@/lib/styles";
-import { TIERS, GEO_OPTIONS, CAT_OPTIONS, STATUS_OPTIONS } from "@/lib/uiConstants";
+import { TIERS, GEO_OPTIONS, STATUS_OPTIONS } from "@/lib/uiConstants";
 import { icpColor, displayHostname, safeHref, fmtAddedDate, parseMulti } from "@/lib/format";
 import { AddCompanyModal } from "@/app/components/database/AddCompanyModal";
 import { MultiSelect } from "@/app/components/common/MultiSelect";
@@ -9,7 +9,7 @@ import type { CompaniesApi } from "@/app/hooks/useCompanies";
 // The Company Database tab: filter panel, results table (inline edit / soft-delete / status /
 // selection / export), plus the Add-company and remove/unsaved-edit dialogs. All state lives in
 // useCompanies (called once in page.tsx and passed in as `api`).
-export function CompanyDatabaseTab({ api }: { api: CompaniesApi }) {
+export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; categories: string[] }) {
   const {
     guardUnsavedEdit, setSearchParams, setSearchState, openAddCompany,
     geography, setGeography, category, setCategory, icpMin, setIcpMin, tier, setTier, priceMin, setPriceMin, priceMax, setPriceMax,
@@ -49,7 +49,7 @@ export function CompanyDatabaseTab({ api }: { api: CompaniesApi }) {
 
           <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
             <label style={labelStyle}>Product Category</label>
-            <MultiSelect options={CAT_OPTIONS} value={category} onChange={setCategory} placeholder="All categories" />
+            <MultiSelect options={categories} value={category} onChange={setCategory} placeholder="All categories" />
           </div>
 
           <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
@@ -253,7 +253,7 @@ export function CompanyDatabaseTab({ api }: { api: CompaniesApi }) {
                                 </div>
                                 <div>
                                   <label style={labelStyle}>Product category</label>
-                                  <MultiSelect options={CAT_OPTIONS} value={editDraft.product_category} onChange={next => setEditDraft({ ...editDraft, product_category: next })} placeholder="Select…" />
+                                  <MultiSelect options={categories} value={editDraft.product_category} onChange={next => setEditDraft({ ...editDraft, product_category: next })} placeholder="Select…" />
                                 </div>
                                 <div>
                                   <label style={labelStyle}>Max price</label>
@@ -338,6 +338,7 @@ export function CompanyDatabaseTab({ api }: { api: CompaniesApi }) {
         <AddCompanyModal
           form={addForm}
           setForm={setAddForm}
+          categoryOptions={categories}
           saving={addSaving}
           error={addFormError}
           onSubmit={submitAddCompany}

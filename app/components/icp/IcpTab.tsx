@@ -4,10 +4,13 @@ import { EXPECTED_LABELS, expectedMatch } from "@/lib/icpTest";
 import { useIcpEditor } from "@/app/hooks/useIcpEditor";
 import { ReviewInfoModal } from "@/app/components/icp/ReviewInfoModal";
 import { ManageExamplesModal } from "@/app/components/icp/ManageExamplesModal";
+import { ManageCategoriesModal } from "@/app/components/icp/ManageCategoriesModal";
+import type { CategoriesApi } from "@/app/hooks/useCategories";
 
 // The Lysoveta ICP Criteria tab: view/edit the ICP per market, with AI review, apply-fix diff,
-// test-on-examples, and version history. All state/logic lives in useIcpEditor.
-export function IcpTab({ authEmail }: { authEmail: string | null }) {
+// test-on-examples, and version history. All state/logic lives in useIcpEditor. The editable
+// product-category vocabulary (categoriesApi) is also edited here — the single app-wide edit surface.
+export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null; categoriesApi: CategoriesApi }) {
   const {
     icpDocs, icpRegion, setIcpRegion, icpEditMode, icpDraft, setIcpDraft, icpSaving, icpError,
     icpHistoryOpen, setIcpHistoryOpen, icpVersions, icpChecking, icpCheck, setIcpCheck, icpApplying, icpApplyNote, icpApplyError,
@@ -21,7 +24,8 @@ export function IcpTab({ authEmail }: { authEmail: string | null }) {
 
   return (
     <>
-      <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 920, width: "100%", margin: "0 auto" }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap", maxWidth: 1280, width: "100%", margin: "0 auto" }}>
+      <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", flex: "1 1 620px", minWidth: 0 }}>
         <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Lysoveta ICP Criteria</p>
           {!icpEditMode && (
@@ -304,6 +308,30 @@ export function IcpTab({ authEmail }: { authEmail: string | null }) {
           })()}
         </div>
       </div>
+
+      {/* Product categories — the editable vocabulary used across the app (filter, add, edit, AI search). */}
+      <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", flex: "0 1 340px", minWidth: 260 }}>
+        <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Product categories</p>
+          <button type="button" onClick={categoriesApi.openManage}
+            style={{ background: "var(--accent)", border: "none", color: "var(--white)", padding: "5px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", borderRadius: 4, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+            ✎ Manage
+          </button>
+        </div>
+        <div style={{ padding: "16px 20px" }}>
+          <p style={{ color: "var(--text-body)", fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
+            The categories a company can be tagged with — used in the Company Database (filter, add, edit) and suggested by the AI after a search. Edit them here; changes apply everywhere.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {categoriesApi.categories.map((c) => (
+              <span key={c} style={{ background: "var(--surface-input)", border: "1px solid var(--border-input)", color: "var(--text-body)", fontSize: 13, fontWeight: 600, padding: "5px 12px", borderRadius: 4 }}>{c}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+      </div>
+
+      {categoriesApi.manageOpen && <ManageCategoriesModal api={categoriesApi} />}
 
       {reviewInfoOpen && (
         <ReviewInfoModal

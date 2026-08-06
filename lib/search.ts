@@ -711,7 +711,26 @@ export async function getIcpDocs(supabase: SupabaseClient): Promise<{ eu: string
   }
 }
 
-export function buildStep3Prompt(companies: EnrichedCompany[], icp: { eu: string; us: string }): string {
+// Fallback product-category vocabulary — used only if the DB read fails or the table is empty
+// (e.g. before migration 017 is applied). Keep in sync with CAT_OPTIONS in lib/uiConstants.ts.
+const DEFAULT_PRODUCT_CATEGORIES = ["Premium/science-driven brand", "Pharma Rx", "Established CHC", "Distributor/enabler"];
+
+// The editable product-category vocabulary (DB table `product_categories`, edited in the ICP tab).
+// Read once per search and injected into the Step 3 prompt so the AI classifies against the current
+// set. Falls back to the built-in defaults on any read error, so a search never breaks.
+async function getProductCategories(supabase: SupabaseClient): Promise<string[]> {
+  try {
+    const { data, error } = await supabase.from("product_categories").select("name").eq("active", true).order("sort_order").order("id");
+    if (error) throw error;
+    const names = (data ?? []).map((r: { name: string }) => r.name).filter(Boolean);
+    return names.length > 0 ? names : DEFAULT_PRODUCT_CATEGORIES;
+  } catch (err) {
+    emit(`[search] product_categories: DB read failed — using defaults (${err instanceof Error ? err.message : String(err)})`);
+    return DEFAULT_PRODUCT_CATEGORIES;
+  }
+}
+
+export function buildStep3Prompt(companies: EnrichedCompany[], icp: { eu: string; us: string }, categories: string[]): string {
   const icpEu = icp.eu;
   const icpUs = icp.us;
   // The US ICP is used only once real content replaces the placeholder — until then, everything is
@@ -764,7 +783,7 @@ Instructions:
 Return ONLY a raw JSON array, no markdown. For each company include:
 - name, website_url, description, priority_tier, icp_score (as before)
 - geography: one of "EU", "UK", "US", "APAC", "Global" — based on european_markets and distribution. Use "EU" if they primarily sell in EU countries. Use "Global" if they sell across multiple regions.
-- product_category: one of "Premium/science-driven brand", "Pharma Rx", "Established CHC", "Distributor/enabler" — pick the best fit based on product_focus and self_presentation.
+- product_category: one of ${categories.map((c) => `"${c}"`).join(", ")} — pick the best fit based on product_focus and self_presentation.
 - max_price_eur: the highest single price found for any of their products (their price ceiling), as a NUMBER in the company's ORIGINAL currency — do NOT convert to EUR (the field name is legacy). Use null if price_found is false.
 - price_currency: the 3-letter currency code for that price (GBP, EUR, USD, etc.). Use null if price_found is false.
 
@@ -780,7 +799,8 @@ Return ONLY a raw JSON array, no markdown. For each company include:
 async function evaluateCompanies(
   client: Anthropic,
   companies: EnrichedCompany[],
-  icp: { eu: string; us: string }
+  icp: { eu: string; us: string },
+  categories: string[]
 ): Promise<EvaluatedCompany[] | null> {
   emit(`[search] Step 3: evaluating ${companies.length} companies against the ICP...`);
   try {
@@ -788,7 +808,7 @@ async function evaluateCompanies(
       {
         model: CLAUDE_MODEL,
         max_tokens: 16000,
-        messages: [{ role: "user", content: buildStep3Prompt(companies, icp) }],
+        messages: [{ role: "user", content: buildStep3Prompt(companies, icp, categories) }],
       },
       { signal: activeSignal ?? undefined }
     );
@@ -1084,8 +1104,10 @@ export async function searchForCompanies(
   const failed = toEnrich.length - enriched.length;
   emit(`[search] ===== Steps 1-2 done: ${enriched.length} enriched, ${failed} failed =====`);
 
-  // Load the ICP once (DB-editable, falls back to the config files) for the evaluation below.
+  // Load the ICP + product-category vocabulary once (both DB-editable, with built-in fallbacks) for
+  // the evaluation below.
   const icp = await getIcpDocs(supabase);
+  const productCategories = await getProductCategories(supabase);
 
   // Step 3: ICP matching via the Anthropic API. Runs BEFORE clearTimeout so it is still covered by the
   // overall abort budget. If it fails, `results` stays undefined — the enriched companies are already
@@ -1093,7 +1115,7 @@ export async function searchForCompanies(
   let results: EvaluatedCompany[] | undefined;
   if (enriched.length > 0) {
     await reportProgress(`Evaluating ${enriched.length} companies against the ICP…`);
-    const evaluated = await evaluateCompanies(client, enriched, icp);
+    const evaluated = await evaluateCompanies(client, enriched, icp, productCategories);
     if (evaluated) {
       results = evaluated;
       // Companies enriched in Step 2 but NOT returned by Step 3 are AI-rejected. Setting

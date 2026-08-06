@@ -1,12 +1,13 @@
-import { GEO_OPTIONS, CAT_OPTIONS } from "@/lib/uiConstants";
+import { GEO_OPTIONS } from "@/lib/uiConstants";
 import { labelStyle, inputStyle, btnPrimary, btnSecondary } from "@/lib/styles";
 import { MultiSelect } from "@/app/components/common/MultiSelect";
 import type { AddCompanyForm } from "@/lib/uiTypes";
 
 // Manual "Add company" form — lets users enter a company they came across themselves.
-export function AddCompanyModal({ form, setForm, saving, error, onSubmit, onClose }: {
+export function AddCompanyModal({ form, setForm, categoryOptions, saving, error, onSubmit, onClose }: {
   form: AddCompanyForm;
   setForm: (f: AddCompanyForm) => void;
+  categoryOptions: string[];
   saving: boolean;
   error: string;
   onSubmit: () => void;
@@ -41,7 +42,7 @@ export function AddCompanyModal({ form, setForm, saving, error, onSubmit, onClos
             </div>
             <div>
               <label style={labelStyle}>Product category</label>
-              <MultiSelect options={CAT_OPTIONS} value={form.product_category} onChange={next => setForm({ ...form, product_category: next })} placeholder="Select…" />
+              <MultiSelect options={categoryOptions} value={form.product_category} onChange={next => setForm({ ...form, product_category: next })} placeholder="Select…" />
             </div>
             <div>
               <label style={labelStyle}>Max price</label>

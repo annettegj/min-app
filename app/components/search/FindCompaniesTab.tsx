@@ -8,16 +8,17 @@ import { SourcePerfModal } from "@/app/components/search/SourcePerfModal";
 import { SourceModal } from "@/app/components/search/SourceModal";
 import { inputStyle, labelStyle, btnPrimary, btnSecondary, addBtnStyle } from "@/lib/styles";
 import { safeHref } from "@/lib/format";
-import { SEARCH_DISABLED, GEO_OPTIONS, CAT_OPTIONS } from "@/lib/uiConstants";
+import { SEARCH_DISABLED, GEO_OPTIONS } from "@/lib/uiConstants";
 import { useSearch } from "@/app/hooks/useSearch";
 
 // The "Find New Companies" tab. Owns nothing itself — all state + handlers live in useSearch.
 // savedBySource + reloadCompanies come from the Company Database hook (useCompanies); onGoToDatabase
 // switches the parent's active tab (the "Go to Company Database →" button after a save).
-export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabase }: {
+export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabase, categories }: {
   savedBySource: Map<string, number>;
   reloadCompanies: () => Promise<void> | void;
   onGoToDatabase: () => void;
+  categories: string[];
 }) {
   const {
     agentState, setAgentState, agentError, setAgentError, staleCompanies, setStaleCompanies,
@@ -479,7 +480,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                   </div>
                   <div>
                     <label style={labelStyle}>Product Category</label>
-                    <MultiSelect options={CAT_OPTIONS} value={c.product_category} onChange={next => updatePending(i, "product_category", next)} placeholder="Select…" />
+                    <MultiSelect options={categories} value={c.product_category} onChange={next => updatePending(i, "product_category", next)} placeholder="Select…" />
                   </div>
                   <div>
                     <label style={labelStyle}>Max. Price</label>
