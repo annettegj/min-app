@@ -1,0 +1,609 @@
+"use client";
+
+import { US_MARKET_ENABLED } from "@/lib/features";
+import { MarketBadge } from "@/app/components/common/MarketBadge";
+import { QueueModal } from "@/app/components/search/QueueModal";
+import { SourcePerfModal } from "@/app/components/search/SourcePerfModal";
+import { SourceModal } from "@/app/components/search/SourceModal";
+import { inputStyle, labelStyle, btnPrimary, btnSecondary, addBtnStyle } from "@/lib/styles";
+import { safeHref } from "@/lib/format";
+import { SEARCH_DISABLED, GEO_OPTIONS, CAT_OPTIONS } from "@/lib/uiConstants";
+import { useSearch } from "@/app/hooks/useSearch";
+
+// The "Find New Companies" tab. Owns nothing itself — all state + handlers live in useSearch.
+// savedBySource + reloadCompanies come from the Company Database hook (useCompanies); onGoToDatabase
+// switches the parent's active tab (the "Go to Company Database →" button after a save).
+export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabase }: {
+  savedBySource: Map<string, number>;
+  reloadCompanies: () => Promise<void> | void;
+  onGoToDatabase: () => void;
+}) {
+  const {
+    agentState, setAgentState, agentError, setAgentError, staleCompanies, setStaleCompanies,
+    searchResults, setSearchResults, pendingCompanies, addingState, setAddingState,
+    saveError, sourceNameMap,
+    selectedTerms, setSelectedTerms, selectedSources, setSelectedSources,
+    targetMarket, setTargetMarket, sourceOptions, termOptions,
+    configEditMode, draftTerms, draftSources,
+    newSource, setNewSource, editingSourceKey,
+    sourceModalOpen, setSourceModalOpen, sourceInfoOpen, setSourceInfoOpen,
+    termsExpanded, setTermsExpanded, expandedSourceGroups, toggleSourceGroup,
+    configBusy, configError, setConfigError,
+    searchProgress, activeSearchJobId, logLines, showLog, setShowLog,
+    pendingQueueCount, queueModalOpen, setQueueModalOpen, clearingQueue,
+    warnThresholdPct, warnMinUses, perfModalOpen, setPerfModalOpen,
+    perfDraftPct, setPerfDraftPct, perfDraftMin, setPerfDraftMin,
+    perfSaving, perfEditThreshold, setPerfEditThreshold,
+    currentStep, elapsedLabel, selectedCount,
+    enterConfigEdit, cancelConfigEdit, updateDraftTerm, removeDraftTerm, addDraftTerm,
+    removeDraftSource, openAddSource, openEditSource, applySource, saveConfig,
+    clearQueue, saveSettings,
+    sourceHitRate, sourceIsLow, fmtHitRate, fmtSavedRate,
+    deleteFromQueue, resetProcessingToQueue, handleAgentSearch,
+    toggleResult, handleAddSelected, updatePending, handleSave,
+  } = useSearch(reloadCompanies);
+
+  return (
+    <>
+      {/* Narrower, centered column for this tab only — the top bar stays full-width. */}
+      <div style={{ maxWidth: 1180, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
+        {/* Live search log — mirrors the server log, so no need to open the Render dashboard */}
+        {activeSearchJobId != null && logLines.length > 0 && (
+          <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
+            <div onClick={() => setShowLog(!showLog)}
+              style={{ background: "var(--header)", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+              <p style={{ color: "var(--white)", fontSize: 13, fontWeight: 700 }}>Search Log</p>
+              <span style={{ color: "var(--on-dark)", fontSize: 12 }}>{showLog ? "Hide ▴" : "Show ▾"} ({logLines.length})</span>
+            </div>
+            {showLog && (
+              <pre style={{ margin: 0, padding: "14px 20px", fontSize: 12, fontFamily: "monospace", color: "var(--text)", background: "var(--surface-code)", maxHeight: 340, overflowY: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                {logLines.join("\n")}
+              </pre>
+            )}
+          </div>
+        )}
+
+        {agentState === "idle" && addingState !== "saved" && (
+          <>
+            {/* Search configuration — read from the DB; editable in place (Edit toggle) */}
+            <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
+                {!configEditMode && (
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <button type="button" onClick={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfEditThreshold(false); setPerfModalOpen(true); }}
+                      style={{ background: "transparent", color: "var(--white)", border: "1px solid rgba(255,255,255,0.5)", borderRadius: 4, padding: "6px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
+                      Source performance
+                    </button>
+                    <button type="button" onClick={enterConfigEdit}
+                      style={{ background: "var(--accent)", color: "var(--white)", border: "none", borderRadius: 4, padding: "6px 16px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
+                      Edit
+                    </button>
+                  </div>
+                )}
+              </div>
+              {configEditMode && (
+                <div style={{ background: "var(--banner-warn-bg)", borderBottom: "1px solid var(--banner-warn-border)", padding: "10px 20px" }}>
+                  <p style={{ fontSize: 12, color: "var(--banner-warn-text)" }}>
+                    Editing the shared configuration. Click a term or source to change its fields; nothing is saved until you press <strong>Save changes</strong>. Saved changes affect every search, for everyone.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-4" style={{ padding: "20px", gap: 32 }}>
+                {/* Search terms */}
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label style={labelStyle}>{configEditMode ? "Search terms" : "Search terms (choose up to 3)"}</label>
+                  {configEditMode ? (
+                    <>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, maxHeight: 320, overflowY: "auto", paddingRight: 6 }}>
+                        {draftTerms.map(t => (
+                          <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <button type="button" title="Remove term" onClick={() => removeDraftTerm(t.key)}
+                              style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>✕</button>
+                            <input type="text" value={t.term} onChange={e => updateDraftTerm(t.key, e.target.value)}
+                              placeholder="Search term" style={{ ...inputStyle, flex: 1 }} />
+                          </div>
+                        ))}
+                        {draftTerms.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>No search terms yet — add one below.</p>}
+                      </div>
+                      <div style={{ marginTop: "auto", paddingTop: 12 }}>
+                        <button type="button" onClick={addDraftTerm} style={addBtnStyle}>+ Add new search term</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, maxHeight: termsExpanded ? "none" : 232, overflowY: termsExpanded ? "visible" : "auto", paddingRight: 6 }}>
+                        {termOptions.map(t => {
+                          const checked = selectedTerms.includes(t);
+                          const atMax = selectedTerms.length >= 3;
+                          return (
+                            <label key={t} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
+                              <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                                onChange={() => setSelectedTerms(checked ? selectedTerms.filter(x => x !== t) : [...selectedTerms, t])}
+                                style={{ accentColor: "var(--accent)", width: 15, height: 15 }} />
+                              {t}
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {termOptions.length > 8 && (
+                        <button type="button" onClick={() => setTermsExpanded(v => !v)}
+                          style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 700, padding: "6px 0", marginTop: 4, textAlign: "left" }}>
+                          {termsExpanded ? "Show fewer ▴" : `Show all ${termOptions.length} ▾`}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+                {/* Sources — spans 3 of the 4 columns so the type groups sit side by side */}
+                <div className="md:col-span-3" style={{ display: "flex", flexDirection: "column" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", marginBottom: 6 }}>
+                    <label style={{ ...labelStyle, marginBottom: 0 }}>{configEditMode ? "Sources" : "Sources (choose up to 4)"}</label>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}><strong>Website</strong> = a whole site · <strong>Single page</strong> = one specific URL</span>
+                  </div>
+                  {configEditMode ? (
+                    <>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto", paddingRight: 6 }}>
+                        {draftSources.map(s => (
+                          <div key={s.key} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                            <button type="button" title="Remove source" onClick={() => removeDraftSource(s.key)}
+                              style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 6px", borderRadius: 4, marginTop: 7, flexShrink: 0 }}>✕</button>
+                            <button type="button" onClick={() => openEditSource(s)}
+                              style={{ flex: 1, textAlign: "left", background: "var(--surface-input)", border: "1px solid var(--border-input)", borderRadius: 4, padding: "8px 10px", cursor: "pointer", color: "var(--navy)" }}>
+                              <span style={{ fontSize: 13, fontWeight: 600 }}>{s.name || "(unnamed source)"}</span>
+                              <span style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginTop: 2, wordBreak: "break-all" }}>
+                                {s.type === "web page" ? "Single page" : s.type === "youtube" ? "YouTube" : "Website"}
+                                {s.type === "web page" && s.url ? ` · ${s.url.replace(/^https?:\/\//, "")}` : ""}
+                                {(s.type === "web site" || s.type === "youtube") && s.search_prefix ? ` · ${s.search_prefix}` : ""}
+                                {s.market ? ` · ${s.market}` : ""}
+                                <span style={{ color: "var(--accent)", fontWeight: 700 }}> · Edit ✎</span>
+                              </span>
+                            </button>
+                          </div>
+                        ))}
+                        {draftSources.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>No sources yet — add one below.</p>}
+                      </div>
+                      <div style={{ marginTop: "auto", paddingTop: 14 }}>
+                        <button type="button" onClick={openAddSource} style={addBtnStyle}>+ Add new source</button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 20, marginTop: 4 }}>
+                      {[
+                        { heading: "Website", items: sourceOptions.filter(s => (s.type ?? "web site") === "web site") },
+                        { heading: "Single page", items: sourceOptions.filter(s => s.type === "web page") },
+                        { heading: "YouTube", items: sourceOptions.filter(s => s.type === "youtube") },
+                      ].map(group => {
+                        if (group.items.length === 0) return null;
+                        const expanded = !!expandedSourceGroups[group.heading];
+                        return (
+                          <div key={group.heading}>
+                            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{group.heading}</p>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: expanded ? "none" : 200, overflowY: expanded ? "visible" : "auto", paddingRight: 4 }}>
+                              {group.items.map(s => {
+                                const isPage = s.type === "web page";
+                                const checked = selectedSources.includes(s.name);
+                                const atMax = selectedSources.length >= 4;
+                                return (
+                                  <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
+                                    <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                                      onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
+                                      style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
+                                    <span>
+                                      {s.name}<MarketBadge market={s.market} />
+                                      {isPage && s.url && (
+                                        <a href={/^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`} target="_blank" rel="noopener noreferrer"
+                                          onClick={e => e.stopPropagation()}
+                                          style={{ display: "block", fontSize: 10, color: "var(--text-muted)", marginTop: 1, wordBreak: "break-all", textDecoration: "underline" }}>
+                                          {s.url.replace(/^https?:\/\//, "")}
+                                        </a>
+                                      )}
+                                      <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
+                                        {s.times_used > 0 || s.companies_found > 0 || (savedBySource.get(s.name) ?? 0) > 0
+                                          ? `used ${s.times_used} · queued ${s.companies_found} · saved ${savedBySource.get(s.name) ?? 0}`
+                                          : "Not used yet"}
+                                      </span>
+                                      {sourceIsLow(s.times_used, s.companies_found) && (
+                                        <span style={{ display: "block", fontSize: 10.5, color: "var(--danger-text)", fontWeight: 700, marginTop: 2 }}>
+                                          ⚠ Low hit rate ({fmtHitRate(s.times_used, s.companies_found)}) — consider editing or removing
+                                        </span>
+                                      )}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {group.items.length > 4 && (
+                              <button type="button" onClick={() => toggleSourceGroup(group.heading)}
+                                style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 11.5, fontWeight: 700, padding: "6px 0 0", textAlign: "left" }}>
+                                {expanded ? "Show fewer ▴" : `Show all ${group.items.length} ▾`}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {configError && <p style={{ padding: "0 20px 16px", fontSize: 12, color: "var(--danger-text)" }}>{configError}</p>}
+              {configEditMode && (
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "0 20px 18px" }}>
+                  <button type="button" onClick={cancelConfigEdit} disabled={configBusy} style={{ ...btnSecondary, padding: "9px 20px" }}>Cancel</button>
+                  <button type="button" onClick={saveConfig} disabled={configBusy} style={{ ...btnPrimary, padding: "9px 24px", opacity: configBusy ? 0.6 : 1 }}>{configBusy ? "Saving…" : "Save changes"}</button>
+                </div>
+              )}
+            </div>
+
+            {/* Search action */}
+            <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", padding: "72px 32px 48px", textAlign: "center", position: "relative" }}>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
+
+              {/* Target market — soft region steer for discovery */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 28 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)" }}>Target market</span>
+                <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }}>
+                  {([
+                    { value: "eu", label: "Europe" },
+                    { value: "us", label: "US" },
+                    { value: "both", label: "No preference" },
+                  ] as const).map((opt) => {
+                    const active = targetMarket === opt.value;
+                    const locked = !US_MARKET_ENABLED; // US off → selector is a disabled placeholder
+                    return (
+                      <button key={opt.value} type="button" disabled={locked} onClick={() => setTargetMarket(opt.value)}
+                        style={{ background: active ? "var(--accent)" : "var(--white)", color: active ? "var(--white)" : (locked ? "var(--text-faint)" : "var(--text-slate)"), border: "none", borderRadius: 0, padding: "7px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", cursor: locked ? "not-allowed" : "pointer", opacity: locked && !active ? 0.5 : 1 }}>
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{US_MARKET_ENABLED
+                  ? "Guides the search toward companies in this region. Any from other regions that turn up are still kept and scored against their own ICP."
+                  : "The search focuses on European companies."}</span>
+              </div>
+
+              <button onClick={() => { if (SEARCH_DISABLED) return; if (pendingQueueCount != null && pendingQueueCount >= 5) setQueueModalOpen(true); else handleAgentSearch(); }} disabled={SEARCH_DISABLED}
+                style={{ background: SEARCH_DISABLED ? "var(--border-light)" : "var(--accent)", color: SEARCH_DISABLED ? "var(--text-dim)" : "var(--white)", border: SEARCH_DISABLED ? "1px solid var(--border-grey)" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer", borderRadius: 4 }}>
+                {SEARCH_DISABLED ? "Search Disabled (Demo)" : "Search for New Companies →"}
+              </button>
+              {SEARCH_DISABLED && (
+                <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 14 }}>Live search runs offline during the pilot — the database below is kept up to date.</p>
+              )}
+            </div>
+          </>
+        )}
+
+        {agentState === "stale_warning" && (
+          <div style={{ background: "var(--white)", border: "1px solid var(--banner-warn-border)" }}>
+            <div style={{ background: "var(--banner-warn-text)", padding: "12px 20px" }}>
+              <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>A previous search didn’t finish</p>
+            </div>
+            <div style={{ padding: "24px" }}>
+              <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.6, marginBottom: 16 }}>
+                {staleCompanies.length} {staleCompanies.length === 1 ? "company" : "companies"} got stuck in the previous search and have now been put back in the queue. The search was stopped automatically so you can investigate what went wrong.
+              </p>
+              <div style={{ border: "1px solid var(--border-light)", marginBottom: 20 }}>
+                {staleCompanies.map((name) => (
+                  <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid var(--border-light)" }}>
+                    <span style={{ fontSize: 13, color: "var(--text)" }}>{name}</span>
+                    <button
+                      onClick={() => deleteFromQueue(name)}
+                      title="Remove from queue"
+                      style={{ background: "transparent", border: "1px solid var(--border-light)", color: "var(--text-dim)", padding: "3px 10px", fontSize: 12, cursor: "pointer" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-danger)"; e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.borderColor = "var(--danger)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.borderColor = "var(--border-light)"; }}>
+                      Remove from queue ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: "var(--banner-warn-bg)", border: "1px solid var(--banner-warn-border)", padding: "12px 16px", marginBottom: 24 }}>
+                <p style={{ fontSize: 13, color: "var(--banner-warn-text)" }}>
+                  If a particular company repeatedly hangs, you can remove it from the queue. Otherwise it’s safe to start a new search — they will be retried.
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button onClick={() => { setAgentState("idle"); setStaleCompanies([]); }}
+                  style={{ background: "var(--header)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                  Back to search options
+                </button>
+                <button onClick={() => { setStaleCompanies([]); setAgentState("searching"); handleAgentSearch(); }}
+                  style={{ background: "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                  Start new search →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {agentState === "searching" && (
+          <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", padding: "64px 32px", textAlign: "center" }}>
+            <div style={{ display: "inline-block", width: 40, height: 40, border: "4px solid var(--border-light)", borderTop: "4px solid var(--accent)", borderRadius: "50%", animation: "spin 0.9s linear infinite", marginBottom: 20 }} />
+            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--navy)", marginBottom: 10 }}>
+              Step {currentStep} of 3 — {currentStep === 1 ? "Finding companies" : currentStep === 2 ? "Enriching companies" : "Evaluating"}
+            </p>
+            {/* Step progress dots */}
+            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
+              {[1, 2, 3].map(s => (
+                <div key={s} style={{ width: 36, height: 5, borderRadius: 3, background: s <= currentStep ? "var(--accent)" : "var(--border-light)" }} />
+              ))}
+            </div>
+            <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{searchProgress || "The AI agent is finding relevant companies. This may take a few minutes."}</p>
+            <p style={{ fontSize: 13, color: "var(--navy)", fontWeight: 600, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>Elapsed: {elapsedLabel}</p>
+            <p style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 10 }}>You can leave this page open — the search runs on the server and this view updates automatically.</p>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
+
+        {agentState === "error" && agentError && (
+          <div style={{ background: "var(--white)", border: "1px solid var(--border-danger)" }}>
+            <div style={{ background: "var(--danger-dark)", padding: "12px 20px" }}>
+              <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>{agentError.title}</p>
+            </div>
+            <div style={{ padding: "24px 24px 20px" }}>
+              <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.6, marginBottom: 20 }}>{agentError.detail}</p>
+              <div style={{ background: "var(--surface-danger)", border: "1px solid var(--border-danger)", padding: "12px 16px", marginBottom: 20 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-strong)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>What you can do</p>
+                {agentError.canRetry ? (
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Try the search again — companies that were mid-processing are reset automatically</li>
+                    <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Check that the API keys (ANTHROPIC_API_KEY, Supabase) are configured correctly</li>
+                    <li style={{ fontSize: 13, color: "var(--text)" }}>See the console log (F12) for technical details about the error</li>
+                  </ul>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Wait a few days and try again</li>
+                    <li style={{ fontSize: 13, color: "var(--text)" }}>Consider adding new sources or search terms via <strong>Edit</strong> in the Search Configuration panel</li>
+                  </ul>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                {agentError.canRetry && (
+                  <button onClick={() => handleAgentSearch()}
+                    style={{ background: "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                    Try again →
+                  </button>
+                )}
+                <button onClick={() => { setAgentState("idle"); setAgentError(null); }}
+                  style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border-card)", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {agentState === "done" && addingState === "idle" && (
+          <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Search Results</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <p style={{ color: "var(--on-dark)", fontSize: 12 }}>{searchResults.length} companies found</p>
+                <button onClick={() => { resetProcessingToQueue(); setAgentState("idle"); setSearchResults([]); }}
+                  style={{ background: "var(--white)", color: "var(--navy)", border: "none", padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.04em" }}>
+                  ✕ Cancel
+                </button>
+              </div>
+            </div>
+            <div>
+              {searchResults.map((r, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "18px 20px", borderBottom: "1px solid var(--border-light)", background: r.selected ? "var(--surface-row-hover)" : i % 2 === 0 ? "var(--white)" : "var(--surface-input)" }}>
+                  <input type="checkbox" checked={r.selected} onChange={() => toggleResult(i)}
+                    style={{ marginTop: 3, accentColor: "var(--accent)", width: 16, height: 16, cursor: "pointer", flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                      <p style={{ fontWeight: 600, color: "var(--navy)", fontSize: 14 }}>{r.name}</p>
+                      {r.priority_tier === "early_mover" && (
+                        <span style={{ background: "var(--badge-green-bg)", color: "var(--success)", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Early Mover</span>
+                      )}
+                      {r.priority_tier === "follower" && (
+                        <span style={{ background: "var(--badge-yellow-bg)", color: "var(--badge-yellow-text)", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Follower</span>
+                      )}
+                      {r.priority_tier === "enabler" && (
+                        <span style={{ background: "var(--badge-purple-bg)", color: "var(--badge-purple-text)", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 4 }}>Enabler</span>
+                      )}
+                      {r.icp_score != null && (
+                        <span style={{ fontSize: 13, color: r.icp_score >= 4 ? "var(--success)" : r.icp_score === 3 ? "var(--warning)" : "var(--danger)", letterSpacing: 1 }}>
+                          {"★".repeat(r.icp_score)}{"☆".repeat(5 - r.icp_score)}
+                        </span>
+                      )}
+                    </div>
+                    <a href={safeHref(r.website_url)} target="_blank" rel="noopener noreferrer"
+                      style={{ color: "var(--accent)", fontSize: 12, marginBottom: 6, display: "inline-block" }}>
+                      {r.website_url}
+                    </a>
+                    <p style={{ fontSize: 13, color: "var(--text-body)" }}>{r.description}</p>
+                    {sourceNameMap[r.name] && (
+                      <p style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 6 }}>
+                        Source: {sourceNameMap[r.name]}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      fetch("/api/reject", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ names: [r.name] }),
+                      });
+                      setSearchResults(prev => prev.filter((_, idx) => idx !== i));
+                    }}
+                    title="Reject company"
+                    style={{ background: "transparent", border: "1px solid var(--border-light)", color: "var(--text-dim)", padding: "4px 10px", fontSize: 12, cursor: "pointer", flexShrink: 0 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-danger)"; e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.borderColor = "var(--danger)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.borderColor = "var(--border-light)"; }}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border-light)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{selectedCount} {selectedCount === 1 ? "company" : "companies"} selected</p>
+                <button
+                  onClick={() => setSearchResults(prev => prev.map(r => ({ ...r, selected: selectedCount < searchResults.length })))}
+                  style={{ background: "none", border: "1px solid var(--border-input)", color: "var(--navy-mid)", padding: "4px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", borderRadius: 4 }}>
+                  {selectedCount === searchResults.length ? "Deselect all" : "Select all"}
+                </button>
+              </div>
+              <button onClick={handleAddSelected} disabled={selectedCount === 0}
+                style={{ background: selectedCount > 0 ? "var(--navy-mid)" : "var(--border-input)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: selectedCount > 0 ? "pointer" : "default" }}>
+                Add to Database →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(addingState === "form" || addingState === "saving") && (
+          <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ background: "var(--header)", padding: "12px 20px" }}>
+              <p style={{ color: "var(--white)", fontSize: 18, fontWeight: 700 }}>Fill in Details</p>
+              <p style={{ color: "var(--on-dark)", fontSize: 14, marginTop: 2 }}>Complete the information before adding to the database.</p>
+            </div>
+            <div style={{ background: "var(--banner-info-bg)", borderBottom: "1px solid var(--banner-info-border)", padding: "12px 20px" }}>
+              <p style={{ fontSize: 14, color: "var(--banner-info-text)" }}>All pre-filled fields are suggested by the AI agent based on search results — review and override if needed.</p>
+            </div>
+            {pendingCompanies.map((c, i) => (
+              <div key={i} style={{ padding: "20px", borderBottom: "1px solid var(--border-light)" }}>
+                <p style={{ fontWeight: 700, color: "var(--navy)", fontSize: 14, marginBottom: 4 }}>{c.name}</p>
+                <a href={safeHref(c.website_url)} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", fontSize: 12 }}>{c.website_url}</a>
+                {c.description && (
+                  <p style={{ fontSize: 13, color: "var(--text-body)", marginTop: 8, lineHeight: 1.6 }}>{c.description}</p>
+                )}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ marginTop: 14 }}>
+                  <div>
+                    <label style={labelStyle}>Geography</label>
+                    <select value={c.geography} onChange={(e) => updatePending(i, "geography", e.target.value)} style={inputStyle}>
+                      <option value="">Select…</option>
+                      {GEO_OPTIONS.map(g => <option key={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Product Category</label>
+                    <select value={c.product_category} onChange={(e) => updatePending(i, "product_category", e.target.value)} style={inputStyle}>
+                      <option value="">Select…</option>
+                      {CAT_OPTIONS.map(cat => <option key={cat}>{cat}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Max. Price</label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input type="number" placeholder="Optional" value={c.max_price}
+                        onChange={(e) => updatePending(i, "max_price", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                      <select value={c.price_currency ?? ""} onChange={(e) => updatePending(i, "price_currency", e.target.value)} style={{ ...inputStyle, width: 84 }}>
+                        <option value="">—</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                        <option value="USD">USD</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ marginTop: 12, display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <div>
+                    <label style={labelStyle}>ICP Fit Score</label>
+                    <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button key={star} onClick={() => updatePending(i, "icp_fit", star)}
+                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, lineHeight: 1, padding: "0 1px", color: star <= c.icp_fit ? (c.icp_fit >= 4 ? "var(--success)" : c.icp_fit === 3 ? "var(--warning)" : "var(--danger)") : "var(--border-grey)" }}>
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Priority Tier</label>
+                    <select value={c.priority_tier ?? ""} onChange={(e) => updatePending(i, "priority_tier", e.target.value)} style={{ ...inputStyle, width: 160 }}>
+                      <option value="">Unknown</option>
+                      <option value="early_mover">Early Mover</option>
+                      <option value="follower">Follower</option>
+                      <option value="enabler">Enabler</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {saveError && <p style={{ padding: "12px 20px", color: "var(--danger)", fontSize: 13 }}>{saveError}</p>}
+            <div style={{ padding: "16px 20px", display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button onClick={() => setAddingState("idle")} disabled={addingState === "saving"}
+                style={{ background: "transparent", color: "var(--text-muted)", border: "1px solid var(--border-card)", padding: "10px 24px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                Cancel
+              </button>
+              <button onClick={handleSave} disabled={addingState === "saving"}
+                style={{ background: addingState === "saving" ? "var(--text-faint)" : "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: addingState === "saving" ? "default" : "pointer" }}>
+                {addingState === "saving" ? "Saving…" : "Confirm & Save →"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {addingState === "saved" && (
+          <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", padding: "48px 32px", textAlign: "center" }}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: "var(--success-bright)", marginBottom: 8 }}>Companies added to database</p>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 28 }}>You can find them under the Company Database tab.</p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <button onClick={() => { setAddingState("idle"); setAgentState("idle"); }}
+                style={{ background: "transparent", color: "var(--navy-mid)", border: "1px solid var(--navy-mid)", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                Search Again
+              </button>
+              <button onClick={() => { setAddingState("idle"); setAgentState("idle"); onGoToDatabase(); }}
+                style={{ background: "var(--header)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                Go to Company Database →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Queue warning — pops up when the user clicks Search while >= 5 companies are still waiting */}
+      {queueModalOpen && (
+        <QueueModal
+          pendingQueueCount={pendingQueueCount}
+          clearingQueue={clearingQueue}
+          onResearch={() => { setQueueModalOpen(false); handleAgentSearch(); }}
+          onClearAndSearch={async () => { await clearQueue(); setQueueModalOpen(false); handleAgentSearch(); }}
+          onClose={() => setQueueModalOpen(false)}
+        />
+      )}
+
+      {/* Source-performance modal — opened by "Source performance" in the Search Configuration panel */}
+      {perfModalOpen && (
+        <SourcePerfModal
+          warnThresholdPct={warnThresholdPct}
+          warnMinUses={warnMinUses}
+          editThreshold={perfEditThreshold}
+          draftPct={perfDraftPct}
+          draftMin={perfDraftMin}
+          saving={perfSaving}
+          setDraftPct={setPerfDraftPct}
+          setDraftMin={setPerfDraftMin}
+          onEdit={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfEditThreshold(true); }}
+          onSave={async () => { await saveSettings(); setPerfEditThreshold(false); }}
+          onCancelEdit={() => { setPerfDraftPct(String(warnThresholdPct)); setPerfDraftMin(String(warnMinUses)); setPerfEditThreshold(false); }}
+          onClose={() => setPerfModalOpen(false)}
+          sources={sourceOptions}
+          savedBySource={savedBySource}
+          hitRate={sourceHitRate}
+          isLow={sourceIsLow}
+          fmtHitRate={fmtHitRate}
+          fmtSavedRate={fmtSavedRate}
+        />
+      )}
+
+      {sourceModalOpen && (
+        <SourceModal
+          source={newSource}
+          setSource={setNewSource}
+          editing={editingSourceKey !== null}
+          infoOpen={sourceInfoOpen}
+          setInfoOpen={setSourceInfoOpen}
+          error={configError}
+          busy={configBusy}
+          onApply={applySource}
+          onClose={() => { setSourceModalOpen(false); setConfigError(""); }}
+        />
+      )}
+    </>
+  );
+}
