@@ -105,7 +105,9 @@ a **Log out** button + the signed-in email sit top-right. See §10.
    each with an **"Add back to source list"** action that re-adds it to the selection for the session
    (client-side, no stat reset — a re-run only surfaces genuinely new companies). Sources and search
    terms show a **"last used"** date (`last_used_at`). Step 3 (ICP scoring) always runs automatically
-   after Steps 1–2.
+   after Steps 1–2. Results are reviewed in a selectable list (✕ rejects a company), then a
+   **"Fill in Details"** step to complete/adjust fields before saving; each company there also has a
+   **"Remove ✕"** that rejects it if it turns out not to be relevant on closer look.
 3. **Lysoveta ICP Criteria** — the ICP the AI scores against. **Editable** (✎ Edit Criteria → free-form
    Markdown textarea → Save) — stored in the `icp_docs` table, with a version snapshot on every save
    (Version history → "Load into editor" to revert). Falls back to `config/icp.md` / `config/icp_us.md`
