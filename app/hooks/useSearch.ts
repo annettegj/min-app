@@ -18,9 +18,8 @@ import type {
 // reloadCompanies is called after a save so the Company Database view stays in sync.
 export function useSearch(reloadCompanies: () => Promise<void> | void) {
   // --- Search tab state ---
-  const [agentState, setAgentState] = useState<"idle" | "stale_warning" | "searching" | "done" | "error">("idle")
+  const [agentState, setAgentState] = useState<"idle" | "searching" | "done" | "error">("idle")
   const [agentError, setAgentError] = useState<{ title: string; detail: string; canRetry: boolean } | null>(null)
-  const [staleCompanies, setStaleCompanies] = useState<string[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [pendingCompanies, setPendingCompanies] = useState<PendingCompany[]>([]);
   const [addingState, setAddingState] = useState<"idle" | "form" | "saving" | "saved">("idle");
@@ -30,7 +29,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   // --- Search configuration (read from the DB, editable in the app) ---
   const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
-  // Target market — a soft geography steer for discovery (not a hard filter). "both" = no steer.
+  // Target market, a soft geography steer for discovery (not a hard filter). "both" = no steer.
   // While US support is off, this is locked to Europe (the selector is shown but disabled).
   const [targetMarket, setTargetMarket] = useState<"eu" | "us" | "both">(US_MARKET_ENABLED ? "both" : "eu");
   // Search config read from the DB on mount; initialised from the sources.json-derived
@@ -40,18 +39,18 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   // term → last_used_at ISO (or null), for the "last used" line under each search term.
   const [termLastUsed, setTermLastUsed] = useState<Record<string, string | null>>({});
   // Completed single pages the user has chosen to re-add to the selectable list this session
-  // (client-side only — no stat reset, no DB write).
+  // (client-side only, no stat reset, no DB write).
   const [reactivatedPages, setReactivatedPages] = useState<Set<string>>(new Set());
   // Edit mode: a local DRAFT of the config. Nothing is written to the DB until "Save changes".
   const [configEditMode, setConfigEditMode] = useState(false);
-  // Full DB records (with ids) — the baseline the draft is diffed against on save.
+  // Full DB records (with ids), the baseline the draft is diffed against on save.
   const [termRecords, setTermRecords] = useState<{ id: number; term: string; is_default: boolean }[]>([]);
   const [sourceRecords, setSourceRecords] = useState<SourceRecord[]>([]);
   const [draftTerms, setDraftTerms] = useState<DraftTerm[]>([]);
   const [draftSources, setDraftSources] = useState<DraftSource[]>([]);
   const keyRef = useRef(0);
   const nextKey = () => `k${keyRef.current++}`;
-  // Add/edit-source modal — edits the DRAFT, not the DB. editingSourceKey === null means "add new".
+  // Add/edit-source modal, edits the DRAFT, not the DB. editingSourceKey === null means "add new".
   const [newSource, setNewSource] = useState<SourceFields>({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "", featured: false });
   const [editingSourceKey, setEditingSourceKey] = useState<string | null>(null);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
@@ -60,10 +59,10 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   // Per source-type column (Website / Single page / YouTube) expand state, keyed by heading.
   const [expandedSourceGroups, setExpandedSourceGroups] = useState<Record<string, boolean>>({});
   // Per source-type column: when collapsed (default) the column shows only its "recommended high
-  // quality" (featured) sources — or all of them if none are flagged yet. Expanding shows the full list.
+  // quality" (featured) sources, or all of them if none are flagged yet. Expanding shows the full list.
   const toggleSourceGroup = (h: string) => setExpandedSourceGroups(prev => ({ ...prev, [h]: !prev[h] }));
   // Re-add a completed single page to the selectable "Single page" list (and open that column so it's
-  // visible). It stays completed in the data — this only un-hides it from selection for this session.
+  // visible). It stays completed in the data, this only un-hides it from selection for this session.
   const reactivateSource = (name: string) => {
     setReactivatedPages(prev => new Set(prev).add(name));
     setExpandedSourceGroups(prev => ({ ...prev, "Single page": true }));
@@ -73,13 +72,16 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
 
   // --- Background search job (start + poll) ---
   const [searchProgress, setSearchProgress] = useState("");
+  // Which mode the current/last search ran in. Queue searches skip discovery (Step 1), so the
+  // step indicator starts at Step 2 (enrichment) rather than misleadingly showing Step 1.
+  const [searchMode, setSearchMode] = useState<"new" | "queue">("new");
   const [activeSearchJobId, setActiveSearchJobId] = useState<number | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [showLog, setShowLog] = useState(false);
   // The discovery queue (waiting list): companies found but not yet researched. Shown in the
   // "Waiting list" box; the user can drain it with a "queue" search (up to ENRICH_BATCH_SIZE).
   const [pendingQueueCount, setPendingQueueCount] = useState<number | null>(null);
-  const [queueItems, setQueueItems] = useState<{ name: string; source_name: string | null; discovered_at: string | null }[]>([]);
+  const [queueItems, setQueueItems] = useState<{ name: string; source_name: string | null; discovered_at: string | null; stuck_count: number }[]>([]);
   const [queueSelected, setQueueSelected] = useState<Set<string>>(new Set());
   const [clearingQueue, setClearingQueue] = useState(false);
   // Source-performance warning thresholds (shared, from app_settings). A source is flagged when its
@@ -111,7 +113,9 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   const currentStep = agentState === "done"
     ? 3
     : searchProgress.toLowerCase().includes("evaluat") ? 3
-    : searchProgress.toLowerCase().includes("enrich") ? 2 : 1;
+    : searchProgress.toLowerCase().includes("enrich") ? 2
+    // Queue searches have no discovery step, so they begin at enrichment (Step 2).
+    : searchMode === "queue" ? 2 : 1;
   const elapsedLabel = `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, "0")}`;
 
   // Loads the search config (sources + terms) from the DB into the full records (with ids) and the
@@ -155,7 +159,8 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   }
   const updateDraftTerm = (key: string, term: string) => setDraftTerms(prev => prev.map(t => t.key === key ? { ...t, term } : t));
   const removeDraftTerm = (key: string) => setDraftTerms(prev => prev.filter(t => t.key !== key));
-  const addDraftTerm = () => setDraftTerms(prev => [...prev, { key: nextKey(), id: null, term: "", is_default: false }]);
+  // Prepend the new (empty) term so it appears at the top of the list, immediately visible for editing.
+  const addDraftTerm = () => setDraftTerms(prev => [{ key: nextKey(), id: null, term: "", is_default: false }, ...prev]);
   const removeDraftSource = (key: string) => setDraftSources(prev => prev.filter(s => s.key !== key));
   function openAddSource() {
     setNewSource({ name: "", type: "web site", url: "", search_prefix: "", note: "", market: "", featured: false });
@@ -165,7 +170,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     setNewSource({ name: s.name, type: s.type, url: s.url, search_prefix: s.search_prefix, note: s.note, market: s.market, featured: s.featured });
     setEditingSourceKey(s.key); setConfigError(""); setSourceInfoOpen(false); setSourceModalOpen(true);
   }
-  // Modal "Done" — validate the single source and write it into the draft (no DB call).
+  // Modal "Done", validate the single source and write it into the draft (no DB call).
   function applySource() {
     const name = newSource.name.trim();
     if (!name) { setConfigError("Name is required."); return; }
@@ -184,7 +189,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   async function saveConfig() {
     if (configBusy) return;
     const terms = draftTerms.map(t => ({ ...t, term: t.term.trim() }));
-    if (terms.some(t => !t.term)) { setConfigError("Search terms can't be empty — remove the blank one or fill it in."); return; }
+    if (terms.some(t => !t.term)) { setConfigError("Search terms can't be empty, remove the blank one or fill it in."); return; }
     if (new Set(terms.map(t => t.term.toLowerCase())).size !== terms.length) { setConfigError("Two search terms are identical."); return; }
     const srcs = draftSources;
     if (srcs.some(s => !s.name.trim())) { setConfigError("Every source needs a name."); return; }
@@ -228,12 +233,26 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
 
   // Load the waiting list (pending companies, oldest first) for the count + the preview box.
   async function loadPendingCount() {
-    const { data } = await supabase
+    // Try to include stuck_count (migration 021). If the column doesn't exist yet, fall back to the
+    // base columns so the waiting list still loads instead of erroring out to an empty panel.
+    type QueueRow = { name: string; source_name: string | null; discovered_at: string | null; stuck_count?: number | null };
+    const primary = await supabase
       .from("discovery_queue")
-      .select("name, source_name, discovered_at")
+      .select("name, source_name, discovered_at, stuck_count")
       .eq("status", "pending")
       .order("discovered_at", { ascending: true });
-    const rows = data ?? [];
+    let data = primary.data as QueueRow[] | null;
+    if (primary.error) {
+      const fb = await supabase
+        .from("discovery_queue")
+        .select("name, source_name, discovered_at")
+        .eq("status", "pending")
+        .order("discovered_at", { ascending: true });
+      data = fb.data as QueueRow[] | null;
+    }
+    const rows = (data ?? []).map((r: QueueRow) => ({
+      name: r.name, source_name: r.source_name, discovered_at: r.discovered_at, stuck_count: r.stuck_count ?? 0,
+    }));
     setQueueItems(rows);
     setPendingQueueCount(rows.length);
     // Drop any selected names that are no longer in the queue.
@@ -289,20 +308,13 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     const hr = sourceHitRate(times_used, companies_found);
     return hr !== null && hr * 100 < warnThresholdPct;
   };
+  // Displayed as a ratio ("companies found per search") rather than a percentage, a source that
+  // yields more than one company per search would otherwise read as a confusing ">100%" hit rate.
   const fmtHitRate = (times_used: number, companies_found: number): string => {
     const hr = sourceHitRate(times_used, companies_found);
-    if (hr === null) return "—";
-    const pct = hr * 100;
-    return pct >= 10 ? `${Math.round(pct)}%` : `${pct.toFixed(1)}%`;
+    if (hr === null) return "-";
+    return `${hr.toFixed(1)} found per search`;
   };
-  // Saved rate = approved companies ÷ times used, as a % — a quality parameter only (NOT used for the
-  // warning). Guarded against divide-by-zero: returns "—" until the source has been used.
-  const fmtSavedRate = (times_used: number, saved: number): string => {
-    if (times_used <= 0) return "—";
-    const pct = (saved / times_used) * 100;
-    return pct >= 10 ? `${Math.round(pct)}%` : `${pct.toFixed(1)}%`;
-  };
-
   useEffect(() => {
     loadSearchConfig();
     loadPendingCount();
@@ -311,7 +323,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
 
   // Refresh the queue count whenever we return to an idle/finished state (e.g. after a search).
   useEffect(() => {
-    if (agentState === "idle" || agentState === "done" || agentState === "stale_warning") loadPendingCount();
+    if (agentState === "idle" || agentState === "done") loadPendingCount();
   }, [agentState]);
 
   // Once a search has completed successfully, clear the source/term checkboxes so the next search
@@ -321,13 +333,14 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     if (agentState === "done") { setSelectedTerms([]); setSelectedSources([]); setQueueSelected(new Set()); }
   }, [agentState]);
 
+  // Remove a single company from the waiting list (e.g. one flagged for repeatedly getting stuck).
   async function deleteFromQueue(name: string) {
     await supabase.from("discovery_queue").delete().eq("name", name);
-    setStaleCompanies(prev => prev.filter(n => n !== name));
+    await loadPendingCount();
   }
 
   // Called when the user abandons a search mid-flow (Cancel). Puts the current batch
-  // back in the queue as "pending" so it resurfaces on the next search — the enriched
+  // back in the queue as "pending" so it resurfaces on the next search, the enriched
   // data is already cached, so Step 2 will not re-enrich (no extra cost).
   async function resetProcessingToQueue() {
     await supabase.from("discovery_queue").update({ status: "pending" }).eq("status", "processing");
@@ -339,6 +352,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     setSearchResults([]);
     setAddingState("idle");
     setPendingCompanies([]);
+    setSearchMode(mode);
 
     if (DEMO_MODE) {
       setAgentState("searching");
@@ -348,27 +362,34 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
       return;
     }
 
-    // Check for stuck companies and reset them automatically — then pause so the user can see what happened
+    // Auto-recover companies left in "processing" by a previous interrupted run (cancelled search,
+    // crash, timeout): put them back in the waiting list so they aren't orphaned, and bump a stuck
+    // counter so the waiting list can flag any that repeatedly hang. This is silent now, no blocking
+    // interstitial, because the waiting list already lets the user re-research or remove them, and a
+    // single stuck occurrence is usually just a search the user cancelled themselves.
     const staleThreshold = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    const { data: staleRows } = await supabase
+    const { data: staleRows, error: staleErr } = await supabase
       .from("discovery_queue")
-      .select("name")
+      .select("name, stuck_count")
       .eq("status", "processing")
       .lt("processing_started_at", staleThreshold);
 
-    if (staleRows && staleRows.length > 0) {
-      const staleNames = staleRows.map((r: { name: string }) => r.name);
-      // Reset immediately — always the right thing to do
-      await supabase.from("discovery_queue").update({ status: "pending" }).in("name", staleNames);
-      setStaleCompanies(staleNames);
-      setAgentState("stale_warning");
-      return;
+    if (staleErr) {
+      // stuck_count column not present yet (migration 021 not run): just recover the rows without counting.
+      await supabase.from("discovery_queue").update({ status: "pending" }).eq("status", "processing").lt("processing_started_at", staleThreshold);
+    } else if (staleRows && staleRows.length > 0) {
+      for (const r of staleRows as { name: string; stuck_count: number | null }[]) {
+        await supabase.from("discovery_queue")
+          .update({ status: "pending", stuck_count: (r.stuck_count ?? 0) + 1 })
+          .eq("name", r.name);
+      }
+      // Continue straight into the search, no interstitial.
     }
 
     setAgentState("searching");
     setSearchProgress("Starting search…");
     try {
-      // Start the search as a BACKGROUND job — returns immediately with a jobId.
+      // Start the search as a BACKGROUND job, returns immediately with a jobId.
       // NEXT_PUBLIC_WORKER_URL points at the Render worker when the UI is hosted elsewhere
       // (e.g. Vercel); empty means same origin (everything on one host / local dev).
       const workerBase = process.env.NEXT_PUBLIC_WORKER_URL ?? "";
@@ -392,9 +413,11 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
       const jobId = data.jobId as number;
       setActiveSearchJobId(jobId);
       setLogLines([]);
+      // Open the live log automatically so the enrichment/evaluation steps are visible as they run.
+      setShowLog(true);
 
       // Clear any timers left over from a previous run BEFORE starting new ones. stopPolling()
-      // clears both the poll AND the elapsed intervals, so it must run first — calling it after
+      // clears both the poll AND the elapsed intervals, so it must run first, calling it after
       // starting the elapsed timer (as before) killed the counter immediately, freezing it at 0:00.
       stopPolling();
 
@@ -434,7 +457,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
           } else {
             setAgentError({
               title: "Scoring didn’t complete",
-              detail: "The companies were researched and saved, but the ICP scoring step didn’t finish. Nothing is lost — search again to score them (already-researched companies are reused, so it’s quick).",
+              detail: "The companies were researched and saved, but the ICP scoring step didn’t finish. Nothing is lost, search again to score them (already-researched companies are reused, so it’s quick).",
               canRetry: true,
             });
             setAgentState("error");
@@ -469,9 +492,9 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     }
   }
 
-  // "Search for new companies" — discover + enrich the new finds (uses the search configuration).
+  // "Search for new companies", discover + enrich the new finds (uses the search configuration).
   const handleNewSearch = () => handleAgentSearch("new");
-  // "Research the waiting list" — drain the queue: the ticked companies, or the oldest if none ticked.
+  // "Research the waiting list", drain the queue: the ticked companies, or the oldest if none ticked.
   const handleQueueSearch = () => handleAgentSearch("queue", queueSelected.size > 0 ? Array.from(queueSelected) : undefined);
 
   function toggleResult(i: number) {
@@ -490,7 +513,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     setAddingState("form");
   }
 
-  // Remove a company from the "Fill in Details" review step — it turned out not to be relevant.
+  // Remove a company from the "Fill in Details" review step, it turned out not to be relevant.
   // Rejects it (so it won't resurface in future searches) and drops it from both the pending list and
   // the results, mirroring the ✕ on the results list. If the last one is removed, go back to results.
   function removePending(i: number) {
@@ -570,7 +593,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
       setAddingState("saved");
       setSearchResults([]);
       setAgentState("idle");
-      // Search is fully done and companies are saved — close the live log and clear it so the
+      // Search is fully done and companies are saved, close the live log and clear it so the
       // "Companies added" screen isn't cluttered by the finished search log.
       setShowLog(false);
       setActiveSearchJobId(null);
@@ -582,7 +605,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
 
   return {
     // search job state
-    agentState, setAgentState, agentError, setAgentError, staleCompanies, setStaleCompanies,
+    agentState, setAgentState, agentError, setAgentError,
     searchResults, setSearchResults, pendingCompanies, addingState, setAddingState,
     saveError, sourceNameMap,
     // config state
@@ -595,7 +618,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     termLastUsed, reactivatedPages, reactivateSource,
     configBusy, configError, setConfigError,
     // background job / log / queue
-    searchProgress, activeSearchJobId, logLines, showLog, setShowLog,
+    searchProgress, searchMode, activeSearchJobId, logLines, showLog, setShowLog,
     pendingQueueCount, queueItems, queueSelected, toggleQueueSelected, clearingQueue,
     // perf settings
     warnThresholdPct, warnMinUses, perfModalOpen, setPerfModalOpen,
@@ -610,7 +633,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     // queue / settings handlers
     loadPendingCount, clearQueue, saveSettings,
     // helpers
-    sourceHitRate, sourceIsLow, fmtHitRate, fmtSavedRate,
+    sourceHitRate, sourceIsLow, fmtHitRate,
     // job handlers
     deleteFromQueue, resetProcessingToQueue,
     handleNewSearch, handleQueueSearch,

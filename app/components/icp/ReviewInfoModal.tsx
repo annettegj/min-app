@@ -1,7 +1,7 @@
 import { btnPrimary, btnSecondary } from "@/lib/styles";
 import { DEFAULT_ICP_REVIEW_INSTRUCTIONS } from "@/lib/icpReview";
 
-// "What does the AI review check?" — shows/edits the review instructions (the editable rubric).
+// "What does the AI review check?", shows/edits the review instructions (the editable rubric).
 export function ReviewInfoModal({ editing, instructions, draft, error, saving, setDraft, onEdit, onSave, onCancelEdit, onClose }: {
   editing: boolean;
   instructions: string;
@@ -32,7 +32,7 @@ export function ReviewInfoModal({ editing, instructions, draft, error, saving, s
         </div>
         <div style={{ padding: "20px 26px", overflowY: "auto" }}>
           <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 16 }}>
-            These are the exact instructions given to the AI when it reviews an ICP edit (before you save). Editing them changes what the review looks for — the surrounding structure (how your ICP text is fed in and how the result is returned) is fixed in code and can’t be broken here. Applies to both markets.
+            These are the exact instructions given to the AI when it reviews an ICP edit (before you save). Editing them changes what the review looks for, the surrounding structure (how your ICP text is fed in and how the result is returned) is fixed in code and can’t be broken here. Applies to both markets.
           </p>
           {!editing ? (
             <div style={{ border: "1px solid var(--border-card)", borderRadius: 4, background: "var(--surface)", padding: "14px 16px", whiteSpace: "pre-wrap", fontSize: 13.5, lineHeight: 1.6, color: "var(--text)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}>
@@ -43,7 +43,7 @@ export function ReviewInfoModal({ editing, instructions, draft, error, saving, s
               <textarea value={draft} onChange={e => setDraft(e.target.value)} spellCheck={false}
                 style={{ width: "100%", minHeight: 300, padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13.5, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", lineHeight: 1.6, color: "var(--text)", resize: "vertical" }} />
               {error && <p style={{ fontSize: 12, color: "var(--danger-text)", marginTop: 8 }}>{error}</p>}
-              <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Shared setting — changes what every ICP review checks for. Saved to the database and used by the next review.</p>
+              <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8 }}>Shared setting, changes what every ICP review checks for. Saved to the database and used by the next review.</p>
               <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center" }}>
                 <button type="button" onClick={onSave} disabled={saving}
                   style={{ ...btnPrimary, padding: "9px 22px", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save"}</button>

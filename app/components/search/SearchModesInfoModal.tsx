@@ -20,7 +20,7 @@ export function SearchModesInfoModal({ onClose }: { onClose: () => void }) {
           <p style={{ marginBottom: 14 }}>Uses your selected <strong>sources &amp; search terms</strong> to <strong>find</strong> companies the app hasn&apos;t seen before, then researches and scores the newest {ENRICH_BATCH_SIZE}. Use this to discover fresh prospects. If it finds more than {ENRICH_BATCH_SIZE}, the extras go into the waiting list for later.</p>
 
           <p style={{ fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>Research the waiting list</p>
-          <p style={{ marginBottom: 14 }}>Skips the &quot;find&quot; step entirely. It researches and scores up to {ENRICH_BATCH_SIZE} companies that were <strong>already found but not yet researched</strong> — the ones you tick, or the {ENRICH_BATCH_SIZE} that have waited longest. It <strong>ignores the search configuration</strong>. Use this to work through the backlog.</p>
+          <p style={{ marginBottom: 14 }}>Skips the &quot;find&quot; step entirely. It researches and scores up to {ENRICH_BATCH_SIZE} companies that were <strong>already found but not yet researched</strong>, the ones you tick, or the {ENRICH_BATCH_SIZE} that have waited longest. It <strong>ignores the search configuration</strong>. Use this to work through the backlog.</p>
 
           <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 0 }}>Either way, at most {ENRICH_BATCH_SIZE} companies are processed per run. A new search costs a little more (it does the web-search discovery); the waiting list is cheaper because it skips that step.</p>
 

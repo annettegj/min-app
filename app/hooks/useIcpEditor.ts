@@ -76,7 +76,7 @@ export function useIcpEditor(authEmail: string | null) {
   function icpNetworkMsg(err: unknown): string {
     const m = err instanceof Error ? err.message : String(err);
     if (/failed to fetch|networkerror|load failed|fetch failed/i.test(m)) {
-      return "couldn’t reach the server — it may be waking up after being idle (this can take ~30 seconds). Wait a moment and try again.";
+      return "couldn’t reach the server, it may be waking up after being idle (this can take ~30 seconds). Wait a moment and try again.";
     }
     return m;
   }
@@ -107,7 +107,7 @@ export function useIcpEditor(authEmail: string | null) {
       const remaining = prev.issues.filter((_, i) => i !== idx);
       return remaining.length ? { ...prev, issues: remaining } : null;
     });
-    setIcpApplyNote("Applied — the change is now in the editor above. Review it (edit further if you like), then Save changes when you're ready.");
+    setIcpApplyNote("Applied, the change is now in the editor above. Review it (edit further if you like), then Save changes when you're ready.");
     setIcpDiff(null);
   }
   function discardIcpDiff() { setIcpDiff(null); }

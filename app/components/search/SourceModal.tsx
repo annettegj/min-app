@@ -24,15 +24,15 @@ export function SourceModal({ source, setSource, editing, infoOpen, setInfoOpen,
             style={{ flexShrink: 0, width: 24, height: 24, borderRadius: "50%", border: "1px solid var(--border)", background: infoOpen ? "var(--accent)" : "var(--white)", color: infoOpen ? "var(--white)" : "var(--text-muted)", fontSize: 13, fontWeight: 700, fontStyle: "italic", cursor: "pointer", lineHeight: 1, fontFamily: "Georgia, serif" }}>i</button>
         </div>
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
-          Applied to the draft — nothing is saved until you press <strong>Save changes</strong> in the panel. <span style={reqStyle}>*</span>
+          Applied to the draft, nothing is saved until you press <strong>Save changes</strong> in the panel. <span style={reqStyle}>*</span>
           <span style={{ marginLeft: 4 }}>marks a required field.</span>
         </p>
         {infoOpen && (
           <div style={{ background: "var(--banner-info-bg)", border: "1px solid var(--banner-info-border)", borderRadius: 4, padding: "12px 14px", marginBottom: 18, fontSize: 12.5, color: "var(--banner-info-text)", lineHeight: 1.6 }}>
             <p style={{ marginBottom: 8 }}><strong>Which type should I choose?</strong></p>
-            <p style={{ marginBottom: 8 }}><strong>Website</strong> — the AI runs a web search across the whole site, once per search term, looking for companies mentioned anywhere on it. Choose this for an ongoing publication that keeps posting new articles (e.g. a trade-news site). It needs a <strong>search prefix</strong> — usually the domain (like <em>nutraingredients.com</em>) — which is put in front of each term to keep the search on that site.</p>
-            <p style={{ marginBottom: 8 }}><strong>Single page</strong> — the AI reads one specific URL, once, and pulls the companies from it. Choose this when you want it to go through a single fixed page, e.g. a <em>“Top 10 supplement brands for 2026”</em> list. Best for a fixed list — re-running finds nothing new after the first read.</p>
-            <p style={{ margin: 0 }}><strong>Note to the AI</strong> is a free-text instruction for this source — e.g. a paywall tip or a region to focus on.</p>
+            <p style={{ marginBottom: 8 }}><strong>Website</strong>, the AI runs a web search across the whole site, once per search term, looking for companies mentioned anywhere on it. Choose this for an ongoing publication that keeps posting new articles (e.g. a trade-news site). It needs a <strong>search prefix</strong>, usually the domain (like <em>nutraingredients.com</em>), which is put in front of each term to keep the search on that site.</p>
+            <p style={{ marginBottom: 8 }}><strong>Single page</strong>, the AI reads one specific URL, once, and pulls the companies from it. Choose this when you want it to go through a single fixed page, e.g. a <em>“Top 10 supplement brands for 2026”</em> list. Best for a fixed list, re-running finds nothing new after the first read.</p>
+            <p style={{ margin: 0 }}><strong>Note to the AI</strong> is a free-text instruction for this source, e.g. a paywall tip or a region to focus on.</p>
           </div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -57,7 +57,7 @@ export function SourceModal({ source, setSource, editing, infoOpen, setInfoOpen,
               <option value="US">US</option>
               <option value="Global">Global</option>
             </select>
-            <p style={hintStyle}>Which market this source leans toward — shown as a tag in the list.</p>
+            <p style={hintStyle}>Which market this source leans toward, shown as a tag in the list.</p>
           </div>
           {source.type === "web site" ? (
             <>
@@ -65,7 +65,7 @@ export function SourceModal({ source, setSource, editing, infoOpen, setInfoOpen,
                 <label style={labelStyle}>Search prefix <span style={reqStyle}>*</span></label>
                 <input type="text" value={source.search_prefix} onChange={e => setSource({ ...source, search_prefix: e.target.value })}
                   placeholder="e.g. nutraingredients.com Europe" style={inputStyle} />
-                <p style={hintStyle}>A fixed text added in front of <em>every</em> search term to aim the search at this specific source. Unlike the search terms (which change from search to search), this stays the same each time the source is used — the query becomes <em>“&lt;prefix&gt; &lt;term&gt;”</em>. Usually the site&apos;s domain, optionally with a region, e.g. <em>nutraingredients.com Europe</em>.</p>
+                <p style={hintStyle}>A fixed text added in front of <em>every</em> search term to aim the search at this specific source. Unlike the search terms (which change from search to search), this stays the same each time the source is used, the query becomes <em>“&lt;prefix&gt; &lt;term&gt;”</em>. Usually the site&apos;s domain, optionally with a region, e.g. <em>nutraingredients.com Europe</em>.</p>
               </div>
               <div>
                 <label style={labelStyle}>Homepage URL <span style={optStyle}>optional</span></label>
@@ -85,13 +85,13 @@ export function SourceModal({ source, setSource, editing, infoOpen, setInfoOpen,
               <label style={labelStyle}>Page URL <span style={reqStyle}>*</span></label>
               <input type="text" value={source.url} onChange={e => setSource({ ...source, url: e.target.value })}
                 placeholder="https://www.healthline.com/nutrition/best-vitamin-brands" style={inputStyle} />
-              <p style={hintStyle}>The exact page to read. Fetched once — best for a fixed list of brands.</p>
+              <p style={hintStyle}>The exact page to read. Fetched once, best for a fixed list of brands.</p>
             </div>
           )}
           <div>
             <label style={labelStyle}>Note to the AI <span style={optStyle}>optional</span></label>
             <textarea value={source.note} onChange={e => setSource({ ...source, note: e.target.value })} rows={3}
-              placeholder={'e.g. This site defaults to its US edition — always keep "Europe" in the query so results aren\'t US-only.'}
+              placeholder={'e.g. This site defaults to its US edition, always keep "Europe" in the query so results aren\'t US-only.'}
               style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
             <p style={hintStyle}>Passed to the AI as an instruction for this source (paywall tips, region focus, etc.).</p>
           </div>

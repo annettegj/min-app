@@ -5,7 +5,7 @@ import { DEFAULT_ICP_REVIEW_INSTRUCTIONS, ICP_REVIEW_INSTRUCTIONS_KEY, buildRevi
 import { CLAUDE_MODEL } from "@/lib/models";
 
 // Advisory AI review of an edited ICP document. Runs on the worker (Render) because it needs the
-// Anthropic key. It NEVER blocks a save — the UI shows the result and lets the user save anyway.
+// Anthropic key. It NEVER blocks a save, the UI shows the result and lets the user save anyway.
 // Called cross-origin from the UI, so it needs CORS like /api/search/start.
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN ?? "*",
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     content = typeof body?.content === "string" ? body.content : "";
     if (body?.market === "us") market = "us";
   } catch {
-    /* fall through — empty content handled below */
+    /* fall through, empty content handled below */
   }
 
   if (!content.trim()) {
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   const marketLabel = market === "us" ? "United States" : "European";
 
   // The review rubric is user-editable (stored in app_settings). Fall back to the default if there's
-  // no row or the DB read fails — the review must still run.
+  // no row or the DB read fails, the review must still run.
   let instructions = DEFAULT_ICP_REVIEW_INSTRUCTIONS;
   try {
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    // Force a structured tool call so the result is always valid JSON — no fragile text parsing.
+    // Force a structured tool call so the result is always valid JSON, no fragile text parsing.
     const response = await client.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 2000,

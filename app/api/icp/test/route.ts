@@ -6,7 +6,7 @@ import { ICP_TEST_COMPANIES_KEY, type IcpTestExample } from "@/lib/icpTest";
 
 // Optional "test on example companies" for an ICP draft. Scores a handful of already-enriched
 // companies from the DB against the CURRENT editor draft (not the saved ICP), and returns EVERY
-// company with its score + whether it would be included — so the user sees the full effect (including
+// company with its score + whether it would be included, so the user sees the full effect (including
 // exclusions), before or after the AI review. Runs on the worker (needs the Anthropic key). Read-only:
 // it never writes anything. CORS like /api/search/start.
 const corsHeaders = {
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
         const parsed = JSON.parse(setting.value);
         if (Array.isArray(parsed)) configured = parsed.filter((e) => e && typeof e.name === "string");
       }
-    } catch { /* ignore — treat as unconfigured */ }
+    } catch { /* ignore, treat as unconfigured */ }
 
     if (configured.length > 0) {
       const names = configured.map((e) => e.name);
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       examples = rows.map((r) => r.enriched_data as Record<string, unknown>).filter(Boolean).slice(0, 6);
     }
   } catch {
-    /* fall through — reported as "no examples" below */
+    /* fall through, reported as "no examples" below */
   }
 
   if (examples.length === 0) {
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   }
 
   const marketLabel = market === "us" ? "United States" : "European";
-  const prompt = `You are TESTING an Ideal Customer Profile (ICP) for Lysoveta by scoring example supplement companies against it — so the author can see how the ICP behaves. This ICP is for the ${marketLabel} market.
+  const prompt = `You are TESTING an Ideal Customer Profile (ICP) for Lysoveta by scoring example supplement companies against it, so the author can see how the ICP behaves. This ICP is for the ${marketLabel} market.
 
 --- ICP ---
 ${content}
@@ -97,7 +97,7 @@ For EACH company in the data below, evaluate it strictly against the ICP above a
 - included: true if the ICP's rules would INCLUDE this company as a prospect, false if it is excluded/too weak
 - reason: ONE sentence on what drove the score/decision
 
-Include ALL companies in your answer — also the excluded ones — so the tester sees the full behaviour.
+Include ALL companies in your answer, also the excluded ones, so the tester sees the full behaviour.
 
 Companies:
 ${JSON.stringify(examples, null, 2)}

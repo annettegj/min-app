@@ -271,15 +271,15 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
                             {displayHostname(c.website_url)}
                           </a>
                         ) : (
-                          <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>
+                          <span style={{ color: "var(--text-faint)", fontSize: 12 }}>-</span>
                         )}
                       </td>
                       <td style={{ padding: "12px 14px", color: "var(--text-body)", fontSize: 12 }}>
-                        {c.source_name ?? <span style={{ color: "var(--text-faint)" }}>—</span>}
+                        {c.source_name ?? <span style={{ color: "var(--text-faint)" }}>-</span>}
                       </td>
-                      <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{parseMulti(c.geography).join(", ") || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
-                      <td style={{ padding: "12px 14px", color: "var(--text-body)" }}>{parseMulti(c.product_category).join(", ") || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
-                      <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : c.price_currency === "EUR" ? "€" : ""}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
+                      <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{parseMulti(c.geography).join(", ") || <span style={{ color: "var(--text-faint)" }}>-</span>}</td>
+                      <td style={{ padding: "12px 14px", color: "var(--text-body)" }}>{parseMulti(c.product_category).join(", ") || <span style={{ color: "var(--text-faint)" }}>-</span>}</td>
+                      <td style={{ padding: "12px 14px", color: "var(--text-body)", whiteSpace: "nowrap" }}>{c.max_price != null ? `${c.price_currency === "GBP" ? "£" : c.price_currency === "USD" ? "$" : c.price_currency === "EUR" ? "€" : ""}${c.max_price.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}</td>
                       <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
                         {c.priority_tier === "early_mover" && (
                           <span style={{ background: "var(--badge-green-bg)", color: "var(--success)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Early Mover</span>
@@ -290,7 +290,7 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
                         {c.priority_tier === "enabler" && (
                           <span style={{ background: "var(--badge-purple-bg)", color: "var(--badge-purple-text)", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>Enabler</span>
                         )}
-                        {!c.priority_tier && <span style={{ color: "var(--text-faint)", fontSize: 12 }}>—</span>}
+                        {!c.priority_tier && <span style={{ color: "var(--text-faint)", fontSize: 12 }}>-</span>}
                       </td>
                       <td style={{ padding: "12px 14px", fontSize: 13, letterSpacing: 1, color: icpColor(c.icp_fit), whiteSpace: "nowrap" }}>{"★".repeat(c.icp_fit)}{"☆".repeat(5 - c.icp_fit)}</td>
                       <td style={{ padding: "12px 14px", color: "var(--text-body)", fontSize: 12.5, whiteSpace: "nowrap" }}>{fmtAddedDate(c)}</td>
@@ -322,7 +322,7 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
                                 <div>
                                   <label style={labelStyle}>Currency</label>
                                   <select value={editDraft.price_currency} onChange={e => setEditDraft({ ...editDraft, price_currency: e.target.value })} style={inputStyle}>
-                                    <option value="">—</option>
+                                    <option value="">-</option>
                                     {["EUR", "GBP", "USD", "NOK", "SEK", "DKK", "CHF"].map(cur => <option key={cur}>{cur}</option>)}
                                   </select>
                                 </div>
@@ -338,7 +338,7 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
                                 <div>
                                   <label style={labelStyle}>Priority tier</label>
                                   <select value={editDraft.priority_tier} onChange={e => setEditDraft({ ...editDraft, priority_tier: e.target.value })} style={inputStyle}>
-                                    <option value="">—</option>
+                                    <option value="">-</option>
                                     <option value="early_mover">Early Mover</option>
                                     <option value="follower">Follower</option>
                                   </select>
@@ -460,7 +460,7 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
         </div>
       )}
 
-      {/* Unsaved-edit guard — shown only when a row edit has actually been changed */}
+      {/* Unsaved-edit guard, shown only when a row edit has actually been changed */}
       {pendingNav && (
         <div onClick={() => setPendingNav(null)}
           style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
@@ -481,7 +481,7 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
         </div>
       )}
 
-      {/* Export guard — unsaved edits aren't in the saved data the export reads */}
+      {/* Export guard, unsaved edits aren't in the saved data the export reads */}
       {pendingExport && (
         <div onClick={() => setPendingExport(false)}
           style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>

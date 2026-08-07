@@ -34,7 +34,7 @@ export type SearchResult = {
   icp_score: number | null;
 };
 
-// The full result of Step 3 ICP matching — matches the JSON schema in buildStep3Prompt and the
+// The full result of Step 3 ICP matching, matches the JSON schema in buildStep3Prompt and the
 // fields the UI reads when building the selectable results list (geography, product_category, price).
 export type EvaluatedCompany = {
   name: string;
@@ -74,7 +74,7 @@ export type EnrichedCompany = {
 
 // ---- Helpers ----
 
-// Normalizes a company name for deduplication — strips legal suffixes and parenthetical
+// Normalizes a company name for deduplication, strips legal suffixes and parenthetical
 // additions so "Doppelherz (Queisser Pharma)" and "Doppelherz GmbH" both match "doppelherz".
 function normalizeName(name: string): string {
   return name
@@ -113,7 +113,7 @@ function parseJsonObject(response: Anthropic.Message): Record<string, unknown> |
 
 // Bumps the per-source performance counters after a discovery run: +1 `times_used` for every
 // source that took part, and +N `companies_found` for each source that contributed N new companies
-// to the queue. Read-modify-write (safe here — one search runs at a time). Best-effort: a failure
+// to the queue. Read-modify-write (safe here, one search runs at a time). Best-effort: a failure
 // only loses a stat, never the search. `foundByName` keys are the source_name values the model
 // returned; if one doesn't match a real source row the update simply affects nothing.
 async function bumpSourceStats(
@@ -128,7 +128,7 @@ async function bumpSourceStats(
     .select("name, times_used, companies_found")
     .in("name", names);
   if (error) {
-    emit(`[search] Stats: could not read source counters — ${error.message}`);
+    emit(`[search] Stats: could not read source counters, ${error.message}`);
     return;
   }
   const cur = new Map(
@@ -138,7 +138,7 @@ async function bumpSourceStats(
   await Promise.all(
     names.map(async (name) => {
       const row = cur.get(name);
-      if (!row) return; // no matching source row (e.g. a stray source_name) — skip
+      if (!row) return; // no matching source row (e.g. a stray source_name), skip
       const used = usedSet.has(name);
       const times_used = (row.times_used ?? 0) + (used ? 1 : 0);
       const companies_found = (row.companies_found ?? 0) + (foundByName.get(name) ?? 0);
@@ -146,7 +146,7 @@ async function bumpSourceStats(
         .from("sources")
         .update(used ? { times_used, companies_found, last_used_at: new Date().toISOString() } : { times_used, companies_found })
         .eq("name", name);
-      if (upErr) emit(`[search] Stats: could not update "${name}" — ${upErr.message}`);
+      if (upErr) emit(`[search] Stats: could not update "${name}", ${upErr.message}`);
     })
   );
   emit(`[search] Stats: updated counters for ${cur.size} source(s)`);
@@ -166,7 +166,7 @@ const rawConsoleLog = console.log.bind(console);
 let activeJobId: number | null = null;
 let activeSupabase: SupabaseClient | null = null;
 let activeSignal: AbortSignal | null = null;
-// Serializes log inserts so rows reach the DB in call order (monotonic created_at) — otherwise the
+// Serializes log inserts so rows reach the DB in call order (monotonic created_at), otherwise the
 // fire-and-forget inserts race and the UI log (ordered by created_at) shows lines out of sequence.
 let logChain: Promise<void> = Promise.resolve();
 
@@ -204,7 +204,7 @@ function logFetchOutcome(response: Anthropic.Message): void {
       emit(`[search] Step 1 (fetch)   ✓ retrieved ${url}`);
     } else {
       failed++;
-      emit(`[search] Step 1 (fetch)   ✗ FAILED ${url} — ${b.content.error_code}`);
+      emit(`[search] Step 1 (fetch)   ✗ FAILED ${url}, ${b.content.error_code}`);
     }
   }
   emit(`[search] Step 1 (fetch): ${ok}/${ok + failed} page fetch(es) succeeded`);
@@ -227,11 +227,11 @@ function logSearchOutcome(response: Anthropic.Message): void {
 
 // A soft region steer for Step 1 discovery. Region here loosely means where the company is based or
 // primarily active (usually two sides of the same coin in this case). There is NO code-level region
-// filter — off-region companies that turn up anyway are kept and queued (and scored against the
+// filter, off-region companies that turn up anyway are kept and queued (and scored against the
 // matching ICP in Step 3).
 function marketSteer(targetMarket?: "eu" | "us" | "both"): string {
-  if (targetMarket === "eu") return `\n- Focus on companies in Europe (EU / UK) — based in or primarily active in the region.`;
-  if (targetMarket === "us") return `\n- Focus on companies in the United States — based in or primarily active there.`;
+  if (targetMarket === "eu") return `\n- Focus on companies in Europe (EU / UK), based in or primarily active in the region.`;
+  if (targetMarket === "us") return `\n- Focus on companies in the United States, based in or primarily active there.`;
   return "";
 }
 
@@ -256,33 +256,33 @@ async function discoverCompanies(
   // Page fetch + YouTube run regardless; the web_search path below runs only when there are website
   // sources. If there are none, do just page + YouTube and return.
   if (siteSources.length === 0) {
-    emit(`[search] Step 1: no website sources selected — skipping web_search`);
+    emit(`[search] Step 1: no website sources selected, skipping web_search`);
     const pageOnly = pageSources.length > 0 ? await discoverViaFetch(client, pageSources, knownNames, targetMarket) : [];
     const ytOnly = youtubeSources.length > 0 ? await discoverViaYouTube(client, youtubeSources, searchConcepts, knownNames, targetMarket) : [];
     return [...pageOnly, ...ytOnly];
   }
   const sourceList = siteSources
-    .map((s) => `- ${s.name} (${s.url})${s.note ? ` — NOTE: ${s.note}` : ""}`)
+    .map((s) => `- ${s.name} (${s.url})${s.note ? `, NOTE: ${s.note}` : ""}`)
     .join("\n");
   // Build the narrow queries from concepts × sources: one concept per query, as an explicit numbered
   // list so the model runs them as separate searches rather than combining them.
   emit(`[search] Step 1: using ${searchConcepts.length} search terms: ${searchConcepts.join(", ")}`);
   // Baseline queries in English; the model adapts language per source as it reads (see the search
-  // rules below) — it re-searches non-English sources in their own language once it sees the content.
+  // rules below), it re-searches non-English sources in their own language once it sees the content.
   const allQueries = siteSources.flatMap((s) => searchConcepts.map((c) => `${s.search_prefix} ${c}`));
   const queryList = allQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n");
-  emit(`[search] Step 1 technique: web_search — ${siteSources.length} website source(s) × ${searchConcepts.length} term(s) = ${allQueries.length} queries`);
+  emit(`[search] Step 1 technique: web_search, ${siteSources.length} website source(s) × ${searchConcepts.length} term(s) = ${allQueries.length} queries`);
   emit(`[search] Step 1 queries:\n${queryList}`);
   const countInstruction =
     knownNames.length > 0
-      ? `IMPORTANT — count only NEW companies toward your target of 10:
+      ? `IMPORTANT, count only NEW companies toward your target of 10:
 - The list below shows companies we ALREADY have. Never return them; they count as ZERO.
 - Only companies NOT on the list count. Example: 3 known + 5 new = a count of 5, not 8.
-- Aim for up to 10 new companies. If fewer exist, return what you found — do not repeat searches to reach 10.
+- Aim for up to 10 new companies. If fewer exist, return what you found, do not repeat searches to reach 10.
 
 Companies we already have (do NOT return these):
 ${knownNames.join(", ")}`
-      : `IMPORTANT: Aim for up to 10 companies. If fewer exist, return what you found — do not repeat searches just to reach 10.`;
+      : `IMPORTANT: Aim for up to 10 companies. If fewer exist, return what you found, do not repeat searches just to reach 10.`;
 
   const stream = await client.messages.stream({
     model: CLAUDE_MODEL,
@@ -297,9 +297,9 @@ Focus on content from these trade media sources:
 ${sourceList}
 
 Run the searches below. IMPORTANT search rules:
-- Run each query as a SEPARATE, narrow search — one query at a time. Do NOT combine several queries into one search (narrow single-concept searches return far better company round-ups than broad stacked ones).
-- Cover ALL of the sources — do not spend your whole search budget on a single source.
-- Adapt to each source's language: don't assume English. Judge a source's language from what its results actually contain (and the site itself). If a source is in another language (e.g. French, German, Italian), translate the search term into that language and search that source again in its own language — that surfaces companies an English query would miss. You still read and understand results in any language.
+- Run each query as a SEPARATE, narrow search, one query at a time. Do NOT combine several queries into one search (narrow single-concept searches return far better company round-ups than broad stacked ones).
+- Cover ALL of the sources, do not spend your whole search budget on a single source.
+- Adapt to each source's language: don't assume English. Judge a source's language from what its results actually contain (and the site itself). If a source is in another language (e.g. French, German, Italian), translate the search term into that language and search that source again in its own language, that surfaces companies an English query would miss. You still read and understand results in any language.
 - You have a budget of up to 12 searches. You may stop early once you have 10 new companies (see the counting rule below).
 
 Searches to run:
@@ -313,10 +313,10 @@ ${countInstruction}
 
 Important rules:
 - Extract COMPANY names, not product names. If an article says "Brand X launches new omega-3 supplement", extract "Brand X".
-- EXCLUDE Aker BioMarine, Lysoveta, and Superba — these are ingredient suppliers, not target customers.
-- Always use the shortest canonical company name — omit legal suffixes (GmbH, Ltd, AG, Inc, BV, etc.) and parenthetical additions. Write "Doppelherz", not "Doppelherz GmbH" or "Doppelherz (Queisser Pharma)".
+- EXCLUDE Aker BioMarine, Lysoveta, and Superba, these are ingredient suppliers, not target customers.
+- Always use the shortest canonical company name, omit legal suffixes (GmbH, Ltd, AG, Inc, BV, etc.) and parenthetical additions. Write "Doppelherz", not "Doppelherz GmbH" or "Doppelherz (Queisser Pharma)".
 - If the same company appears in multiple sources, include it only once (keep the first source).
-- Only include companies that actually sell finished supplement products to consumers or through B2B channels — not raw ingredient suppliers or distributors with no own brand.${marketSteer(targetMarket)}
+- Only include companies that actually sell finished supplement products to consumers or through B2B channels, not raw ingredient suppliers or distributors with no own brand.${marketSteer(targetMarket)}
 
 Return ONLY a raw JSON array, no markdown or explanation:
 [{"name":"Company Name","source_name":"NutraIngredients Europe"}]`,
@@ -349,7 +349,7 @@ Return ONLY a raw JSON array, no markdown or explanation:
 // Step 1 (YouTube path): search YouTube (Data API v3) for each concept, gather the top videos'
 // titles + descriptions, and let Claude extract finished-brand supplement companies. Uses the
 // official API (public metadata only). The key is server-only: process.env.YOUTUBE_API_KEY.
-// Experimental/complementary source — noisier and US/English-leaning; the ICP step filters later.
+// Experimental/complementary source, noisier and US/English-leaning; the ICP step filters later.
 async function discoverViaYouTube(
   client: Anthropic,
   youtubeSources: Source[],
@@ -360,11 +360,11 @@ async function discoverViaYouTube(
   // Defensive: trim whitespace and strip accidental surrounding quotes from the env value.
   const apiKey = process.env.YOUTUBE_API_KEY?.trim().replace(/^["']|["']$/g, "");
   if (!apiKey) {
-    emit(`[search] Step 1 (youtube): skipped — YOUTUBE_API_KEY not set on the server`);
+    emit(`[search] Step 1 (youtube): skipped, YOUTUBE_API_KEY not set on the server`);
     return [];
   }
   if (concepts.length === 0) {
-    emit(`[search] Step 1 (youtube): skipped — no search terms`);
+    emit(`[search] Step 1 (youtube): skipped, no search terms`);
     return [];
   }
 
@@ -394,9 +394,9 @@ async function discoverViaYouTube(
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         const reason = (() => { try { return (JSON.parse(body) as { error?: { message?: string; errors?: { reason?: string }[] } }).error; } catch { return null; } })();
-        // A stale/expired pageToken can 400 — clear it so the next run restarts this query cleanly.
+        // A stale/expired pageToken can 400, clear it so the next run restarts this query cleanly.
         if (res.status === 400 && pageToken) await supabase.from("youtube_cursors").upsert({ query: q, next_page_token: null, updated_at: new Date().toISOString() }, { onConflict: "query" });
-        emit(`[search] Step 1 (youtube)   ✗ search "${q}" failed — HTTP ${res.status}: ${reason?.message ?? body.slice(0, 300)}${reason?.errors?.[0]?.reason ? ` [${reason.errors[0].reason}]` : ""}`);
+        emit(`[search] Step 1 (youtube)   ✗ search "${q}" failed, HTTP ${res.status}: ${reason?.message ?? body.slice(0, 300)}${reason?.errors?.[0]?.reason ? ` [${reason.errors[0].reason}]` : ""}`);
         continue;
       }
       const data = (await res.json()) as { items?: { id?: { videoId?: string } }[]; nextPageToken?: string };
@@ -405,9 +405,9 @@ async function discoverViaYouTube(
       // Save the next-page bookmark; when there's no next page we've reached the end → clear it so the
       // next run starts over from the top (by then there may be newly published videos).
       await supabase.from("youtube_cursors").upsert({ query: q, next_page_token: data.nextPageToken ?? null, updated_at: new Date().toISOString() }, { onConflict: "query" });
-      emit(`[search] Step 1 (youtube)   ✓ "${q}" → ${ids.length} videos${pageToken ? " (continued)" : ""}${data.nextPageToken ? "" : " (end of results — will restart next run)"}`);
+      emit(`[search] Step 1 (youtube)   ✓ "${q}" → ${ids.length} videos${pageToken ? " (continued)" : ""}${data.nextPageToken ? "" : " (end of results, will restart next run)"}`);
     } catch (err) {
-      emit(`[search] Step 1 (youtube)   ✗ search "${q}" errored — ${(err as { message?: string })?.message ?? "unknown"}`);
+      emit(`[search] Step 1 (youtube)   ✗ search "${q}" errored, ${(err as { message?: string })?.message ?? "unknown"}`);
     }
   }
 
@@ -416,12 +416,12 @@ async function discoverViaYouTube(
     emit(`[search] Step 1 (youtube): no videos found`);
     return [];
   }
-  // Skip videos we've already processed in earlier runs — never read the same video twice.
+  // Skip videos we've already processed in earlier runs, never read the same video twice.
   const { data: seenRows } = await supabase.from("youtube_seen").select("video_id").in("video_id", allIds);
   const seen = new Set((seenRows ?? []).map((r: { video_id: string }) => r.video_id));
   const uniqueIds = allIds.filter((id) => !seen.has(id)).slice(0, 50); // videos.list accepts up to 50 ids
   if (uniqueIds.length === 0) {
-    emit(`[search] Step 1 (youtube): all ${allIds.length} videos already processed — nothing new this run`);
+    emit(`[search] Step 1 (youtube): all ${allIds.length} videos already processed, nothing new this run`);
     return [];
   }
   // Mark them processed up front so a later failure never causes the same videos to be re-read.
@@ -435,7 +435,7 @@ async function discoverViaYouTube(
     const res = await fetch(vidUrl, { signal: activeSignal ?? undefined });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      emit(`[search] Step 1 (youtube): videos.list failed — HTTP ${res.status}: ${body.slice(0, 300)}`);
+      emit(`[search] Step 1 (youtube): videos.list failed, HTTP ${res.status}: ${body.slice(0, 300)}`);
       return [];
     }
     const data = (await res.json()) as { items?: { snippet?: { title?: string; description?: string; channelTitle?: string } }[] };
@@ -446,7 +446,7 @@ async function discoverViaYouTube(
       })
       .join("\n\n---\n\n");
   } catch (err) {
-    emit(`[search] Step 1 (youtube): videos.list errored — ${(err as { message?: string })?.message ?? "unknown"}`);
+    emit(`[search] Step 1 (youtube): videos.list errored, ${(err as { message?: string })?.message ?? "unknown"}`);
     return [];
   }
   emit(`[search] Step 1 (youtube): read ${uniqueIds.length} video(s), extracting brands…`);
@@ -467,8 +467,8 @@ async function discoverViaYouTube(
 Important rules:
 - Extract COMPANY or BRAND names, not product names and not the video creators/influencers.
 - EXCLUDE Aker BioMarine, Lysoveta, and Superba.
-- Use the shortest canonical company name — omit legal suffixes (GmbH, Ltd, Inc, etc.) and parentheticals.
-- Only finished-brand supplement companies — not ingredient suppliers, not retailers (Amazon, iHerb), not pure distributors.
+- Use the shortest canonical company name, omit legal suffixes (GmbH, Ltd, Inc, etc.) and parentheticals.
+- Only finished-brand supplement companies, not ingredient suppliers, not retailers (Amazon, iHerb), not pure distributors.
 - Ignore the YouTube channel/creator name itself unless the channel IS a supplement brand.${marketSteer(targetMarket)}${knownBlock}
 
 Videos:
@@ -490,7 +490,7 @@ Return ONLY a raw JSON array, no markdown:
 // Step 1 (page path): read specific "web page" sources once via web_fetch and extract company
 // names. web_fetch only retrieves URLs already present in the conversation, so every page URL is
 // listed in the prompt. Best for a fixed brand list (e.g. a "best supplement brands 2026" round-up)
-// — re-running finds nothing new after the first harvest (dedup drops the repeats).
+//, re-running finds nothing new after the first harvest (dedup drops the repeats).
 async function discoverViaFetch(
   client: Anthropic,
   pageSources: Source[],
@@ -500,7 +500,7 @@ async function discoverViaFetch(
   const pageList = pageSources
     .map((s) => `- Source name: "${s.name}"\n  URL: ${s.url}${s.note ? `\n  NOTE: ${s.note}` : ""}`)
     .join("\n");
-  emit(`[search] Step 1 (fetch) technique: web_fetch on ${pageSources.length} page(s) — ${pageSources.map((s) => s.url).join(", ")}`);
+  emit(`[search] Step 1 (fetch) technique: web_fetch on ${pageSources.length} page(s), ${pageSources.map((s) => s.url).join(", ")}`);
 
   const knownBlock =
     knownNames.length > 0
@@ -523,9 +523,9 @@ ${pageList}
 
 Important rules:
 - Extract COMPANY or BRAND names, not product names. If it says "Brand X's omega-3", extract "Brand X".
-- EXCLUDE Aker BioMarine, Lysoveta, and Superba — these are ingredient suppliers, not target customers.
-- Always use the shortest canonical company name — omit legal suffixes (GmbH, Ltd, AG, Inc, BV, etc.) and parenthetical additions.
-- Only include companies that actually sell finished supplement products under their own brand — not raw ingredient suppliers or pure distributors.
+- EXCLUDE Aker BioMarine, Lysoveta, and Superba, these are ingredient suppliers, not target customers.
+- Always use the shortest canonical company name, omit legal suffixes (GmbH, Ltd, AG, Inc, BV, etc.) and parenthetical additions.
+- Only include companies that actually sell finished supplement products under their own brand, not raw ingredient suppliers or pure distributors.
 - Set "source_name" to the exact Source name given for the page the company came from.
 - If a page cannot be fetched, skip it and continue with the others.${marketSteer(targetMarket)}${knownBlock}
 
@@ -552,7 +552,7 @@ Return ONLY a raw JSON array, no markdown or explanation:
 // One API call per company; runs in batches of `concurrency` to avoid rate limits.
 // Model: the global CLAUDE_MODEL (lib/models.ts) by default; sources.json may set `enrichment_model`
 // to override JUST this step. Note: enrichment uses web_search, so any override must be a model that
-// supports web_search_20260209 (Haiku does not) — see lib/models.ts.
+// supports web_search_20260209 (Haiku does not), see lib/models.ts.
 
 async function enrichCompany(
   client: Anthropic,
@@ -573,16 +573,16 @@ async function enrichCompany(
 - website_url: their official website URL
 - product_focus: what supplements they sell (1 sentence)
 - omega3_or_krill: do they sell omega-3 or krill products? Start with "yes" or "no", then add brief detail.
-- self_presentation: how the company describes itself on their own website — what narrative, claims and language do they use? (e.g. science-backed, clinical evidence, natural wellness, traditional heritage) 1-2 sentences.
-- price_tier: the highest price point of any brain health, omega-3, or flagship product, and whether that is budget / mid-range / premium vs. the category. Look for their most premium SKU — the goal is to understand the ceiling of what they charge, not the average. If you cannot find a specific price anywhere, write exactly the string "NOT_FOUND".
+- self_presentation: how the company describes itself on their own website, what narrative, claims and language do they use? (e.g. science-backed, clinical evidence, natural wellness, traditional heritage) 1-2 sentences.
+- price_tier: the highest price point of any brain health, omega-3, or flagship product, and whether that is budget / mid-range / premium vs. the category. Look for their most premium SKU, the goal is to understand the ceiling of what they charge, not the average. If you cannot find a specific price anywhere, write exactly the string "NOT_FOUND".
 - price_found: true if you found a real price, false if not
 - price_currency: the currency of the price as a 3-letter code (GBP, EUR, USD, etc.). Write null if price_found is false.
 - european_markets: which European countries they sell in
 - distribution_channels: how they sell (pharmacy, online DTC, grocery retail, specialist retail, etc.)
 
-The company's own website and coverage may be in a non-English language (e.g. French, German, Italian) — read and use sources in ANY language, and write the field values in English.
+The company's own website and coverage may be in a non-English language (e.g. French, German, Italian), read and use sources in ANY language, and write the field values in English.
 
-Be efficient — prioritize speed over exhaustiveness: Use as few web searches as possible (ideally 1-2). If a specific field is not easy to find, write "NOT_FOUND" (for price) or a brief best-effort answer and move on — do NOT keep searching repeatedly for the same detail. It is fine to return partial information; do not exhaust your search budget chasing minor fields.
+Be efficient, prioritize speed over exhaustiveness: Use as few web searches as possible (ideally 1-2). If a specific field is not easy to find, write "NOT_FOUND" (for price) or a brief best-effort answer and move on, do NOT keep searching repeatedly for the same detail. It is fine to return partial information; do not exhaust your search budget chasing minor fields.
 
 Return ONLY a raw JSON object, no markdown:
 {"website_url":"...","product_focus":"...","omega3_or_krill":"...","self_presentation":"...","price_tier":"...","price_found":true,"price_currency":"GBP","european_markets":"...","distribution_channels":"..."}`,
@@ -612,7 +612,7 @@ Return ONLY a raw JSON object, no markdown:
     distribution_channels: (data.distribution_channels as string) ?? "",
   };
   } catch (err) {
-    // Aborted by the overall timeout, or any other failure — treat this company as failed
+    // Aborted by the overall timeout, or any other failure, treat this company as failed
     // (returns null). It stays pending and is retried on the next search.
     emit(`[search] Step 2 [${company.name}] aborted/failed: ${err instanceof Error ? err.message : String(err)}`);
     return null;
@@ -649,7 +649,7 @@ async function enrichAll(
   emit(`[search] Step 2: ${hits.length} from cache, ${misses.length} need enrichment`);
 
   // Enrich cache misses in batches. Each company is saved to the DB the moment its
-  // enrichment completes — so a company that hangs can never take down the work of the
+  // enrichment completes, so a company that hangs can never take down the work of the
   // others. On a later search the saved ones become cache hits (no re-enrichment).
   const saveOne = async (c: DiscoveredCompany): Promise<EnrichedCompany | null> => {
     const result = await enrichCompany(client, c, model);
@@ -690,7 +690,7 @@ async function enrichAll(
 // Builds the ICP-evaluation prompt used by evaluateCompanies() (the automatic Step 3 API call).
 
 // Reads the ICP documents from the DB (UI-editable, migration 014), falling back to the config files
-// per market when the DB has no row for that market — so behaviour is unchanged until someone edits
+// per market when the DB has no row for that market, so behaviour is unchanged until someone edits
 // from the app, and a DB hiccup never blocks Step 3.
 export async function getIcpDocs(supabase: SupabaseClient): Promise<{ eu: string; us: string }> {
   const dir = path.join(process.cwd(), "config");
@@ -708,12 +708,12 @@ export async function getIcpDocs(supabase: SupabaseClient): Promise<{ eu: string
     if (dbEu || dbUs) emit(`[search] ICP: loaded from DB (${dbEu ? "eu" : "eu=file"}, ${dbUs ? "us" : "us=file"})`);
     return { eu: dbEu ? map.get("eu")! : fileEu, us: dbUs ? map.get("us")! : fileUs };
   } catch (err) {
-    emit(`[search] ICP: DB read failed — using config files (${err instanceof Error ? err.message : String(err)})`);
+    emit(`[search] ICP: DB read failed, using config files (${err instanceof Error ? err.message : String(err)})`);
     return { eu: fileEu, us: fileUs };
   }
 }
 
-// Fallback product-category vocabulary — used only if the DB read fails or the table is empty
+// Fallback product-category vocabulary, used only if the DB read fails or the table is empty
 // (e.g. before migration 017 is applied). Keep in sync with CAT_OPTIONS in lib/uiConstants.ts.
 const DEFAULT_PRODUCT_CATEGORIES = ["Premium/science-driven brand", "Pharma Rx", "Established CHC", "Distributor/enabler"];
 
@@ -727,7 +727,7 @@ async function getProductCategories(supabase: SupabaseClient): Promise<string[]>
     const names = (data ?? []).map((r: { name: string }) => r.name).filter(Boolean);
     return names.length > 0 ? names : DEFAULT_PRODUCT_CATEGORIES;
   } catch (err) {
-    emit(`[search] product_categories: DB read failed — using defaults (${err instanceof Error ? err.message : String(err)})`);
+    emit(`[search] product_categories: DB read failed, using defaults (${err instanceof Error ? err.message : String(err)})`);
     return DEFAULT_PRODUCT_CATEGORIES;
   }
 }
@@ -735,14 +735,14 @@ async function getProductCategories(supabase: SupabaseClient): Promise<string[]>
 export function buildStep3Prompt(companies: EnrichedCompany[], icp: { eu: string; us: string }, categories: string[]): string {
   const icpEu = icp.eu;
   const icpUs = icp.us;
-  // The US ICP is used only once real content replaces the placeholder — until then, everything is
+  // The US ICP is used only once real content replaces the placeholder, until then, everything is
   // scored against the European ICP (unchanged behaviour), so US companies are never mis-scored
   // against a placeholder. Also gated by US_MARKET_ENABLED: while US support is switched off,
   // everything is scored against the European ICP regardless of the US ICP's content.
   const usReady = US_MARKET_ENABLED && icpUs.trim().length > 0 && !icpUs.includes("US_ICP_PLACEHOLDER");
 
   const icpBlock = usReady
-    ? `You have TWO ICP documents — apply the one that matches each company's primary market.
+    ? `You have TWO ICP documents, apply the one that matches each company's primary market.
 
 === EUROPEAN ICP (use for EU / UK / other European companies; also the default for Global or APAC) ===
 ${icpEu}
@@ -754,7 +754,7 @@ ${icpUs}`
   const routingNote = usReady
     ? `
 
-IMPORTANT — choosing the ICP: for each company, first decide its primary market from european_markets and distribution_channels. If that market is the United States, evaluate the company against the US ICP; otherwise use the European ICP. Apply the chosen ICP's hard exclusions and scoring.`
+IMPORTANT, choosing the ICP: for each company, first decide its primary market from european_markets and distribution_channels. If that market is the United States, evaluate the company against the US ICP; otherwise use the European ICP. Apply the chosen ICP's hard exclusions and scoring.`
     : "";
 
   return `You are evaluating supplement companies as potential B2B customers for Aker BioMarine's Lysoveta ingredient. Use the ICP document${usReady ? "s" : ""} below to guide your evaluation.
@@ -772,28 +772,28 @@ Instructions:
    - Assign points for Region, Customer Pool, Lysoveta Fit, Category Match, and Price
    - If price_found is false: do NOT deduct price points, but note the uncertainty
    - Sum the points and convert to a 1–5 star rating (icp_score)
-3. Use the icp_score as a structured starting point, but weigh your qualitative judgment of product fit, self-presentation, and positioning at least as heavily. The score is a guide — not the final decision-maker:
+3. Use the icp_score as a structured starting point, but weigh your qualitative judgment of product fit, self-presentation, and positioning at least as heavily. The score is a guide, not the final decision-maker:
    - Score 5: always include
-   - Score 4: include — provide brief justification
+   - Score 4: include, provide brief justification
    - Score 3: include only if qualitative signals show clear product fit or strong early mover characteristics
-   - Score 2: include only with exceptional justification — state explicitly why
+   - Score 2: include only with exceptional justification, state explicitly why
    - Score 1: exclude
-   A strong score does not guarantee inclusion if product fit is genuinely poor. A weaker score can be overridden by compelling qualitative signals — but this must be explicitly justified in the description.
-4. Assign priority_tier: "early_mover" or "follower" based on the signals in the ICP document. (There is no "enabler" tier — classify anything that looks like a distributor/enabler as "follower"; the distributor nature is captured by the company category instead.)
+   A strong score does not guarantee inclusion if product fit is genuinely poor. A weaker score can be overridden by compelling qualitative signals, but this must be explicitly justified in the description.
+4. Assign priority_tier: "early_mover" or "follower" based on the signals in the ICP document. (There is no "enabler" tier, classify anything that looks like a distributor/enabler as "follower"; the distributor nature is captured by the company category instead.)
 5. Write a description of max 2 sentences explaining WHY they fit, which signals drove the classification, and the key factor(s) behind the score. Reference their actual self_presentation, price_tier, and distribution_channels.
 
 Return ONLY a raw JSON array, no markdown. For each company include:
 - name, website_url, description, priority_tier, icp_score (as before)
-- geography: an ARRAY of one or more of "EU", "UK", "US", "APAC", "Global" — based on european_markets and distribution. Use ONE value when a company clearly operates in a single region (e.g. ["UK"]); use MULTIPLE only when it genuinely sells across regions (e.g. ["EU","UK"]). Use ["Global"] when it spans many regions worldwide.
-- product_category: an ARRAY of one or more of ${categories.map((c) => `"${c}"`).join(", ")} — pick the single best fit in most cases (e.g. ["Premium/science-driven brand"]); use MULTIPLE only when the company genuinely spans more than one (e.g. a science-driven brand that also has a Pharma Rx line). Do not add extra categories that only loosely apply.
-- max_price_eur: the highest single price found for any of their products (their price ceiling), as a NUMBER in the company's ORIGINAL currency — do NOT convert to EUR (the field name is legacy). Use null if price_found is false.
+- geography: an ARRAY of one or more of "EU", "UK", "US", "APAC", "Global", based on european_markets and distribution. Use ONE value when a company clearly operates in a single region (e.g. ["UK"]); use MULTIPLE only when it genuinely sells across regions (e.g. ["EU","UK"]). Use ["Global"] when it spans many regions worldwide.
+- product_category: an ARRAY of one or more of ${categories.map((c) => `"${c}"`).join(", ")}, pick the single best fit in most cases (e.g. ["Premium/science-driven brand"]); use MULTIPLE only when the company genuinely spans more than one (e.g. a science-driven brand that also has a Pharma Rx line). Do not add extra categories that only loosely apply.
+- max_price_eur: the highest single price found for any of their products (their price ceiling), as a NUMBER in the company's ORIGINAL currency, do NOT convert to EUR (the field name is legacy). Use null if price_found is false.
 - price_currency: the 3-letter currency code for that price (GBP, EUR, USD, etc.). Use null if price_found is false.
 
 [{"name":"Company Name","website_url":"https://example.com","description":"Why relevant for Lysoveta.","priority_tier":"early_mover","icp_score":4,"geography":["UK"],"product_category":["Premium/science-driven brand"],"max_price_eur":69,"price_currency":"GBP"}]`;
 }
 
 // ---- Step 3: ICP matching ----
-// Scores the enriched companies against the ICP via the Anthropic API. No web_search — pure reasoning
+// Scores the enriched companies against the ICP via the Anthropic API. No web_search, pure reasoning
 // over the already-enriched data, so it is cheap and fast. Returns the passing companies, or null on
 // any failure (API error, aborted, unparseable JSON); the enriched companies are already saved, so a
 // failed run can simply be retried.
@@ -872,7 +872,7 @@ async function getSearchConfig(
     emit(`[search] Config: ${sources.length} sources (from DB); ${defaultConcepts.length} terms flagged as defaults (used only when the user selects none)`);
     return { sources, defaultConcepts };
   } catch (err) {
-    emit(`[search] Config: DB read failed — falling back to sources.json (${err instanceof Error ? err.message : String(err)})`);
+    emit(`[search] Config: DB read failed, falling back to sources.json (${err instanceof Error ? err.message : String(err)})`);
     return {
       sources: sourcesConfig.sources as Source[],
       defaultConcepts: (sourcesConfig as { search_concepts?: string[] }).search_concepts ?? [],
@@ -916,7 +916,7 @@ export async function searchForCompanies(
   const timeoutController = new AbortController();
   activeSignal = timeoutController.signal;
   const timeoutTimer = setTimeout(() => {
-    emit(`[search] ===== TIMEOUT after ${SEARCH_TIMEOUT_MS / 60000} min — aborting remaining work =====`);
+    emit(`[search] ===== TIMEOUT after ${SEARCH_TIMEOUT_MS / 60000} min, aborting remaining work =====`);
     timeoutController.abort();
   }, SEARCH_TIMEOUT_MS);
 
@@ -972,7 +972,7 @@ export async function searchForCompanies(
 
   // The mode decides whether Step 1 runs: "new" always discovers; "queue" skips it entirely.
   if (mode === "new") {
-    emit(`[search] Step 1: mode=new — running web search...`);
+    emit(`[search] Step 1: mode=new, running web search...`);
 
     // Gather names we already know so Step 1 can skip them and spend its searches on NEW companies.
     // NOTE: if this list grows very large (100+), cap it here (e.g. most recent N) to keep the prompt small.
@@ -1037,7 +1037,7 @@ export async function searchForCompanies(
           emit(`[search] Step 1: ${fresh.length} new companies added to queue`);
         }
       } else {
-        emit(`[search] Step 1: all ${discovered.length} companies already known — nothing new`);
+        emit(`[search] Step 1: all ${discovered.length} companies already known, nothing new`);
       }
     }
 
@@ -1045,18 +1045,18 @@ export async function searchForCompanies(
     // contributed new companies get +found. Done after the queue insert so found reflects only what
     // was actually added.
     await bumpSourceStats(supabase, sourcesForRun.map((s) => s.name), foundByName);
-    // Record when each search term used this run was last run (best-effort — never blocks the search).
+    // Record when each search term used this run was last run (best-effort, never blocks the search).
     if (conceptsForRun.length > 0) {
       const { error: termErr } = await supabase.from("search_terms").update({ last_used_at: new Date().toISOString() }).in("term", conceptsForRun);
-      if (termErr) emit(`[search] Stats: could not update term last_used — ${termErr.message}`);
+      if (termErr) emit(`[search] Stats: could not update term last_used, ${termErr.message}`);
     }
   } else {
-    emit(`[search] Step 1: skipped — mode=queue (draining the waiting list)`);
+    emit(`[search] Step 1: skipped, mode=queue (draining the waiting list)`);
   }
 
   // Pick the batch for Step 2, depending on the mode:
   //  - "new": ONLY the companies just discovered this run (ignore the older backlog), up to the batch size.
-  //  - "queue": the user-picked names if any, otherwise the oldest pending — up to the batch size.
+  //  - "queue": the user-picked names if any, otherwise the oldest pending, up to the batch size.
   let batchQuery = supabase
     .from("discovery_queue")
     .select("name, source_name")
@@ -1081,7 +1081,7 @@ export async function searchForCompanies(
 
   if (toEnrich.length === 0) {
     clearTimeout(timeoutTimer);
-    emit("[search] ===== NO NEW COMPANIES — queue is empty and Step 1 found nothing new =====");
+    emit("[search] ===== NO NEW COMPANIES, queue is empty and Step 1 found nothing new =====");
     return {
       enriched: [],
       debug: {
@@ -1122,7 +1122,7 @@ export async function searchForCompanies(
     emit(`[search] Step 2 done: ${enriched.length} enriched, ${failedNames.length} failed`);
   } catch (err) {
     // If Step 2 crashes entirely, reset the batch back to "pending" so next search retries them
-    emit(`[search] ===== ERROR in Step 2 — batch reset to pending: ${err instanceof Error ? err.message : String(err)}`);
+    emit(`[search] ===== ERROR in Step 2, batch reset to pending: ${err instanceof Error ? err.message : String(err)}`);
     await supabase
       .from("discovery_queue")
       .update({ status: "pending" })
@@ -1140,7 +1140,7 @@ export async function searchForCompanies(
   const productCategories = await getProductCategories(supabase);
 
   // Step 3: ICP matching via the Anthropic API. Runs BEFORE clearTimeout so it is still covered by the
-  // overall abort budget. If it fails, `results` stays undefined — the enriched companies are already
+  // overall abort budget. If it fails, `results` stays undefined, the enriched companies are already
   // saved (cached), so re-running the search re-scores them cheaply.
   let results: EvaluatedCompany[] | undefined;
   if (enriched.length > 0) {
@@ -1157,7 +1157,7 @@ export async function searchForCompanies(
         emit(`[search] Step 3: ${aiRejected.length} companies rejected by ICP matching`);
       }
     } else {
-      emit(`[search] Step 3: automatic evaluation failed — companies are saved; re-run to re-score`);
+      emit(`[search] Step 3: automatic evaluation failed, companies are saved; re-run to re-score`);
     }
   }
 

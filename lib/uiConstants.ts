@@ -13,7 +13,7 @@ export const GEO_OPTIONS = ["EU", "UK", "US", "APAC", "Global"];
 export const CATEGORIES = ["All", "Premium/science-driven brand", "Pharma Rx", "Established CHC", "Distributor/enabler"];
 export const CAT_OPTIONS = CATEGORIES.slice(1);
 // Priority tiers. "Enabler" was retired as a tier (distributors are covered by the company category
-// "Distributor/enabler") — existing enabler companies were migrated to Follower (migration 020).
+// "Distributor/enabler"), existing enabler companies were migrated to Follower (migration 020).
 export const TIERS = ["All", "Early Mover", "Follower"];
 
 // Hover-tooltip definitions for the filter options (shown when hovering an option in the dropdown).
@@ -30,7 +30,7 @@ export const TIER_DESCRIPTIONS: Record<string, string> = {
 // Roughly how the point total maps to stars (mirrors the scoring table in config/icp.md).
 export const ICP_STAR_POINTS: Record<number, string> = { 1: "0–3 pts", 2: "4–5 pts", 3: "6–7 pts", 4: "8–9 pts", 5: "10–11 pts" };
 
-// Search-configuration preview options — read directly from config/sources.json (one-way: config →
+// Search-configuration preview options, read directly from config/sources.json (one-way: config →
 // app), so the UI always mirrors the actual sources and search concepts the code uses.
 export const SEARCH_TERM_OPTIONS = Array.from(new Set([
   ...((sourcesConfig as { search_concepts?: string[] }).search_concepts ?? []),

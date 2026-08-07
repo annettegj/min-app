@@ -26,7 +26,7 @@ export function ManageExamplesModal({ draft, options, saving, error, onSuggest, 
         </div>
         <div style={{ padding: "20px 24px", overflowY: "auto" }}>
           <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 14 }}>
-            These companies are scored against your ICP draft when you click <strong>Test on example companies</strong>. Set what you <strong>expect</strong> each to be, and the test flags any that the ICP scores differently. Pick a spread — a couple of clear early movers, a follower, an enabler, and a couple that should be rejected.
+            These companies are scored against your ICP draft when you click <strong>Test on example companies</strong>. Set what you <strong>expect</strong> each to be, and the test flags any that the ICP scores differently. Pick a spread, a couple of clear early movers, a follower, an enabler, and a couple that should be rejected.
           </p>
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
             <button type="button" onClick={onSuggest} style={{ ...btnSecondary, padding: "7px 16px", fontSize: 12.5 }}>Suggest a starter set</button>
@@ -34,7 +34,7 @@ export function ManageExamplesModal({ draft, options, saving, error, onSuggest, 
           </div>
 
           {draft.length === 0 ? (
-            <p style={{ fontSize: 13, color: "var(--text-muted)", padding: "10px 0" }}>No examples yet — use “Suggest a starter set”, or add companies below.</p>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", padding: "10px 0" }}>No examples yet, use “Suggest a starter set”, or add companies below.</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
               {draft.map((e) => (

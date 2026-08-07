@@ -10,7 +10,7 @@ import type { CategoriesApi } from "@/app/hooks/useCategories";
 
 // The Lysoveta ICP Criteria tab: view/edit the ICP per market, with AI review, apply-fix diff,
 // test-on-examples, and version history. All state/logic lives in useIcpEditor. The editable
-// product-category vocabulary (categoriesApi) is also edited here — the single app-wide edit surface.
+// product-category vocabulary (categoriesApi) is also edited here, the single app-wide edit surface.
 export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null; categoriesApi: CategoriesApi }) {
   const {
     icpDocs, icpRegion, setIcpRegion, icpEditMode, icpDraft, setIcpDraft, icpSaving, icpError,
@@ -66,7 +66,7 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
         {icpEditMode && (
           <div style={{ padding: "24px 40px" }}>
             <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 12 }}>
-              Editing the <strong>{icpRegion === "eu" ? "European" : "US"}</strong> ICP. This text is the exact criteria the AI uses to score companies in Step 3 — write it as clear instructions (Markdown: <code>##</code> headings, <code>-</code> bullets, and <code>|</code> tables all render). Changes are shared and take effect on the next search. Every save is snapshotted so you can revert.
+              Editing the <strong>{icpRegion === "eu" ? "European" : "US"}</strong> ICP. This text is the exact criteria the AI uses to score companies in Step 3, write it as clear instructions (Markdown: <code>##</code> headings, <code>-</code> bullets, and <code>|</code> tables all render). Changes are shared and take effect on the next search. Every save is snapshotted so you can revert.
             </p>
             <textarea value={icpDraft} onChange={e => setIcpDraft(e.target.value)} spellCheck={false}
               style={{ width: "100%", minHeight: 460, padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13.5, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", lineHeight: 1.6, color: "var(--text)", resize: "vertical" }} />
@@ -97,13 +97,13 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
             </div>
 
             {icpTestError && <p style={{ fontSize: 12.5, color: "var(--danger-text)", marginTop: 12 }}>Couldn’t run the test ({icpTestError}).</p>}
-            {icpTestEmpty && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 12 }}>No example companies to test — click <strong>⚙ Manage test example companies</strong> to add some (or run a search first so there’s enriched company data).</p>}
+            {icpTestEmpty && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 12 }}>No example companies to test, click <strong>⚙ Manage test example companies</strong> to add some (or run a search first so there’s enriched company data).</p>}
             {icpTestResults && icpTestResults.length > 0 && (
               <div style={{ marginTop: 14, border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ padding: "10px 16px", background: "var(--surface)", borderBottom: "1px solid var(--border-card)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
                   <div>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)" }}>Test results — how the current draft scores</p>
-                    <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 3 }}>Scored against the text in the editor right now (not the saved ICP). A sample of real enriched companies — nothing is changed or saved.</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)" }}>Test results, how the current draft scores</p>
+                    <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 3 }}>Scored against the text in the editor right now (not the saved ICP). A sample of real enriched companies, nothing is changed or saved.</p>
                   </div>
                   <button type="button" onClick={() => { setIcpTestResults(null); setIcpTestEmpty(false); }}
                     style={{ background: "transparent", border: "none", color: "var(--text-muted)", fontSize: 18, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
@@ -125,16 +125,16 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
                     <tbody>
                       {icpTestResults.map((r, k) => {
                         const m = expectedMatch(r.expected, r.included, r.priority_tier);
-                        const expLabel = EXPECTED_LABELS.find(e => e.value === r.expected)?.label ?? "—";
+                        const expLabel = EXPECTED_LABELS.find(e => e.value === r.expected)?.label ?? "-";
                         return (
                         <tr key={k} style={{ borderBottom: "1px solid var(--border-card)", background: m === "mismatch" ? "var(--banner-warn-bg)" : r.included ? "transparent" : "var(--surface)" }}>
                           <td style={{ padding: "8px 12px", fontWeight: 600, color: "var(--navy)", whiteSpace: "nowrap" }}>{r.name}</td>
-                          <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{r.geography || "—"}</td>
-                          <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{r.priority_tier && r.priority_tier !== "none" ? r.priority_tier.replace(/_/g, " ") : "—"}</td>
+                          <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{r.geography || "-"}</td>
+                          <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>{r.priority_tier && r.priority_tier !== "none" ? r.priority_tier.replace(/_/g, " ") : "-"}</td>
                           <td style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, whiteSpace: "nowrap" }}>{r.icp_score}/5</td>
                           <td style={{ padding: "8px 12px", whiteSpace: "nowrap", color: r.included ? "var(--success-bright, #2e7d32)" : "var(--text-muted)", fontWeight: 700 }}>{r.included ? "✓ Include" : "Excluded"}</td>
-                          <td style={{ padding: "8px 12px", whiteSpace: "nowrap", color: "var(--text-muted)" }}>{r.expected ? expLabel : "—"}</td>
-                          <td style={{ padding: "8px 12px", textAlign: "center", whiteSpace: "nowrap", fontWeight: 700, color: m === "ok" ? "var(--success-bright, #2e7d32)" : m === "mismatch" ? "var(--danger-text)" : "var(--text-faint)" }}>{m === "ok" ? "✓" : m === "mismatch" ? "⚠" : "—"}</td>
+                          <td style={{ padding: "8px 12px", whiteSpace: "nowrap", color: "var(--text-muted)" }}>{r.expected ? expLabel : "-"}</td>
+                          <td style={{ padding: "8px 12px", textAlign: "center", whiteSpace: "nowrap", fontWeight: 700, color: m === "ok" ? "var(--success-bright, #2e7d32)" : m === "mismatch" ? "var(--danger-text)" : "var(--text-faint)" }}>{m === "ok" ? "✓" : m === "mismatch" ? "⚠" : "-"}</td>
                           <td style={{ padding: "8px 12px", color: "var(--text)", minWidth: 220 }}>{r.reason}</td>
                         </tr>
                         );
@@ -145,11 +145,11 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
               </div>
             )}
 
-            {/* Proposed AI rewrite — shown as a diff so the change is obvious before it's applied. */}
+            {/* Proposed AI rewrite, shown as a diff so the change is obvious before it's applied. */}
             {icpDiff && (
               <div style={{ marginTop: 14, border: "1px solid var(--accent)", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ padding: "10px 16px", background: "var(--surface)", borderBottom: "1px solid var(--border-card)" }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)" }}>Proposed change — review before applying</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)" }}>Proposed change, review before applying</p>
                   <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>
                     <span style={{ background: "var(--diff-add-bg, #e6f4ea)", padding: "0 4px", borderRadius: 2 }}>green = added</span>{" "}
                     <span style={{ background: "var(--diff-del-bg, #fce8e6)", padding: "0 4px", borderRadius: 2, textDecoration: "line-through" }}>red = removed</span>. Unchanged lines are shown for context.
@@ -180,14 +180,14 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
               </div>
             )}
 
-            {/* Advisory AI review — shown when the check found issues or couldn't run. Never blocks saving. */}
+            {/* Advisory AI review, shown when the check found issues or couldn't run. Never blocks saving. */}
             {icpCheck && (
               <div style={{ marginTop: 14, border: "1px solid var(--border-card)", borderRadius: 4, borderLeft: `3px solid ${icpCheck.issues.some(i => i.severity === "critical") ? "var(--danger-text)" : "var(--accent)"}`, padding: "14px 16px", background: "var(--surface)" }}>
                 <p style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>
-                  {icpCheck.ok === null ? "Couldn’t run the AI review" : icpCheck.issues.length === 0 ? "✓ AI review passed — no issues found" : icpCheck.issues.some(i => i.severity === "critical") ? "The AI review found some gaps" : "The AI review has a few suggestions"}
+                  {icpCheck.ok === null ? "Couldn’t run the AI review" : icpCheck.issues.length === 0 ? "✓ AI review passed, no issues found" : icpCheck.issues.some(i => i.severity === "critical") ? "The AI review found some gaps" : "The AI review has a few suggestions"}
                 </p>
                 {icpCheck.error ? (
-                  <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 10 }}>The review couldn’t run ({icpCheck.error}). This is only an advisory check — you can still save.</p>
+                  <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 10 }}>The review couldn’t run ({icpCheck.error}). This is only an advisory check, you can still save.</p>
                 ) : (
                   <>
                     {icpCheck.summary && <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6, marginBottom: 8 }}>{icpCheck.summary}</p>}
@@ -208,7 +208,7 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
                     )}
                     {icpApplyError && <p style={{ fontSize: 12, color: "var(--danger-text)", marginBottom: 8 }}>Couldn’t apply that suggestion ({icpApplyError}). You can edit the text manually or try again.</p>}
                     {icpCheck.issues.length > 0 ? (
-                      <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>“Apply fix” lets the AI rewrite the text for that one point — the update lands in the editor above for you to review, and nothing is saved until you press <strong>Save changes</strong>. This is advice, not a gate.</p>
+                      <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>“Apply fix” lets the AI rewrite the text for that one point, the update lands in the editor above for you to review, and nothing is saved until you press <strong>Save changes</strong>. This is advice, not a gate.</p>
                     ) : (
                       <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10 }}>Nothing has been saved yet. Press <strong>Save changes</strong> to make this the live ICP, or keep editing.</p>
                     )}
@@ -225,7 +225,7 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
             {icpHistoryOpen && (
               <div style={{ marginTop: 14, border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
                 {icpVersions.length === 0 ? (
-                  <p style={{ fontSize: 12.5, color: "var(--text-muted)", padding: "12px 16px" }}>No saved versions yet — the first save you make will appear here.</p>
+                  <p style={{ fontSize: 12.5, color: "var(--text-muted)", padding: "12px 16px" }}>No saved versions yet, the first save you make will appear here.</p>
                 ) : icpVersions.map(v => (
                   <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 16px", borderBottom: "1px solid var(--border-card)" }}>
                     <span style={{ fontSize: 12.5, color: "var(--text)" }}>
@@ -236,7 +236,7 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
                   </div>
                 ))}
                 {icpVersions.length > 0 && (
-                  <p style={{ fontSize: 11.5, color: "var(--text-muted)", padding: "9px 16px" }}>“Load into editor” fills the box with that version — review it, then <strong>Save changes</strong> to make it current.</p>
+                  <p style={{ fontSize: 11.5, color: "var(--text-muted)", padding: "9px 16px" }}>“Load into editor” fills the box with that version, review it, then <strong>Save changes</strong> to make it current.</p>
                 )}
               </div>
             )}
@@ -339,18 +339,18 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
         </div>
       </div>
 
-      {/* Company categories — the editable vocabulary used across the app (filter, add, edit, AI search). */}
+      {/* Company categories, the editable vocabulary used across the app (filter, add, edit, AI search). */}
       <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", flex: "0 1 340px", minWidth: 260 }}>
         <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Company categories</p>
           <button type="button" onClick={categoriesApi.openManage}
-            style={{ background: "var(--accent)", border: "none", color: "var(--white)", padding: "5px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", borderRadius: 4, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+            style={{ background: "transparent", border: "1px solid var(--border-on-dark)", color: "var(--white)", padding: "5px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", borderRadius: 4, letterSpacing: "0.04em", textTransform: "uppercase" }}>
             ✎ Manage
           </button>
         </div>
         <div style={{ padding: "16px 20px" }}>
           <p style={{ color: "var(--text-body)", fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
-            The categories a company can be tagged with — used in the Company Database (filter, add, edit) and suggested by the AI after a search. Edit them here; changes apply everywhere.
+            The categories a company can be tagged with, used in the Company Database (filter, add, edit) and suggested by the AI after a search. Edit them here; changes apply everywhere.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {categoriesApi.categories.map((c) => (

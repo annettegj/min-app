@@ -4,7 +4,7 @@ import { CLAUDE_MODEL } from "@/lib/models";
 
 // Applies ONE review suggestion to an ICP draft: rewrites the document to address that single issue
 // while changing as little else as possible, and returns the full revised text. Runs on the worker
-// (needs the Anthropic key). The UI loads the result back into the editor — it is NOT auto-saved, so
+// (needs the Anthropic key). The UI loads the result back into the editor, it is NOT auto-saved, so
 // the user reviews/edits and saves themselves. CORS like /api/search/start.
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN ?? "*",
@@ -43,7 +43,7 @@ Rules:
 - Change as little as possible. Preserve all other content, structure, headings, tables, and wording exactly.
 - Only add or adjust what is needed to resolve that specific point.
 - Keep it as a clear, self-contained ICP that still works as scoring instructions.
-- Do not add meta-commentary, notes about what you changed, or explanations — return only the document itself.
+- Do not add meta-commentary, notes about what you changed, or explanations, return only the document itself.
 
 Current ICP document:
 ---

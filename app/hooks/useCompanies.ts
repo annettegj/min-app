@@ -131,7 +131,7 @@ export function useCompanies() {
     if (error) { console.error("[status] update failed:", error.message); loadCompanies(); }
   }
 
-  // Results update LIVE from the filters once the table is shown — no need to re-run "Find companies".
+  // Results update LIVE from the filters once the table is shown, no need to re-run "Find companies".
   const results = useMemo(
     () => searchState !== "done" ? [] : companies.filter((c) => matchesFilters(c, filters)),
     // eslint-disable-next-line react-hooks/exhaustive-deps

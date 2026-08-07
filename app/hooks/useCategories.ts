@@ -12,7 +12,7 @@ type DraftCategory = { key: string; id: number | null; name: string };
 // post-search adjust); the draft-edit + saveCategories flow (edited in the ICP tab) mirrors the
 // sources/search-terms config editor. Called ONCE in page.tsx and passed down.
 // Falls back to the built-in CAT_OPTIONS if the table read fails or is empty (e.g. before
-// migration 017 is applied) — the app still works, just without in-app editing.
+// migration 017 is applied), the app still works, just without in-app editing.
 export function useCategories() {
   const [categories, setCategories] = useState<string[]>(CAT_OPTIONS);
   const [categoryRecords, setCategoryRecords] = useState<CategoryRecord[]>([]);
@@ -50,7 +50,7 @@ export function useCategories() {
   async function saveCategories() {
     if (busy) return;
     const cats = draftCats.map((c) => ({ ...c, name: c.name.trim() }));
-    if (cats.some((c) => !c.name)) { setError("Category names can't be empty — remove the blank one or fill it in."); return; }
+    if (cats.some((c) => !c.name)) { setError("Category names can't be empty, remove the blank one or fill it in."); return; }
     if (new Set(cats.map((c) => c.name.toLowerCase())).size !== cats.length) { setError("Two categories have the same name."); return; }
 
     setBusy(true); setError("");

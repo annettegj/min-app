@@ -3,7 +3,7 @@ import { labelStyle, inputStyle, btnPrimary, btnSecondary } from "@/lib/styles";
 import { MultiSelect } from "@/app/components/common/MultiSelect";
 import type { AddCompanyForm } from "@/lib/uiTypes";
 
-// Manual "Add company" form — lets users enter a company they came across themselves.
+// Manual "Add company" form, lets users enter a company they came across themselves.
 export function AddCompanyModal({ form, setForm, categoryOptions, saving, error, onSubmit, onClose }: {
   form: AddCompanyForm;
   setForm: (f: AddCompanyForm) => void;
@@ -46,19 +46,19 @@ export function AddCompanyModal({ form, setForm, categoryOptions, saving, error,
             </div>
             <div>
               <label style={labelStyle}>Max price</label>
-              <input type="number" value={form.max_price} onChange={e => setForm({ ...form, max_price: e.target.value })} style={inputStyle} placeholder="—" />
+              <input type="number" value={form.max_price} onChange={e => setForm({ ...form, max_price: e.target.value })} style={inputStyle} placeholder="-" />
             </div>
             <div>
               <label style={labelStyle}>Currency</label>
               <select value={form.price_currency} onChange={e => setForm({ ...form, price_currency: e.target.value })} style={inputStyle}>
-                <option value="">—</option>
+                <option value="">-</option>
                 {["EUR", "GBP", "USD", "NOK", "SEK", "DKK", "CHF"].map(cur => <option key={cur}>{cur}</option>)}
               </select>
             </div>
             <div>
               <label style={labelStyle}>Priority tier</label>
               <select value={form.priority_tier} onChange={e => setForm({ ...form, priority_tier: e.target.value })} style={inputStyle}>
-                <option value="">—</option>
+                <option value="">-</option>
                 <option value="early_mover">Early Mover</option>
                 <option value="follower">Follower</option>
               </select>

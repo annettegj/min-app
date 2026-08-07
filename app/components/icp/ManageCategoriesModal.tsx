@@ -3,7 +3,7 @@ import type { CategoriesApi } from "@/app/hooks/useCategories";
 
 // Manage the editable product-category vocabulary (add / rename / remove). Edits a local draft;
 // nothing is written until Save, which diffs the draft against the DB and applies inserts/renames/
-// deletes. Rendered from the ICP tab — the single place categories are edited app-wide.
+// deletes. Rendered from the ICP tab, the single place categories are edited app-wide.
 export function ManageCategoriesModal({ api }: { api: CategoriesApi }) {
   const { draftCats, updateDraft, addDraft, removeDraft, busy, error, saveCategories, closeManage } = api;
   return (
@@ -30,7 +30,7 @@ export function ManageCategoriesModal({ api }: { api: CategoriesApi }) {
                   placeholder="Category name" style={{ ...inputStyle, flex: 1 }} />
               </div>
             ))}
-            {draftCats.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>No categories yet — add one below.</p>}
+            {draftCats.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>No categories yet, add one below.</p>}
           </div>
 
           <button type="button" onClick={addDraft} style={addBtnStyle}>+ Add new category</button>

@@ -9,6 +9,7 @@ import { CompanyDatabaseTab } from "@/app/components/database/CompanyDatabaseTab
 import { FindCompaniesTab } from "@/app/components/search/FindCompaniesTab";
 import { useCompanies } from "@/app/hooks/useCompanies";
 import { useCategories } from "@/app/hooks/useCategories";
+import { useSearch } from "@/app/hooks/useSearch";
 import { AUTH_KEY, AUTH_MAX_AGE } from "@/lib/uiConstants";
 
 export default function Home() {
@@ -22,6 +23,11 @@ export default function Home() {
 
   // --- Product-category vocabulary (editable in the ICP tab; read by the other tabs) ---
   const categoriesApi = useCategories();
+
+  // --- Find New Companies domain (search job + config + queue) ---
+  // Lifted here (not inside FindCompaniesTab) so a running search keeps polling and its elapsed
+  // timer survives when the user switches tabs, returning to the Find tab restores the live view.
+  const searchApi = useSearch(loadCompanies);
 
   // --- Simple pilot login (against the plain app_users table; not secure) ---
   useEffect(() => {
@@ -39,7 +45,7 @@ export default function Home() {
   async function login(email: string, password: string): Promise<string | null> {
     const e = email.trim().toLowerCase();
     const { data, error } = await supabase.from("app_users").select("email").eq("email", e).eq("password", password).maybeSingle();
-    if (error) return "Something went wrong — please try again.";
+    if (error) return "Something went wrong, please try again.";
     if (!data) return "Wrong email or password.";
     localStorage.setItem(AUTH_KEY, JSON.stringify({ email: e, loginAt: Date.now() }));
     setAuthEmail(e);
@@ -48,9 +54,9 @@ export default function Home() {
   async function signup(email: string, password: string): Promise<string | null> {
     const e = email.trim().toLowerCase();
     const { data: existing } = await supabase.from("app_users").select("email").eq("email", e).maybeSingle();
-    if (existing) return "That email already has an account — log in instead.";
+    if (existing) return "That email already has an account, log in instead.";
     const { error } = await supabase.from("app_users").insert({ email: e, password });
-    if (error) return "Could not create the account — please try again.";
+    if (error) return "Could not create the account, please try again.";
     localStorage.setItem(AUTH_KEY, JSON.stringify({ email: e, loginAt: Date.now() }));
     setAuthEmail(e);
     return null;
@@ -129,7 +135,7 @@ export default function Home() {
 
         {/* ── TAB 2: Find New Companies ── */}
         {tab === "search" && (
-          <FindCompaniesTab savedBySource={savedBySource} reloadCompanies={loadCompanies} onGoToDatabase={() => setTab("database")} categories={categoriesApi.categories} />
+          <FindCompaniesTab api={searchApi} savedBySource={savedBySource} onGoToDatabase={() => setTab("database")} categories={categoriesApi.categories} />
         )}
 
         {/* ── TAB 3: ICP Criteria ── */}
@@ -141,7 +147,7 @@ export default function Home() {
       </div>
 
       <footer style={{ borderTop: "1px solid var(--border-card)", padding: "16px 32px", background: "var(--white)" }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-faint)" }}>Aker BioMarine — Internal Tool</p>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-faint)" }}>Aker BioMarine, Internal Tool</p>
       </footer>
     </div>
   );

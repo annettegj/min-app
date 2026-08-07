@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { CLAUDE_MODEL } from "@/lib/models";
 
-// Diagnostic route — isolates whether the problem is (A) the API key/credits,
+// Diagnostic route, isolates whether the problem is (A) the API key/credits,
 // or (B) the web_search server tool specifically.
 // Hit it in the browser: http://localhost:3000/api/test-claude
 
@@ -26,7 +26,7 @@ export async function GET() {
   const hasKey = !!process.env.ANTHROPIC_API_KEY;
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  // TEST A — minimal call, NO tools. Confirms key + credits + connectivity.
+  // TEST A, minimal call, NO tools. Confirms key + credits + connectivity.
   const testA = await timed(async () => {
     const msg = await client.messages.create({
       model: CLAUDE_MODEL,
@@ -37,7 +37,7 @@ export async function GET() {
     return `reply="${text && text.type === "text" ? text.text.trim() : "(none)"}", tokens=${msg.usage.input_tokens}in/${msg.usage.output_tokens}out`;
   });
 
-  // TEST B — minimal web_search call (max 1 search), with a 60s abort so the route always returns.
+  // TEST B, minimal web_search call (max 1 search), with a 60s abort so the route always returns.
   const testB = await timed(async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 60_000);

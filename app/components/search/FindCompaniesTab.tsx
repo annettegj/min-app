@@ -10,20 +10,21 @@ import { SearchModesInfoModal } from "@/app/components/search/SearchModesInfoMod
 import { inputStyle, labelStyle, btnPrimary, btnSecondary, addBtnStyle } from "@/lib/styles";
 import { safeHref, fmtDate } from "@/lib/format";
 import { SEARCH_DISABLED, GEO_OPTIONS } from "@/lib/uiConstants";
-import { ENRICH_BATCH_SIZE } from "@/lib/searchLimits";
-import { useSearch } from "@/app/hooks/useSearch";
+import { ENRICH_BATCH_SIZE, STUCK_WARN_TIMES } from "@/lib/searchLimits";
+import type { SearchApi } from "@/app/hooks/useSearch";
 
-// The "Find New Companies" tab. Owns nothing itself — all state + handlers live in useSearch.
-// savedBySource + reloadCompanies come from the Company Database hook (useCompanies); onGoToDatabase
-// switches the parent's active tab (the "Go to Company Database →" button after a save).
-export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabase, categories }: {
+// The "Find New Companies" tab. Owns nothing itself, all state + handlers live in useSearch, which
+// is instantiated in page.tsx and passed in as `api` (so a running search survives tab switches).
+// savedBySource comes from the Company Database hook (useCompanies); onGoToDatabase switches the
+// parent's active tab (the "Go to Company Database →" button after a save).
+export function FindCompaniesTab({ api, savedBySource, onGoToDatabase, categories }: {
+  api: SearchApi;
   savedBySource: Map<string, number>;
-  reloadCompanies: () => Promise<void> | void;
   onGoToDatabase: () => void;
   categories: string[];
 }) {
   const {
-    agentState, setAgentState, agentError, setAgentError, staleCompanies, setStaleCompanies,
+    agentState, setAgentState, agentError, setAgentError,
     searchResults, setSearchResults, pendingCompanies, addingState, setAddingState,
     saveError, sourceNameMap,
     selectedTerms, setSelectedTerms, selectedSources, setSelectedSources,
@@ -34,7 +35,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
     termsExpanded, setTermsExpanded, expandedSourceGroups, toggleSourceGroup,
     termLastUsed, reactivatedPages, reactivateSource,
     configBusy, configError, setConfigError,
-    searchProgress, activeSearchJobId, logLines, showLog, setShowLog,
+    searchProgress, searchMode, activeSearchJobId, logLines, showLog, setShowLog,
     pendingQueueCount, queueItems, queueSelected, toggleQueueSelected, clearingQueue,
     warnThresholdPct, warnMinUses, perfModalOpen, setPerfModalOpen,
     perfDraftPct, setPerfDraftPct, perfDraftMin, setPerfDraftMin,
@@ -43,13 +44,16 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
     enterConfigEdit, cancelConfigEdit, updateDraftTerm, removeDraftTerm, addDraftTerm,
     removeDraftSource, toggleDraftSourceFeatured, openAddSource, openEditSource, applySource, saveConfig,
     clearQueue, saveSettings,
-    sourceHitRate, sourceIsLow, fmtHitRate, fmtSavedRate,
+    sourceIsLow, fmtHitRate,
     deleteFromQueue, resetProcessingToQueue, handleNewSearch, handleQueueSearch,
     toggleResult, handleAddSelected, updatePending, removePending, handleSave,
-  } = useSearch(reloadCompanies);
+  } = api;
 
   // "What's the difference?" help modal for the two search actions.
   const [modesInfoOpen, setModesInfoOpen] = useState(false);
+  // Clearing the waiting list is destructive (discards not-yet-researched discoveries), so it asks
+  // for confirmation with a red "are you sure?" prompt before running.
+  const [confirmClearQueue, setConfirmClearQueue] = useState(false);
 
   // The two searches are mutually exclusive: ticking waiting-list companies locks the new-search
   // controls (terms/sources/button), and picking terms/sources locks the waiting-list controls.
@@ -58,9 +62,9 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
 
   return (
     <>
-      {/* Centered column for this tab — wide so the idle view can be a config + waiting-list split. */}
+      {/* Centered column for this tab, wide so the idle view can be a config + waiting-list split. */}
       <div style={{ maxWidth: 1460, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
-        {/* Live search log — mirrors the server log, so no need to open the Render dashboard */}
+        {/* Live search log, mirrors the server log, so no need to open the Render dashboard */}
         {activeSearchJobId != null && logLines.length > 0 && (
           <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
             <div onClick={() => setShowLog(!showLog)}
@@ -78,7 +82,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
 
         {agentState === "idle" && addingState !== "saved" && (
           <>
-          {/* Help link spanning above both boxes — explains the two ways to search. */}
+          {/* Help link spanning above both boxes, explains the two ways to search. */}
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -8 }}>
             <button type="button" onClick={() => setModesInfoOpen(true)}
               style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, padding: 0 }}>
@@ -88,7 +92,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
           <div style={{ display: "flex", gap: 48, alignItems: "flex-start", flexWrap: "wrap" }}>
             {/* Left (wider): the search configuration + the "new search" action. */}
             <div style={{ flex: "1 1 620px", minWidth: 0, display: "flex", flexDirection: "column", gap: 24 }}>
-            {/* Search configuration — read from the DB; editable in place (Edit toggle) */}
+            {/* Search configuration, read from the DB; editable in place (Edit toggle) */}
             <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
               <div style={{ background: "var(--header)", padding: "0 20px", height: 56, boxSizing: "border-box", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
@@ -119,15 +123,22 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                   {configEditMode ? (
                     <>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, maxHeight: 320, overflowY: "auto", paddingRight: 6 }}>
-                        {draftTerms.map(t => (
+                        {draftTerms.map(t => {
+                          // A newly added (not-yet-saved) term is highlighted and autofocused so it's
+                          // obvious which box to fill in, otherwise the empty input blends in with the rest.
+                          const isNew = t.id == null;
+                          return (
                           <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <button type="button" title="Remove term" onClick={() => removeDraftTerm(t.key)}
                               style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>✕</button>
-                            <input type="text" value={t.term} onChange={e => updateDraftTerm(t.key, e.target.value)}
-                              placeholder="Search term" style={{ ...inputStyle, flex: 1 }} />
+                            <input type="text" value={t.term} onChange={e => updateDraftTerm(t.key, e.target.value)} autoFocus={isNew}
+                              placeholder={isNew ? "Type the new search term…" : "Search term"}
+                              style={{ ...inputStyle, flex: 1, ...(isNew ? { border: "2px solid var(--accent)", background: "var(--surface-tint)", fontWeight: 600, boxShadow: "0 0 0 3px rgba(8,145,178,0.18)" } : {}) }} />
+                            {isNew && <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--accent)", flexShrink: 0 }}>New</span>}
                           </div>
-                        ))}
-                        {draftTerms.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>No search terms yet — add one below.</p>}
+                          );
+                        })}
+                        {draftTerms.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>No search terms yet, add one below.</p>}
                       </div>
                       <div style={{ marginTop: "auto", paddingTop: 12 }}>
                         <button type="button" onClick={addDraftTerm} style={addBtnStyle}>+ Add new search term</button>
@@ -136,7 +147,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                   ) : (
                     <>
                       {/* Same maxHeight cap (320) as each source column's scroll area, so the four
-                          columns line up — and the terms list never follows a source's "Show all". */}
+                          columns line up, and the terms list never follows a source's "Show all". */}
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, paddingRight: 6, maxHeight: termsExpanded ? "none" : 320, overflowY: termsExpanded ? "visible" : "auto" }}>
                         {[...termOptions].sort((a, b) => a.localeCompare(b)).map(t => {
                           const checked = selectedTerms.includes(t);
@@ -165,7 +176,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                     </>
                   )}
                 </div>
-                {/* Sources — spans 3 of the 4 columns so the type groups sit side by side */}
+                {/* Sources, spans 3 of the 4 columns so the type groups sit side by side */}
                 <div className="md:col-span-3" style={{ display: "flex", flexDirection: "column" }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", marginBottom: 6 }}>
                     <label style={{ ...labelStyle, marginBottom: 0 }}>{configEditMode ? "Sources" : "Sources (choose up to 4)"}</label>
@@ -179,7 +190,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                           { heading: "Single page", type: "web page" },
                           { heading: "YouTube", type: "youtube" },
                         ].map(group => {
-                          const items = draftSources.filter(s => (s.type ?? "web site") === group.type);
+                          const items = draftSources.filter(s => (s.type ?? "web site") === group.type).sort((a, b) => a.name.localeCompare(b.name));
                           if (items.length === 0) return null;
                           return (
                             <div key={group.heading}>
@@ -196,7 +207,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                                           <span style={{ fontSize: 13, fontWeight: 600 }}>{s.name || "(unnamed source)"}</span>
                                           <MarketBadge market={s.market} />
                                           {s.type === "web page" && tu > 0 && (
-                                            <span title="Read once — nothing new to find; hidden from selection" style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--text-muted)", background: "var(--surface-tint)", border: "1px solid var(--border-light)", borderRadius: 3, padding: "1px 5px" }}>completed</span>
+                                            <span title="Read once, nothing new to find; hidden from selection" style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--text-muted)", background: "var(--surface-tint)", border: "1px solid var(--border-light)", borderRadius: 3, padding: "1px 5px" }}>completed</span>
                                           )}
                                           <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 11 }}> · Edit ✎</span>
                                         </button>
@@ -208,7 +219,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                                       </span>
                                       {sourceIsLow(tu, cf) && (
                                         <span style={{ display: "block", fontSize: 10.5, color: "var(--danger-text)", fontWeight: 700, marginTop: 2 }}>
-                                          ⚠ Low hit rate ({fmtHitRate(tu, cf)})
+                                          ⚠ Low find rate ({fmtHitRate(tu, cf)})
                                         </span>
                                       )}
                                       <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, cursor: "pointer", fontSize: 11.5, color: "var(--text-slate)", fontWeight: 600 }}>
@@ -224,18 +235,19 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                           );
                         })}
                       </div>
-                      {draftSources.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>No sources yet — add one below.</p>}
+                      {draftSources.length === 0 && <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>No sources yet, add one below.</p>}
                       <div style={{ marginTop: 14 }}>
                         <button type="button" onClick={openAddSource} style={addBtnStyle}>+ Add new source</button>
                       </div>
                     </>
                   ) : (() => {
+                    const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
                     const groups = [
-                      { heading: "Website", showAllLabel: "websites", items: sourceOptions.filter(s => (s.type ?? "web site") === "web site") },
+                      { heading: "Website", showAllLabel: "websites", items: sourceOptions.filter(s => (s.type ?? "web site") === "web site").sort(byName) },
                       // Single pages are one-shot: once read (times_used > 0) they drop out of the
-                      // selectable list into "Completed single pages" — unless the user re-added one.
-                      { heading: "Single page", showAllLabel: "single pages", items: sourceOptions.filter(s => s.type === "web page" && (s.times_used === 0 || reactivatedPages.has(s.name))) },
-                      { heading: "YouTube", showAllLabel: "YouTube sources", items: sourceOptions.filter(s => s.type === "youtube") },
+                      // selectable list into "Completed single pages" unless the user re-added one.
+                      { heading: "Single page", showAllLabel: "single pages", items: sourceOptions.filter(s => s.type === "web page" && (s.times_used === 0 || reactivatedPages.has(s.name))).sort(byName) },
+                      { heading: "YouTube", showAllLabel: "YouTube sources", items: sourceOptions.filter(s => s.type === "youtube").sort(byName) },
                     ];
                     // One source row (checkbox + name + stats). Reused for the recommended box and the rest.
                     const renderRow = (s: (typeof sourceOptions)[number]) => {
@@ -266,7 +278,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                             )}
                             {sourceIsLow(s.times_used, s.companies_found) && (
                               <span style={{ display: "block", fontSize: 10.5, color: "var(--danger-text)", fontWeight: 700, marginTop: 2 }}>
-                                ⚠ Low hit rate ({fmtHitRate(s.times_used, s.companies_found)}) — consider editing or removing
+                                ⚠ Low find rate ({fmtHitRate(s.times_used, s.companies_found)}), consider editing or removing
                               </span>
                             )}
                           </span>
@@ -288,8 +300,10 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{group.heading}</p>
                             {hasFeatured ? (
                               // One shared scroll container so the column never has two scrollbars.
-                              <div style={{ maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
-                                {/* Recommended set — visually boxed so it's clear this is a curated subset. */}
+                              // When expanded, lift the height cap so the extra sources are actually
+                              // visible (otherwise "Show all" reveals them below a 320px fold and looks like nothing happened).
+                              <div style={{ maxHeight: expanded ? "none" : 320, overflowY: expanded ? "visible" : "auto", paddingRight: 4 }}>
+                                {/* Recommended set, visually boxed so it's clear this is a curated subset. */}
                                 <div style={{ background: "var(--surface-tint)", border: "1px solid var(--border-light)", borderRadius: 4, padding: "8px 10px" }}>
                                   <p style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>Recommended, high quality sources</p>
                                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -322,7 +336,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                   })()}
                 </div>
               </div>
-              {/* Completed single pages — one-shot pages already read; kept for reference (bottom-right), not selectable. */}
+              {/* Completed single pages, one-shot pages already read; kept for reference (bottom-right), not selectable. */}
               {!configEditMode && (() => {
                 const completed = sourceOptions.filter(s => s.type === "web page" && s.times_used > 0 && !reactivatedPages.has(s.name));
                 if (completed.length === 0) return null;
@@ -382,7 +396,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                 <p style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>Search for new companies</p>
                 <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Finds new companies from your selected sources &amp; terms, then researches and scores the newest {ENRICH_BATCH_SIZE}.</p>
 
-                {/* Target market — soft region steer for discovery */}
+                {/* Target market, soft region steer for discovery */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 24 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)" }}>Target market</span>
                   <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }}>
@@ -414,16 +428,16 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                   </button>
                   ); })()}
                   {SEARCH_DISABLED && (
-                    <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 14 }}>Live search runs offline during the pilot — the database below is kept up to date.</p>
+                    <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 14 }}>Live search runs offline during the pilot, the database below is kept up to date.</p>
                   )}
                   {!SEARCH_DISABLED && rightEngaged && (
-                    <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 14 }}>You&apos;ve picked companies from the waiting list — clear that selection to run a new search instead.</p>
+                    <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 14 }}>You&apos;ve picked companies from the waiting list, clear that selection to run a new search instead.</p>
                   )}
                 </div>
               </div>
 
             </div>
-            {/* Right (narrower): the waiting list, a self-contained panel — nothing to do with the config.
+            {/* Right (narrower): the waiting list, a self-contained panel, nothing to do with the config.
                 Sits at the top and is only as tall as its content (not stretched to the left column). */}
             <div style={{ flex: "0 0 380px" }}>
               {/* ── Mode B: work the waiting list (independent of the search configuration) ── */}
@@ -435,7 +449,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                 <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", flex: 1 }}>
                   {(pendingQueueCount ?? 0) === 0 ? (
                     <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, margin: 0 }}>
-                      The waiting list is empty. Run a new search to find companies — anything found beyond the {ENRICH_BATCH_SIZE} researched this run waits here for you to process later.
+                      The waiting list is empty. Run a new search to find companies, anything found beyond the {ENRICH_BATCH_SIZE} researched this run waits here for you to process later.
                     </p>
                   ) : (
                     <>
@@ -446,18 +460,33 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                         {queueItems.map((it) => {
                           const checked = queueSelected.has(it.name);
                           const atMax = queueSelected.size >= ENRICH_BATCH_SIZE;
+                          // Flag a company that has repeatedly been left stuck (auto-recovered) so the
+                          // user can consider removing it. One-off stalls (cancelled searches) don't count.
+                          const stuck = (it.stuck_count ?? 0) >= STUCK_WARN_TIMES;
                           return (
-                            <label key={it.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: (checked || !atMax) && !leftEngaged ? "var(--text)" : "var(--text-faint)", cursor: (checked || !atMax) && !leftEngaged ? "pointer" : "default" }}>
-                              <input type="checkbox" checked={checked} disabled={leftEngaged || (!checked && atMax)}
-                                onChange={() => toggleQueueSelected(it.name)}
-                                style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
-                              <span>
-                                {it.name}
-                                <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 1 }}>
-                                  {it.source_name ? `from ${it.source_name}` : "source unknown"}{it.discovered_at ? ` · found ${fmtDate(it.discovered_at)}` : ""}
+                            <div key={it.name} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, flex: 1, fontSize: 13, color: (checked || !atMax) && !leftEngaged ? "var(--text)" : "var(--text-faint)", cursor: (checked || !atMax) && !leftEngaged ? "pointer" : "default" }}>
+                                <input type="checkbox" checked={checked} disabled={leftEngaged || (!checked && atMax)}
+                                  onChange={() => toggleQueueSelected(it.name)}
+                                  style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
+                                <span>
+                                  {it.name}
+                                  {stuck && (
+                                    <span title={`Got stuck ${it.stuck_count} times in earlier searches, it may not enrich cleanly. Consider removing it.`}
+                                      style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--danger-text)", background: "var(--surface-danger)", border: "1px solid var(--border-danger)", borderRadius: 3, padding: "1px 5px", whiteSpace: "nowrap" }}>
+                                      ⚠ stuck {it.stuck_count}×
+                                    </span>
+                                  )}
+                                  <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 1 }}>
+                                    {it.source_name ? `from ${it.source_name}` : "source unknown"}{it.discovered_at ? ` · found ${fmtDate(it.discovered_at)}` : ""}
+                                  </span>
                                 </span>
-                              </span>
-                            </label>
+                              </label>
+                              {stuck && (
+                                <button type="button" onClick={() => deleteFromQueue(it.name)} title="Remove from waiting list"
+                                  style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "2px 4px", flexShrink: 0 }}>✕</button>
+                              )}
+                            </div>
                           );
                         })}
                       </div>
@@ -471,10 +500,29 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                           Research {queueSelected.size > 0 ? queueSelected.size : Math.min(ENRICH_BATCH_SIZE, pendingQueueCount ?? 0)} from the waiting list →
                         </button>
                         ); })()}
-                        <button type="button" onClick={() => { if (!clearingQueue) clearQueue(); }} disabled={clearingQueue}
-                          style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: clearingQueue ? "default" : "pointer", fontSize: 11.5, fontWeight: 600, padding: "8px 0 0", textAlign: "center", width: "100%" }}>
-                          {clearingQueue ? "Clearing…" : "Clear waiting list"}
-                        </button>
+                        {!confirmClearQueue ? (
+                          <button type="button" onClick={() => setConfirmClearQueue(true)} disabled={clearingQueue || (pendingQueueCount ?? 0) === 0}
+                            style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: clearingQueue || (pendingQueueCount ?? 0) === 0 ? "default" : "pointer", fontSize: 11.5, fontWeight: 600, padding: "8px 0 0", textAlign: "center", width: "100%", opacity: (pendingQueueCount ?? 0) === 0 ? 0.5 : 1 }}>
+                            {clearingQueue ? "Clearing…" : "Clear waiting list"}
+                          </button>
+                        ) : (
+                          <div style={{ marginTop: 10, border: "1px solid var(--border-danger)", borderRadius: 4, background: "var(--surface-danger)", padding: "12px 14px" }}>
+                            <p style={{ fontSize: 12.5, fontWeight: 700, color: "var(--danger-text)", marginBottom: 4 }}>Clear the whole waiting list?</p>
+                            <p style={{ fontSize: 11.5, color: "var(--text)", lineHeight: 1.5, marginBottom: 10 }}>
+                              This discards all {pendingQueueCount ?? 0} companies waiting to be researched. They may be found again in a future search, but any already-cached research stays unused. This can&apos;t be undone.
+                            </p>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button type="button" onClick={async () => { await clearQueue(); setConfirmClearQueue(false); }} disabled={clearingQueue}
+                                style={{ background: "var(--danger-text)", border: "none", color: "var(--white)", cursor: clearingQueue ? "default" : "pointer", fontSize: 11.5, fontWeight: 700, padding: "7px 14px", borderRadius: 4 }}>
+                                {clearingQueue ? "Clearing…" : "Yes, clear it"}
+                              </button>
+                              <button type="button" onClick={() => setConfirmClearQueue(false)} disabled={clearingQueue}
+                                style={{ background: "transparent", border: "1px solid var(--border-grey)", color: "var(--text)", cursor: "pointer", fontSize: 11.5, fontWeight: 600, padding: "7px 14px", borderRadius: 4 }}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -485,64 +533,32 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
           </>
         )}
 
-        {agentState === "stale_warning" && (
-          <div style={{ background: "var(--white)", border: "1px solid var(--banner-warn-border)" }}>
-            <div style={{ background: "var(--banner-warn-text)", padding: "12px 20px" }}>
-              <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>A previous search didn’t finish</p>
-            </div>
-            <div style={{ padding: "24px" }}>
-              <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.6, marginBottom: 16 }}>
-                {staleCompanies.length} {staleCompanies.length === 1 ? "company" : "companies"} got stuck in the previous search and have now been put back in the queue. The search was stopped automatically so you can investigate what went wrong.
-              </p>
-              <div style={{ border: "1px solid var(--border-light)", marginBottom: 20 }}>
-                {staleCompanies.map((name) => (
-                  <div key={name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: "1px solid var(--border-light)" }}>
-                    <span style={{ fontSize: 13, color: "var(--text)" }}>{name}</span>
-                    <button
-                      onClick={() => deleteFromQueue(name)}
-                      title="Remove from queue"
-                      style={{ background: "transparent", border: "1px solid var(--border-light)", color: "var(--text-dim)", padding: "3px 10px", fontSize: 12, cursor: "pointer" }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-danger)"; e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.borderColor = "var(--danger)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.borderColor = "var(--border-light)"; }}>
-                      Remove from queue ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background: "var(--banner-warn-bg)", border: "1px solid var(--banner-warn-border)", padding: "12px 16px", marginBottom: 24 }}>
-                <p style={{ fontSize: 13, color: "var(--banner-warn-text)" }}>
-                  If a particular company repeatedly hangs, you can remove it from the queue. Otherwise it’s safe to start a new search — they will be retried.
-                </p>
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                <button onClick={() => { setAgentState("idle"); setStaleCompanies([]); }}
-                  style={{ background: "var(--header)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                  Back to search options
-                </button>
-                <button onClick={() => { setStaleCompanies([]); setAgentState("searching"); handleNewSearch(); }}
-                  style={{ background: "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
-                  Start new search →
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {agentState === "searching" && (
           <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", padding: "64px 32px", textAlign: "center" }}>
             <div style={{ display: "inline-block", width: 40, height: 40, border: "4px solid var(--border-light)", borderTop: "4px solid var(--accent)", borderRadius: "50%", animation: "spin 0.9s linear infinite", marginBottom: 20 }} />
-            <p style={{ fontSize: 14, fontWeight: 600, color: "var(--navy)", marginBottom: 10 }}>
-              Step {currentStep} of 3 — {currentStep === 1 ? "Finding companies" : currentStep === 2 ? "Enriching companies" : "Evaluating"}
-            </p>
-            {/* Step progress dots */}
-            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
-              {[1, 2, 3].map(s => (
-                <div key={s} style={{ width: 36, height: 5, borderRadius: 3, background: s <= currentStep ? "var(--accent)" : "var(--border-light)" }} />
-              ))}
-            </div>
-            <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{searchProgress || "The AI agent is finding relevant companies. This may take a few minutes."}</p>
+            {/* Queue searches have no discovery step, so they show a 2-step flow starting at enrichment. */}
+            {(() => {
+              const isQueue = searchMode === "queue";
+              const totalSteps = isQueue ? 2 : 3;
+              const shownStep = isQueue ? currentStep - 1 : currentStep;
+              const label = currentStep === 1 ? "Finding companies" : currentStep === 2 ? "Enriching companies" : "Evaluating";
+              return (
+                <>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "var(--navy)", marginBottom: 10 }}>
+                    Step {shownStep} of {totalSteps}: {label}
+                  </p>
+                  {/* Step progress dots */}
+                  <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
+                    {Array.from({ length: totalSteps }, (_, i) => i + 1).map(s => (
+                      <div key={s} style={{ width: 36, height: 5, borderRadius: 3, background: s <= shownStep ? "var(--accent)" : "var(--border-light)" }} />
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+            <p style={{ fontSize: 13, color: "var(--text-muted)" }}>{searchProgress || (searchMode === "queue" ? "The AI agent is researching the companies from your waiting list. This may take a few minutes." : "The AI agent is finding relevant companies. This may take a few minutes.")}</p>
             <p style={{ fontSize: 13, color: "var(--navy)", fontWeight: 600, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>Elapsed: {elapsedLabel}</p>
-            <p style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 10 }}>You can leave this page open — the search runs on the server and this view updates automatically.</p>
+            <p style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 10 }}>The search runs on the server, so it keeps going even if you switch to another tab. Come back here any time to see live progress. Closing or reloading the browser is fine too, but then this progress view won&apos;t reappear.</p>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
@@ -558,7 +574,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                 <p style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-strong)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>What you can do</p>
                 {agentError.canRetry ? (
                   <ul style={{ margin: 0, paddingLeft: 18 }}>
-                    <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Try the search again — companies that were mid-processing are reset automatically</li>
+                    <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Try the search again, companies that were mid-processing are reset automatically</li>
                     <li style={{ fontSize: 13, color: "var(--text)", marginBottom: 4 }}>Check that the API keys (ANTHROPIC_API_KEY, Supabase) are configured correctly</li>
                     <li style={{ fontSize: 13, color: "var(--text)" }}>See the console log (F12) for technical details about the error</li>
                   </ul>
@@ -673,13 +689,13 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
               <p style={{ color: "var(--on-dark)", fontSize: 14, marginTop: 2 }}>Complete the information before adding to the database.</p>
             </div>
             <div style={{ background: "var(--banner-info-bg)", borderBottom: "1px solid var(--banner-info-border)", padding: "12px 20px" }}>
-              <p style={{ fontSize: 14, color: "var(--banner-info-text)" }}>All pre-filled fields are suggested by the AI agent based on search results — review and override if needed.</p>
+              <p style={{ fontSize: 14, color: "var(--banner-info-text)" }}>All pre-filled fields are suggested by the AI agent based on search results, review and override if needed.</p>
             </div>
             {pendingCompanies.map((c, i) => (
               <div key={i} style={{ padding: "20px", borderBottom: "1px solid var(--border-light)" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
                   <p style={{ fontWeight: 700, color: "var(--navy)", fontSize: 14, marginBottom: 4 }}>{c.name}</p>
-                  <button type="button" onClick={() => removePending(i)} title="Not relevant — remove from this list"
+                  <button type="button" onClick={() => removePending(i)} title="Not relevant, remove from this list"
                     style={{ background: "transparent", border: "1px solid var(--border-light)", color: "var(--text-dim)", padding: "4px 10px", fontSize: 12, cursor: "pointer", flexShrink: 0, borderRadius: 4 }}
                     onMouseEnter={e => { e.currentTarget.style.background = "var(--surface-danger)"; e.currentTarget.style.color = "var(--danger)"; e.currentTarget.style.borderColor = "var(--danger)"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-dim)"; e.currentTarget.style.borderColor = "var(--border-light)"; }}>
@@ -705,7 +721,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                       <input type="number" placeholder="Optional" value={c.max_price}
                         onChange={(e) => updatePending(i, "max_price", e.target.value)} style={{ ...inputStyle, flex: 1 }} />
                       <select value={c.price_currency ?? ""} onChange={(e) => updatePending(i, "price_currency", e.target.value)} style={{ ...inputStyle, width: 84 }}>
-                        <option value="">—</option>
+                        <option value="">-</option>
                         <option value="EUR">EUR</option>
                         <option value="GBP">GBP</option>
                         <option value="USD">USD</option>
@@ -768,10 +784,10 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
         )}
       </div>
 
-      {/* Queue warning — pops up when the user clicks Search while >= 5 companies are still waiting */}
+      {/* Queue warning, pops up when the user clicks Search while >= 5 companies are still waiting */}
       {modesInfoOpen && <SearchModesInfoModal onClose={() => setModesInfoOpen(false)} />}
 
-      {/* Source-performance modal — opened by "Source performance" in the Search Configuration panel */}
+      {/* Source-performance modal, opened by "Source performance" in the Search Configuration panel */}
       {perfModalOpen && (
         <SourcePerfModal
           warnThresholdPct={warnThresholdPct}
@@ -788,10 +804,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
           onClose={() => setPerfModalOpen(false)}
           sources={sourceOptions}
           savedBySource={savedBySource}
-          hitRate={sourceHitRate}
           isLow={sourceIsLow}
-          fmtHitRate={fmtHitRate}
-          fmtSavedRate={fmtSavedRate}
         />
       )}
 

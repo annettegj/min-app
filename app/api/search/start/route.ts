@@ -10,13 +10,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-// Browsers may send a preflight OPTIONS request before the POST — answer it with the CORS headers.
+// Browsers may send a preflight OPTIONS request before the POST, answer it with the CORS headers.
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
 }
 
 // Starts a search as a BACKGROUND job and returns immediately with a jobId.
-// The actual work (Step 1 + Step 2, several minutes) runs after the response is sent —
+// The actual work (Step 1 + Step 2, several minutes) runs after the response is sent -
 // this only works on an always-on server (Render), not on serverless (Vercel), where the
 // function is killed once it responds. The browser polls the search_jobs row for progress.
 export async function POST(request: Request) {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       const names = body.queueNames.filter((n: unknown): n is string => typeof n === "string" && n.trim().length > 0);
       if (names.length > 0) queueNames = names;
     }
-    // Optional target market — a soft geography steer for discovery. "both"/unset = no steer.
+    // Optional target market, a soft geography steer for discovery. "both"/unset = no steer.
     if (body?.targetMarket === "eu" || body?.targetMarket === "us" || body?.targetMarket === "both") {
       targetMarket = body.targetMarket;
     }
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       if (names.length > 0) sourceNames = names;
     }
   } catch {
-    // No/invalid body — keep the defaults.
+    // No/invalid body, keep the defaults.
   }
 
   // 1. Create a job row so the browser has something to poll straight away.
@@ -86,16 +86,16 @@ export async function POST(request: Request) {
           updated_at: new Date().toISOString(),
         }).eq("id", jobId);
       } else {
-        // `results` is set when Step 3 succeeded — the UI jumps straight to the selectable results.
+        // `results` is set when Step 3 succeeded, the UI jumps straight to the selectable results.
         // If it's null (Step 3 failed), the enriched companies are still saved; re-running re-scores.
         const passed = result.results?.length ?? 0;
         await supabase.from("search_jobs").update({
           status: "done",
           message: result.timedOut
-            ? `Timed out — ${result.enriched.length} companies enriched before the limit.`
+            ? `Timed out, ${result.enriched.length} companies enriched before the limit.`
             : result.results
-            ? `Done — ${passed} of ${result.enriched.length} companies passed ICP matching.`
-            : `Done — ${result.enriched.length} companies enriched (scoring didn't complete — search again to score them).`,
+            ? `Done, ${passed} of ${result.enriched.length} companies passed ICP matching.`
+            : `Done, ${result.enriched.length} companies enriched (scoring didn't complete, search again to score them).`,
           enriched: result.enriched,
           results: result.results ?? null,
           timed_out: result.timedOut ?? false,
@@ -114,6 +114,6 @@ export async function POST(request: Request) {
       }).eq("id", jobId);
     });
 
-  // 3. Respond immediately — the browser now polls search_jobs with this id.
+  // 3. Respond immediately, the browser now polls search_jobs with this id.
   return NextResponse.json({ jobId }, { headers: corsHeaders });
 }

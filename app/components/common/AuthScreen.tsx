@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { labelStyle, inputStyle, btnPrimary } from "@/lib/styles";
 
-// Simple pilot login screen (NOT secure — see migration 011). Calls back to the parent to log in /
+// Simple pilot login screen (NOT secure, see migration 011). Calls back to the parent to log in /
 // create an account against the plain app_users table; the callbacks return an error string or null.
 export function AuthScreen({ onLogin, onSignup }: { onLogin: (e: string, p: string) => Promise<string | null>; onSignup: (e: string, p: string) => Promise<string | null> }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -40,7 +40,7 @@ export function AuthScreen({ onLogin, onSignup }: { onLogin: (e: string, p: stri
           </button>
           <div style={{ background: "var(--banner-warn-bg)", border: "1px solid var(--banner-warn-border)", borderRadius: 4, padding: "10px 12px", marginTop: 16 }}>
             <p style={{ fontSize: 11.5, color: "var(--banner-warn-text)", lineHeight: 1.55 }}>
-              This is a pilot login with <strong>no real security yet</strong> — please don&apos;t reuse a password you use elsewhere. Pick something simple like <strong>Lysoveta123</strong>. Proper security is handled at handover.
+              This is a pilot login with <strong>no real security yet</strong>, please don&apos;t reuse a password you use elsewhere. Pick something simple like <strong>Lysoveta123</strong>. Proper security is handled at handover.
             </p>
           </div>
         </div>

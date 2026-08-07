@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // 1. Mark as rejected in companies table — preserve existing enriched_data
+  // 1. Mark as rejected in companies table, preserve existing enriched_data
   const { data: existingRows } = await supabase
     .from("companies")
     .select("name, enriched_data")

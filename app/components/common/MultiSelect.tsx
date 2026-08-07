@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { inputStyle } from "@/lib/styles";
 
-// A dropdown with a checkbox per option — the multi-value counterpart to a native <select>.
+// A dropdown with a checkbox per option, the multi-value counterpart to a native <select>.
 // value/onChange work with a string[] (the selected options). Closes on outside click or Escape.
 // The option list is rendered in a PORTAL (fixed-positioned to the trigger) so it can never be
 // clipped by an ancestor's `overflow: hidden` (filter panel, modal body, result card, …).
@@ -14,7 +14,7 @@ export function MultiSelect({ options, value, onChange, placeholder = "Select…
   onChange: (next: string[]) => void;
   placeholder?: string;
   disabled?: boolean;
-  // Optional per-option tooltip text (shown on hover) — e.g. a definition of each category/tier.
+  // Optional per-option tooltip text (shown on hover), e.g. a definition of each category/tier.
   descriptions?: Record<string, string>;
   // Show a search box at the top of the dropdown (auto-on for long lists) to filter options by name.
   searchable?: boolean;

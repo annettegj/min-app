@@ -5,19 +5,19 @@
 // review + rewrite, and the diagnostic route) uses CLAUDE_MODEL below. To switch
 // the whole app to a different model, change it in ONE place:
 //   • edit the default string here, OR
-//   • set the CLAUDE_MODEL environment variable on the worker (Render) — no code change.
+//   • set the CLAUDE_MODEL environment variable on the worker (Render), no code change.
 // (All model calls run server-side on the worker, so the plain env var is enough;
 //  no NEXT_PUBLIC_ prefix, which also keeps it out of the browser bundle.)
 //
 // ── Why claude-sonnet-5? ─────────────────────────────────────────────────────
 // 1. Server tools: the pipeline depends on the current server-tool versions
 //    web_search_20260209 and web_fetch_20260209. Sonnet 5 supports them; Haiku
-//    does NOT support this web_search version — so Haiku can't run discovery or
+//    does NOT support this web_search version, so Haiku can't run discovery or
 //    enrichment at all. That alone rules Haiku out for most of the app.
 // 2. Cost / quality balance: the app is search-heavy (up to 12 discovery searches
 //    + one web_search per company enriched, every run). Sonnet 5 is strong enough
 //    for the extraction, ICP scoring, and review/rewrite tasks while costing far
-//    less and running faster than Opus — the right tier for high call volume.
+//    less and running faster than Opus, the right tier for high call volume.
 // 3. Opus would be overkill: these are structured extraction / scoring / rubric
 //    tasks, not open-ended reasoning. Opus costs ~2–5× more and is slower for no
 //    meaningful quality gain here.
