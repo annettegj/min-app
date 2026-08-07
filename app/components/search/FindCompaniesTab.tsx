@@ -615,6 +615,21 @@ export function FindCompaniesTab({ api, savedBySource, onGoToDatabase, categorie
                 </button>
               </div>
             </div>
+            {searchResults.length === 0 ? (
+              // Special case: the search finished but nothing passed ICP matching, so there's nothing
+              // to add. Explain what happened and offer a clear way back instead of an empty list.
+              <div style={{ padding: "36px 24px", textAlign: "center" }}>
+                <p style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)", marginBottom: 8 }}>Nothing to add from this search</p>
+                <p style={{ fontSize: 13.5, color: "var(--text-muted)", lineHeight: 1.6, maxWidth: 540, margin: "0 auto 20px" }}>
+                  The {searchMode === "queue" ? "companies you researched were" : "companies found were"} checked against the ICP, but none passed, so there is nothing to add.
+                </p>
+                <button onClick={() => { resetProcessingToQueue(); setAgentState("idle"); setSearchResults([]); }}
+                  style={{ background: "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
+                  ← Back to search
+                </button>
+              </div>
+            ) : (
+            <>
             <div>
               {searchResults.map((r, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "18px 20px", borderBottom: "1px solid var(--border-light)", background: r.selected ? "var(--surface-row-hover)" : i % 2 === 0 ? "var(--white)" : "var(--surface-input)" }}>
@@ -681,6 +696,8 @@ export function FindCompaniesTab({ api, savedBySource, onGoToDatabase, categorie
                 Add to Database →
               </button>
             </div>
+            </>
+            )}
           </div>
         )}
 
