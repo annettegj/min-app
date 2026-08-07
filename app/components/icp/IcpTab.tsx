@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { US_MARKET_ENABLED } from "@/lib/features";
 import { btnPrimary, btnSecondary } from "@/lib/styles";
 import { EXPECTED_LABELS, expectedMatch } from "@/lib/icpTest";
@@ -21,6 +22,10 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
     openManageExamples, suggestStarterSet, addExample, setExampleExpected, removeExample, saveExamples,
     openReviewInfo, editReviewInstructions, saveReviewInstructions,
   } = useIcpEditor(authEmail);
+
+  // Which ICP sections (## headings) are expanded in the read view. Default: all collapsed, so the
+  // criteria read as a tidy list of sections you open one at a time rather than one long wall of text.
+  const [expandedIcp, setExpandedIcp] = useState<Record<string, boolean>>({});
 
   return (
     <>
@@ -247,7 +252,11 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
             const isSeparatorRow = (l: string) => /^\|[-| :]+\|$/.test(l.trim());
 
             const lines = (icpDocs[icpRegion] || "").split("\n");
-            const elements: React.ReactNode[] = [];
+            // Group into collapsible sections by "## " headings. Anything before the first "## "
+            // (the title + intro) is the preamble and always shows.
+            const preamble: React.ReactNode[] = [];
+            const sections: { key: string; title: string; nodes: React.ReactNode[] }[] = [];
+            const push = (node: React.ReactNode) => { (sections.length ? sections[sections.length - 1].nodes : preamble).push(node); };
             let i = 0;
 
             while (i < lines.length) {
@@ -262,7 +271,7 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
                 const rows = tableLines.filter(l => !isSeparatorRow(l));
                 const parseRow = (l: string) => l.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
                 const [header, ...body] = rows;
-                elements.push(
+                push(
                   <div key={`table-${i}`} style={{ overflowX: "auto", margin: "16px 0 24px 0" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                       <thead>
@@ -287,32 +296,53 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
                 continue;
               }
 
-              if (line.startsWith("# ")) { elements.push(<h1 key={i} style={{ fontSize: 24, fontWeight: 700, color: "var(--navy)", marginBottom: 4, marginTop: 0 }}>{line.slice(2)}</h1>); }
-              else if (line.startsWith("## ")) { elements.push(<h2 key={i} style={{ fontSize: 18, fontWeight: 700, color: "var(--navy)", marginTop: 32, marginBottom: 4 }}>{line.slice(3)}</h2>); }
-              else if (line.startsWith("### ")) { elements.push(<h3 key={i} style={{ fontSize: 16, fontWeight: 700, color: "var(--navy-mid)", marginTop: 22, marginBottom: 4 }}>{toLabel(line.slice(4))}</h3>); }
-              else if (line.startsWith("---")) { elements.push(<div key={i} style={{ height: 4 }} />); }
+              if (line.startsWith("## ")) { sections.push({ key: `sec-${i}`, title: line.slice(3), nodes: [] }); i++; continue; }
+              else if (line.startsWith("# ")) { push(<h1 key={i} style={{ fontSize: 24, fontWeight: 700, color: "var(--navy)", marginBottom: 4, marginTop: 0 }}>{line.slice(2)}</h1>); }
+              else if (line.startsWith("### ")) { push(<h3 key={i} style={{ fontSize: 16, fontWeight: 700, color: "var(--navy-mid)", marginTop: 22, marginBottom: 4 }}>{toLabel(line.slice(4))}</h3>); }
+              else if (line.startsWith("---")) { push(<div key={i} style={{ height: 4 }} />); }
               else if (line.startsWith("- ")) {
-                elements.push(
+                push(
                   <p key={i} style={{ fontSize: 15, color: "var(--text)", margin: "4px 0", paddingLeft: 20, position: "relative", lineHeight: 1.7 }}>
                     <span style={{ position: "absolute", left: 0, color: "var(--navy-mid)", fontWeight: 700 }}>·</span>{stripBold(line.slice(2))}
                   </p>
                 );
               }
-              else if (line.startsWith("**") && line.endsWith("**")) { elements.push(<p key={i} style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)", marginTop: 14, marginBottom: 2 }}>{line.slice(2, -2)}</p>); }
-              else if (line === "") { elements.push(<div key={i} style={{ height: 4 }} />); }
-              else { elements.push(<p key={i} style={{ fontSize: 15, color: "var(--text)", lineHeight: 1.75, margin: "3px 0" }}>{stripBold(line)}</p>); }
+              else if (line.startsWith("**") && line.endsWith("**")) { push(<p key={i} style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)", marginTop: 14, marginBottom: 2 }}>{line.slice(2, -2)}</p>); }
+              else if (line === "") { push(<div key={i} style={{ height: 4 }} />); }
+              else { push(<p key={i} style={{ fontSize: 15, color: "var(--text)", lineHeight: 1.75, margin: "3px 0" }}>{stripBold(line)}</p>); }
 
               i++;
             }
-            return elements;
+
+            return (
+              <>
+                {preamble}
+                {sections.length > 0 && (
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "18px 0 4px" }}>Click a section to expand it.</p>
+                )}
+                {sections.map((sec) => {
+                  const open = !!expandedIcp[sec.key];
+                  return (
+                    <div key={sec.key} style={{ borderTop: "1px solid var(--border-light)" }}>
+                      <button type="button" onClick={() => setExpandedIcp(p => ({ ...p, [sec.key]: !p[sec.key] }))}
+                        style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, background: "transparent", border: "none", cursor: "pointer", padding: "14px 0", textAlign: "left" }}>
+                        <span style={{ fontSize: 18, fontWeight: 700, color: "var(--navy)" }}>{sec.title}</span>
+                        <span style={{ fontSize: 13, color: "var(--text-muted)", flexShrink: 0 }}>{open ? "▾ Hide" : "▸ Show"}</span>
+                      </button>
+                      {open && <div style={{ paddingBottom: 16 }}>{sec.nodes}</div>}
+                    </div>
+                  );
+                })}
+              </>
+            );
           })()}
         </div>
       </div>
 
-      {/* Product categories — the editable vocabulary used across the app (filter, add, edit, AI search). */}
+      {/* Company categories — the editable vocabulary used across the app (filter, add, edit, AI search). */}
       <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", flex: "0 1 340px", minWidth: 260 }}>
         <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Product categories</p>
+          <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Company categories</p>
           <button type="button" onClick={categoriesApi.openManage}
             style={{ background: "var(--accent)", border: "none", color: "var(--white)", padding: "5px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", borderRadius: 4, letterSpacing: "0.04em", textTransform: "uppercase" }}>
             ✎ Manage

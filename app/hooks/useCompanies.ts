@@ -118,10 +118,34 @@ export function useCompanies() {
     });
   }, [searchParams, companies]);
 
-  const visibleResults = useMemo(
-    () => results.filter((c) => !hiddenIds.has(c.id) && (!showOnlySelected || selectedIds.has(c.id))),
-    [results, hiddenIds, showOnlySelected, selectedIds]
-  );
+  // Sort the shown table (via the "Sort by" control). Default: newest-added first.
+  const [sortKey, setSortKey] = useState<string>("added");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const sortVal = (c: Company, key: string): string | number => {
+    switch (key) {
+      case "name": return (c.name ?? "").toLowerCase();
+      case "geography": return parseMulti(c.geography).join(", ").toLowerCase();
+      case "product_category": return parseMulti(c.product_category).join(", ").toLowerCase();
+      case "max_price": return c.max_price ?? -Infinity;
+      case "priority_tier": return c.priority_tier ?? "";
+      case "icp_fit": return c.icp_fit ?? 0;
+      case "added": return new Date(c.added_at ?? c.enriched_at ?? 0).getTime();
+      case "status": return c.status ?? "not_contacted";
+      case "source_name": return (c.source_name ?? "").toLowerCase();
+      default: return 0;
+    }
+  };
+
+  const visibleResults = useMemo(() => {
+    const filtered = results.filter((c) => !hiddenIds.has(c.id) && (!showOnlySelected || selectedIds.has(c.id)));
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const av = sortVal(a, sortKey), bv = sortVal(b, sortKey);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }, [results, hiddenIds, showOnlySelected, selectedIds, sortKey, sortDir]);
 
   function toggleSelected(id: number) {
     setSelectedIds(prev => {
@@ -144,7 +168,7 @@ export function useCompanies() {
       ws.columns = [
         { header: "Name", key: "name", width: 28 },
         { header: "Geography", key: "geography", width: 12 },
-        { header: "Product category", key: "product_category", width: 26 },
+        { header: "Company category", key: "product_category", width: 26 },
         { header: "Max price", key: "max_price", width: 12 },
         { header: "Currency", key: "price_currency", width: 10 },
         { header: "ICP fit", key: "icp_fit", width: 9 },
@@ -304,6 +328,7 @@ export function useCompanies() {
     companies, loadCompanies, savedBySource, sourceNames,
     geography, setGeography, category, setCategory, source, setSource, priceMin, setPriceMin, priceMax, setPriceMax, icpMin, setIcpMin, tier, setTier,
     searchState, setSearchState, searchParams, setSearchParams, results, visibleResults,
+    sortKey, setSortKey, sortDir, setSortDir,
     editingCompanyId, editDraft, setEditDraft, savingEdit, editError, confirmRemoveId, setConfirmRemoveId, setEditError, removing, removeTarget,
     editMode, hiddenIds, selectedIds, setSelectedIds, showOnlySelected, setShowOnlySelected, expandedCompanyId, setExpandedCompanyId,
     pendingNav, setPendingNav, pendingExport, setPendingExport, exporting,

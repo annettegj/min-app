@@ -13,7 +13,7 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
   const {
     guardUnsavedEdit, setSearchParams, setSearchState, openAddCompany,
     geography, setGeography, category, setCategory, source, setSource, sourceNames, icpMin, setIcpMin, tier, setTier, priceMin, setPriceMin, priceMax, setPriceMax,
-    searchState, clearResults, handleSearch, visibleResults, hiddenIds, selectedIds, showOnlySelected, setShowOnlySelected,
+    searchState, clearResults, handleSearch, visibleResults, sortKey, setSortKey, sortDir, setSortDir, hiddenIds, selectedIds, showOnlySelected, setShowOnlySelected,
     clearSelection, restoreHidden, results, editMode, toggleEditMode, setSelectedIds, expandedCompanyId, setExpandedCompanyId,
     startEdit, confirmRemoveId, setConfirmRemoveId, setEditError, toggleSelected, updateCompanyStatus,
     editingCompanyId, editDraft, setEditDraft, editError, savingEdit, saveEdit, cancelEdit, hasUnsavedEdit,
@@ -48,7 +48,7 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
           </div>
 
           <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-            <label style={labelStyle}>Product Category</label>
+            <label style={labelStyle}>Company category</label>
             <MultiSelect options={categories} value={category} onChange={setCategory} placeholder="All categories" />
           </div>
 
@@ -63,11 +63,13 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
           </div>
 
           <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-            <label style={labelStyle}>Price Range</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input type="number" placeholder="Min" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} style={inputStyle} />
-              <input type="number" placeholder="Max" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} style={inputStyle} />
+            <label style={labelStyle}>Highest product price</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="number" placeholder="No min" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} style={inputStyle} />
+              <span style={{ color: "var(--text-faint)", fontSize: 12 }}>to</span>
+              <input type="number" placeholder="No max" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} style={inputStyle} />
             </div>
+            <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 4 }}>Filters on each company&apos;s most expensive product. Both fields are optional; leave one blank for no limit. Set just a minimum to find premium brands.</p>
           </div>
 
           <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border-light)" }}>
@@ -107,6 +109,27 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
           <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Results</p>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              {results.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: "var(--on-dark)", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase" }}>Sort by</span>
+                  <select value={sortKey} onChange={e => setSortKey(e.target.value)}
+                    style={{ fontSize: 12, padding: "5px 8px", borderRadius: 4, border: "none", background: "var(--white)", color: "var(--navy)", cursor: "pointer" }}>
+                    <option value="added">Added</option>
+                    <option value="name">Company name</option>
+                    <option value="geography">Geography</option>
+                    <option value="product_category">Company category</option>
+                    <option value="max_price">Max price</option>
+                    <option value="priority_tier">Priority</option>
+                    <option value="icp_fit">ICP fit</option>
+                    <option value="status">Status</option>
+                    <option value="source_name">Source</option>
+                  </select>
+                  <button type="button" onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")} title="Toggle sort direction"
+                    style={{ background: "transparent", color: "var(--on-dark)", border: "1px solid var(--border-on-dark)", padding: "5px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", borderRadius: 4, whiteSpace: "nowrap" }}>
+                    {sortDir === "asc" ? "▲ Asc" : "▼ Desc"}
+                  </button>
+                </div>
+              )}
               <p style={{ color: "var(--white)", fontSize: 12 }}>
                 {visibleResults.length} {visibleResults.length !== 1 ? "companies" : "company"}{hiddenIds.size > 0 ? ` · ${hiddenIds.size} hidden` : ""}{selectedIds.size > 0 ? ` · ${selectedIds.size} selected` : ""}
               </p>
@@ -159,8 +182,8 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
                       }}
                       style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }} />
                   </th>
-                  {["Company", "Website", "Source", "Geography", "Category", "Max. Price", "Priority", "ICP Fit", "Added", "Status"].map(h => (
-                    <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: 11.5, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-slate)" }}>{h}</th>
+                  {["Company", "Website", "Source", "Geography", "Company category", "Max. Price", "Priority", "ICP Fit", "Added", "Status"].map(h => (
+                    <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: 11.5, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-slate)", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -235,7 +258,7 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
                       <td style={{ padding: "12px 14px", color: "var(--text-body)", fontSize: 12.5, whiteSpace: "nowrap" }}>{fmtAddedDate(c)}</td>
                       <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }} onClick={e => e.stopPropagation()}>
                         <select value={c.status ?? "not_contacted"} onChange={e => updateCompanyStatus(c.id, e.target.value)}
-                          style={{ fontSize: 12, padding: "5px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--white)", color: (c.status ?? "not_contacted") === "contacted" ? "var(--success-bright, #2e7d32)" : (c.status ?? "not_contacted") === "not_relevant" ? "var(--text-faint)" : "var(--text)", cursor: "pointer" }}>
+                          style={{ fontSize: 12, padding: "5px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "var(--white)", cursor: "pointer", fontWeight: 600, color: (() => { const st = c.status ?? "not_contacted"; return st === "contacted" ? "var(--success-bright)" : st === "in_dialogue" ? "var(--warning-bright)" : st === "not_interested" ? "var(--danger)" : st === "not_relevant" ? "var(--text-faint)" : "var(--text)"; })() }}>
                           {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </td>
@@ -251,7 +274,7 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
                                   <MultiSelect options={GEO_OPTIONS} value={editDraft.geography} onChange={next => setEditDraft({ ...editDraft, geography: next })} placeholder="Select…" />
                                 </div>
                                 <div>
-                                  <label style={labelStyle}>Product category</label>
+                                  <label style={labelStyle}>Company category</label>
                                   <MultiSelect options={categories} value={editDraft.product_category} onChange={next => setEditDraft({ ...editDraft, product_category: next })} placeholder="Select…" />
                                 </div>
                                 <div>
@@ -280,7 +303,6 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
                                     <option value="">—</option>
                                     <option value="early_mover">Early Mover</option>
                                     <option value="follower">Follower</option>
-                                    <option value="enabler">Enabler</option>
                                   </select>
                                 </div>
                                 <div style={{ gridColumn: "1 / -1" }}>

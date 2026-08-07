@@ -779,7 +779,7 @@ Instructions:
    - Score 2: include only with exceptional justification — state explicitly why
    - Score 1: exclude
    A strong score does not guarantee inclusion if product fit is genuinely poor. A weaker score can be overridden by compelling qualitative signals — but this must be explicitly justified in the description.
-4. Assign priority_tier: "early_mover", "follower", or "enabler" based on the signals in the ICP document.
+4. Assign priority_tier: "early_mover" or "follower" based on the signals in the ICP document. (There is no "enabler" tier — classify anything that looks like a distributor/enabler as "follower"; the distributor nature is captured by the company category instead.)
 5. Write a description of max 2 sentences explaining WHY they fit, which signals drove the classification, and the key factor(s) behind the score. Reference their actual self_presentation, price_tier, and distribution_channels.
 
 Return ONLY a raw JSON array, no markdown. For each company include:

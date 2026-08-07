@@ -12,7 +12,7 @@ export function ManageCategoriesModal({ api }: { api: CategoriesApi }) {
       <div onClick={(e) => e.stopPropagation()}
         style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 560, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
         <div style={{ background: "var(--header)", padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <p style={{ color: "var(--white)", fontSize: 17, fontWeight: 700 }}>Product categories</p>
+          <p style={{ color: "var(--white)", fontSize: 17, fontWeight: 700 }}>Company categories</p>
           <button type="button" onClick={() => { if (!busy) closeManage(); }}
             style={{ background: "transparent", color: "var(--white)", border: "none", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
         </div>

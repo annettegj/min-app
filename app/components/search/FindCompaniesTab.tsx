@@ -138,7 +138,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                       {/* Same maxHeight cap (320) as each source column's scroll area, so the four
                           columns line up — and the terms list never follows a source's "Show all". */}
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, paddingRight: 6, maxHeight: termsExpanded ? "none" : 320, overflowY: termsExpanded ? "visible" : "auto" }}>
-                        {termOptions.map(t => {
+                        {[...termOptions].sort((a, b) => a.localeCompare(b)).map(t => {
                           const checked = selectedTerms.includes(t);
                           const atMax = selectedTerms.length >= 3;
                           return (
@@ -204,7 +204,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                                           style={{ background: "transparent", border: "none", color: "var(--danger-text)", cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: 1, padding: "0 4px", flexShrink: 0 }}>✕</button>
                                       </div>
                                       <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
-                                        {tu > 0 || cf > 0 || saved > 0 ? `used ${tu} · queued ${cf} · saved ${saved}` : "Not used yet"}
+                                        {tu > 0 || cf > 0 || saved > 0 ? `used ${tu} · found ${cf} · saved ${saved}` : "Not used yet"}
                                       </span>
                                       {sourceIsLow(tu, cf) && (
                                         <span style={{ display: "block", fontSize: 10.5, color: "var(--danger-text)", fontWeight: 700, marginTop: 2 }}>
@@ -258,7 +258,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                             )}
                             <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
                               {s.times_used > 0 || s.companies_found > 0 || (savedBySource.get(s.name) ?? 0) > 0
-                                ? `used ${s.times_used} · queued ${s.companies_found} · saved ${savedBySource.get(s.name) ?? 0}`
+                                ? `used ${s.times_used} · found ${s.companies_found} · saved ${savedBySource.get(s.name) ?? 0}`
                                 : "Not used yet"}
                             </span>
                             {s.last_used_at && (
@@ -350,7 +350,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                                   </a>
                                 )}
                                 <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 2 }}>
-                                  used {s.times_used} · queued {s.companies_found} · saved {savedBySource.get(s.name) ?? 0}
+                                  used {s.times_used} · found {s.companies_found} · saved {savedBySource.get(s.name) ?? 0}
                                 </span>
                                 {s.last_used_at && (
                                   <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)" }}>last read {fmtDate(s.last_used_at)}</span>
@@ -696,7 +696,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                     <MultiSelect options={GEO_OPTIONS} value={c.geography} onChange={next => updatePending(i, "geography", next)} placeholder="Select…" />
                   </div>
                   <div>
-                    <label style={labelStyle}>Product Category</label>
+                    <label style={labelStyle}>Company category</label>
                     <MultiSelect options={categories} value={c.product_category} onChange={next => updatePending(i, "product_category", next)} placeholder="Select…" />
                   </div>
                   <div>
@@ -731,7 +731,6 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                       <option value="">Unknown</option>
                       <option value="early_mover">Early Mover</option>
                       <option value="follower">Follower</option>
-                      <option value="enabler">Enabler</option>
                     </select>
                   </div>
                 </div>

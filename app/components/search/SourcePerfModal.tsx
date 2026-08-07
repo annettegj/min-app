@@ -72,7 +72,7 @@ export function SourcePerfModal({
                 <tr style={{ textAlign: "left", color: "var(--text-muted)", borderBottom: "1px solid var(--border-card)" }}>
                   <th style={{ padding: "9px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Source</th>
                   <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Used</th>
-                  <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Queued</th>
+                  <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Found</th>
                   <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Saved</th>
                   <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Hit rate</th>
                   <th style={{ padding: "9px 12px", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>Saved rate</th>

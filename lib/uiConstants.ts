@@ -12,7 +12,9 @@ export const GEOGRAPHIES = ["All", "EU", "UK", "US", "APAC", "Global"];
 export const GEO_OPTIONS = ["EU", "UK", "US", "APAC", "Global"];
 export const CATEGORIES = ["All", "Premium/science-driven brand", "Pharma Rx", "Established CHC", "Distributor/enabler"];
 export const CAT_OPTIONS = CATEGORIES.slice(1);
-export const TIERS = ["All", "Early Mover", "Follower", "Enabler"];
+// Priority tiers. "Enabler" was retired as a tier (distributors are covered by the company category
+// "Distributor/enabler") — existing enabler companies were migrated to Follower (migration 020).
+export const TIERS = ["All", "Early Mover", "Follower"];
 
 // Search-configuration preview options — read directly from config/sources.json (one-way: config →
 // app), so the UI always mirrors the actual sources and search concepts the code uses.
@@ -28,6 +30,7 @@ export const STATUS_OPTIONS = [
   { value: "not_contacted", label: "Not contacted" },
   { value: "contacted", label: "Contacted" },
   { value: "in_dialogue", label: "In dialogue" },
+  { value: "not_interested", label: "Not interested" },
   { value: "not_relevant", label: "Not relevant" },
 ];
 

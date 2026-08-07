@@ -41,7 +41,7 @@ export function AddCompanyModal({ form, setForm, categoryOptions, saving, error,
               <MultiSelect options={GEO_OPTIONS} value={form.geography} onChange={next => setForm({ ...form, geography: next })} placeholder="Select…" />
             </div>
             <div>
-              <label style={labelStyle}>Product category</label>
+              <label style={labelStyle}>Company category</label>
               <MultiSelect options={categoryOptions} value={form.product_category} onChange={next => setForm({ ...form, product_category: next })} placeholder="Select…" />
             </div>
             <div>
@@ -61,7 +61,6 @@ export function AddCompanyModal({ form, setForm, categoryOptions, saving, error,
                 <option value="">—</option>
                 <option value="early_mover">Early Mover</option>
                 <option value="follower">Follower</option>
-                <option value="enabler">Enabler</option>
               </select>
             </div>
             <div>
