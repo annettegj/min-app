@@ -1,6 +1,6 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { inputStyle, labelStyle, btnPrimary, btnSecondary } from "@/lib/styles";
-import { TIERS, GEO_OPTIONS, STATUS_OPTIONS } from "@/lib/uiConstants";
+import { TIERS, GEO_OPTIONS, STATUS_OPTIONS, CATEGORY_DESCRIPTIONS, TIER_DESCRIPTIONS, ICP_STAR_POINTS } from "@/lib/uiConstants";
 import { icpColor, displayHostname, safeHref, fmtAddedDate, parseMulti } from "@/lib/format";
 import { AddCompanyModal } from "@/app/components/database/AddCompanyModal";
 import { MultiSelect } from "@/app/components/common/MultiSelect";
@@ -11,9 +11,10 @@ import type { CompaniesApi } from "@/app/hooks/useCompanies";
 // useCompanies (called once in page.tsx and passed in as `api`).
 export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; categories: string[] }) {
   const {
-    guardUnsavedEdit, setSearchParams, setSearchState, openAddCompany,
-    geography, setGeography, category, setCategory, source, setSource, sourceNames, icpMin, setIcpMin, tier, setTier, priceMin, setPriceMin, priceMax, setPriceMax,
-    searchState, clearResults, handleSearch, visibleResults, sortKey, setSortKey, sortDir, setSortDir, hiddenIds, selectedIds, showOnlySelected, setShowOnlySelected,
+    companies, guardUnsavedEdit, openAddCompany, showAllCompanies,
+    nameQuery, setNameQuery,
+    geography, setGeography, category, setCategory, source, setSource, sourceNames, sourceDescriptions, icpMin, setIcpMin, tier, setTier, priceMin, setPriceMin,
+    searchState, clearResults, handleSearch, visibleResults, liveMatchCount, sortKey, setSortKey, sortDir, setSortDir, hiddenIds, selectedIds, showOnlySelected, setShowOnlySelected,
     clearSelection, restoreHidden, results, editMode, toggleEditMode, setSelectedIds, expandedCompanyId, setExpandedCompanyId,
     startEdit, confirmRemoveId, setConfirmRemoveId, setEditError, toggleSelected, updateCompanyStatus,
     editingCompanyId, editDraft, setEditDraft, editError, savingEdit, saveEdit, cancelEdit, hasUnsavedEdit,
@@ -21,11 +22,110 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
     removeTarget, removing, hideFromView, removeCompany, pendingNav, setPendingNav, pendingExport,
   } = api;
 
+  // Second-step confirmation before a permanent delete.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  // Which ICP star is hovered (for the styled tooltip in the filter).
+  const [hoverStar, setHoverStar] = useState<number | null>(null);
+  const closeRemove = () => { if (!removing) { setConfirmRemoveId(null); setConfirmDelete(false); } };
+
   return (
     <>
+      <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
+        <div style={{ background: "var(--header)", padding: "12px 20px" }}>
+          <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Filter Companies</p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", background: "var(--banner-info-bg)", borderBottom: "1px solid var(--banner-info-border)" }}>
+          <span style={{ fontSize: 18, lineHeight: 1 }}>💡</span>
+          <p style={{ fontSize: 13, color: "var(--banner-info-text)", lineHeight: 1.5 }}>
+            <strong>Every filter is optional.</strong> Set only the ones you want to narrow by; anything you leave alone includes everything. Results update as you change filters.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0">
+
+          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
+            <label style={labelStyle}>Geography</label>
+            <MultiSelect options={GEO_OPTIONS} value={geography} onChange={setGeography} placeholder="All geographies" />
+          </div>
+
+          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
+            <label style={labelStyle}>Company category</label>
+            <MultiSelect options={categories} value={category} onChange={setCategory} placeholder="All categories" descriptions={CATEGORY_DESCRIPTIONS} />
+          </div>
+
+          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
+            <label style={labelStyle}>Source</label>
+            <MultiSelect options={sourceNames} value={source} onChange={setSource} placeholder="All sources" searchable descriptions={sourceDescriptions} />
+          </div>
+
+          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
+            <label style={labelStyle}>Priority Tier</label>
+            <MultiSelect options={TIERS.slice(1)} value={tier} onChange={setTier} placeholder="All tiers" descriptions={TIER_DESCRIPTIONS} />
+          </div>
+
+          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
+            <label style={labelStyle}>Minimum product price</label>
+            <div style={{ position: "relative", marginTop: 22 }}>
+              {priceMin && (
+                <span style={{ position: "absolute", top: -20, left: `calc(${(Number(priceMin) / 200) * 100}% )`, transform: "translateX(-50%)", background: "var(--navy)", color: "var(--white)", fontSize: 12, fontWeight: 700, padding: "2px 8px", borderRadius: 4, whiteSpace: "nowrap", pointerEvents: "none" }}>
+                  {priceMin}
+                </span>
+              )}
+              <input type="range" min={0} max={200} step={5} value={priceMin ? Number(priceMin) : 0}
+                onChange={(e) => setPriceMin(e.target.value === "0" ? "" : e.target.value)}
+                style={{ width: "100%", accentColor: "var(--accent)", cursor: "pointer" }} />
+            </div>
+          </div>
+
+          <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border-light)" }}>
+            <label style={labelStyle}>Min. ICP Fit Score</label>
+            <div style={{ position: "relative", marginTop: 4 }}>
+              {hoverStar && (
+                <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, maxWidth: 240, zIndex: 30, background: "var(--navy)", color: "var(--white)", fontSize: 12, lineHeight: 1.5, padding: "8px 10px", borderRadius: 4, boxShadow: "0 8px 24px rgba(12,28,46,0.28)", pointerEvents: "none" }}>
+                  Show companies rated {hoverStar}★ or higher ({ICP_STAR_POINTS[hoverStar]} on the ICP scale).
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 2 }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button key={star} onClick={() => setIcpMin(icpMin === star ? 1 : star)}
+                    onMouseEnter={() => setHoverStar(star)} onMouseLeave={() => setHoverStar(null)}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= icpMin ? (icpMin >= 4 ? "var(--success)" : icpMin === 3 ? "var(--warning)" : "var(--danger)") : "var(--border-grey)" }}>
+                    ★
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 4 }}>Showing {icpMin}★ and above</p>
+          </div>
+        </div>
+
+        {companies.length > 0 && liveMatchCount === 0 && (
+          <p style={{ padding: "12px 20px", fontSize: 12.5, color: "var(--danger-text)", background: "var(--surface-danger)", borderTop: "1px solid var(--border-light)" }}>
+            ⚠ No companies match these filters.{" "}
+            {tier.includes("Early Mover") && category.includes("Distributor/enabler")
+              ? "By definition a distributor/enabler isn't an early mover. Try Follower, or clear the category."
+              : "None have been registered with this combination. Try removing a filter."}
+          </p>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "14px 20px", borderTop: "1px solid var(--border-light)", background: "var(--white)" }}>
+          {searchState === "done" && (
+            <button onClick={() => guardUnsavedEdit(clearResults)}
+              style={{ ...btnSecondary, padding: "10px 24px", fontSize: 13, letterSpacing: "0.06em" }}>
+              Clear Results
+            </button>
+          )}
+          <button onClick={() => guardUnsavedEdit(handleSearch)}
+            style={{ ...btnPrimary, padding: "10px 28px", fontSize: 13, letterSpacing: "0.06em" }}
+            onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-hover)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "var(--accent)")}>
+            {searchState === "done" ? "Update results" : "Find Companies →"}
+          </button>
+        </div>
+      </div>
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <button onClick={() => guardUnsavedEdit(() => { setSearchParams({ geography: [], category: [], source: [], priceMin: "", priceMax: "", icpMin: 1, tier: [] }); setSearchState("done"); })}
-          style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
+        <button onClick={() => guardUnsavedEdit(showAllCompanies)}
+          style={{ ...btnSecondary, padding: "12px 32px", fontSize: 13, letterSpacing: "0.08em" }}
           onMouseEnter={e => (e.currentTarget.style.background = "var(--surface)")}
           onMouseLeave={e => (e.currentTarget.style.background = "var(--white)")}>
           Show All Companies →
@@ -36,78 +136,16 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
         </button>
       </div>
 
-      <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
-        <div style={{ background: "var(--header)", padding: "12px 20px" }}>
-          <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Filter Companies</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0" style={{ borderTop: "1px solid var(--border-light)" }}>
-
-          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-            <label style={labelStyle}>Geography</label>
-            <MultiSelect options={GEO_OPTIONS} value={geography} onChange={setGeography} placeholder="All geographies" />
-          </div>
-
-          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-            <label style={labelStyle}>Company category</label>
-            <MultiSelect options={categories} value={category} onChange={setCategory} placeholder="All categories" />
-          </div>
-
-          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-            <label style={labelStyle}>Source</label>
-            <MultiSelect options={sourceNames} value={source} onChange={setSource} placeholder="All sources" />
-          </div>
-
-          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-            <label style={labelStyle}>Priority Tier</label>
-            <MultiSelect options={TIERS.slice(1)} value={tier} onChange={setTier} placeholder="All tiers" />
-          </div>
-
-          <div style={{ padding: "18px 20px", borderRight: "1px solid var(--border-light)", borderBottom: "1px solid var(--border-light)" }}>
-            <label style={labelStyle}>Highest product price</label>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input type="number" placeholder="No min" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} style={inputStyle} />
-              <span style={{ color: "var(--text-faint)", fontSize: 12 }}>to</span>
-              <input type="number" placeholder="No max" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} style={inputStyle} />
-            </div>
-            <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 4 }}>Filters on each company&apos;s most expensive product. Both fields are optional; leave one blank for no limit. Set just a minimum to find premium brands.</p>
-          </div>
-
-          <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--border-light)" }}>
-            <label style={labelStyle}>Min. ICP Fit Score</label>
-            <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button key={star} onClick={() => setIcpMin(icpMin === star ? 1 : star)}
-                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 24, lineHeight: 1, padding: "0 2px", color: star <= icpMin ? (icpMin >= 4 ? "var(--success)" : icpMin === 3 ? "var(--warning)" : "var(--danger)") : "var(--border-grey)" }}>
-                  ★
-                </button>
-              ))}
-            </div>
-            <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 4 }}>Showing {icpMin}★ and above</p>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-        {searchState === "done" && (
-          <button onClick={() => guardUnsavedEdit(clearResults)}
-            style={{ ...btnSecondary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}>
-            Clear Results
-          </button>
-        )}
-        <button onClick={() => guardUnsavedEdit(handleSearch)}
-          style={{ ...btnPrimary, padding: "12px 36px", fontSize: 13, letterSpacing: "0.08em" }}
-          onMouseEnter={e => (e.currentTarget.style.background = "var(--accent-hover)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "var(--accent)")}>
-          Find Companies →
-        </button>
-      </div>
-
       {searchState === "loading" && <p style={{ color: "var(--text-slate)", fontSize: 13 }}>Fetching companies…</p>}
 
       {searchState === "done" && (
         <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
-          <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Results</p>
+          <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Results</p>
+              <input type="text" value={nameQuery} onChange={e => setNameQuery(e.target.value)} placeholder="Search by company name…"
+                style={{ width: 220, fontSize: 12, padding: "6px 10px", borderRadius: 4, border: "none", background: "var(--white)", color: "var(--navy)" }} />
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               {results.length > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -153,8 +191,8 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
               )}
               {results.length > 0 && (
                 <button type="button" onClick={toggleEditMode}
-                  style={{ background: editMode ? "var(--white)" : "var(--accent)", color: editMode ? "var(--header)" : "var(--white)", border: "none", padding: "6px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
-                  {editMode ? "Done editing" : "Edit list"}
+                  style={{ background: editMode ? "var(--white)" : "transparent", color: editMode ? "var(--header)" : "var(--white)", border: editMode ? "none" : "1px solid var(--border-on-dark)", padding: "6px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", borderRadius: 4 }}>
+                  {editMode ? "Done editing" : "✎ Edit list"}
                 </button>
               )}
             </div>
@@ -369,30 +407,55 @@ export function CompanyDatabaseTab({ api, categories }: { api: CompaniesApi; cat
 
       {removeTarget && (
         <div
-          onClick={() => { if (!removing) setConfirmRemoveId(null); }}
+          onClick={closeRemove}
           style={{ position: "fixed", inset: 0, background: "rgba(12,28,46,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}>
           <div onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 660, width: "100%", padding: "26px 28px", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
-            <p style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>Remove {removeTarget.name}?</p>
-            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Choose how you want to remove this company.</p>
-            <div style={{ display: "flex", gap: 14 }}>
-              <button type="button" onClick={() => { hideFromView(removeTarget.id); setConfirmRemoveId(null); }} disabled={removing}
-                style={{ flex: 1, textAlign: "left", background: "var(--white)", color: "var(--navy)", border: "1px solid var(--border)", padding: "16px", cursor: removing ? "default" : "pointer" }}>
-                <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Remove from this view only</span>
-                <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>Hides it from the current list and the Excel export. Not deleted — use “Restore hidden” to bring it back.</span>
-              </button>
-              <button type="button" onClick={() => removeCompany(removeTarget)} disabled={removing}
-                style={{ flex: 1, textAlign: "left", background: "var(--white)", color: "var(--danger-text)", border: "1px solid var(--border-danger)", padding: "16px", cursor: removing ? "default" : "pointer" }}>
-                <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{removing ? "Deleting…" : "Delete from the company database"}</span>
-                <span style={{ display: "block", fontSize: 12, color: "var(--danger-muted)", lineHeight: 1.5 }}>Removes it from the database. Kept internally as rejected, so it can be restored later and won’t be re-discovered.</span>
-              </button>
-            </div>
-            <div style={{ marginTop: 20 }}>
-              <button type="button" onClick={() => setConfirmRemoveId(null)} disabled={removing}
-                style={{ background: "var(--surface)", color: "var(--text-slate)", border: "1px solid var(--border)", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: removing ? "default" : "pointer" }}>
-                Cancel
-              </button>
-            </div>
+            style={{ background: "var(--white)", border: confirmDelete ? "1px solid var(--border-danger)" : "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", maxWidth: 660, width: "100%", boxShadow: "0 12px 40px rgba(12,28,46,0.25)" }}>
+            {confirmDelete ? (
+              <>
+                <div style={{ background: "var(--danger)", padding: "14px 28px" }}>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: "var(--white)" }}>Delete {removeTarget.name} permanently?</p>
+                </div>
+                <div style={{ padding: "22px 28px" }}>
+                  <p style={{ fontSize: 14, color: "var(--text)", lineHeight: 1.6, marginBottom: 20 }}>
+                    Are you sure you want to delete this company from the database? This removes it from the system, and the only way to get it back is to add it again manually.
+                  </p>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <button type="button" onClick={() => removeCompany(removeTarget)} disabled={removing}
+                      style={{ background: "var(--danger)", color: "var(--white)", border: "none", padding: "10px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: removing ? "default" : "pointer", borderRadius: 4 }}>
+                      {removing ? "Deleting…" : "Yes, delete permanently"}
+                    </button>
+                    <button type="button" onClick={() => setConfirmDelete(false)} disabled={removing}
+                      style={{ background: "var(--surface)", color: "var(--text-slate)", border: "1px solid var(--border)", padding: "10px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: removing ? "default" : "pointer", borderRadius: 4 }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ padding: "26px 28px" }}>
+                <p style={{ fontSize: 17, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>Remove {removeTarget.name}?</p>
+                <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Choose how you want to remove this company.</p>
+                <div style={{ display: "flex", gap: 14 }}>
+                  <button type="button" onClick={() => { hideFromView(removeTarget.id); closeRemove(); }} disabled={removing}
+                    style={{ flex: 1, textAlign: "left", background: "var(--white)", color: "var(--navy)", border: "1px solid var(--border)", padding: "16px", cursor: removing ? "default" : "pointer" }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Remove from this view only</span>
+                    <span style={{ display: "block", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>Hides it from the current list and the Excel export. Not deleted; use “Restore hidden” to bring it back.</span>
+                  </button>
+                  <button type="button" onClick={() => setConfirmDelete(true)} disabled={removing}
+                    style={{ flex: 1, textAlign: "left", background: "var(--white)", color: "var(--danger-text)", border: "1px solid var(--border-danger)", padding: "16px", cursor: removing ? "default" : "pointer" }}>
+                    <span style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Delete from the company database</span>
+                    <span style={{ display: "block", fontSize: 12, color: "var(--danger-muted)", lineHeight: 1.5 }}>Removes it from the database. Kept internally as rejected, so it won’t be re-discovered.</span>
+                  </button>
+                </div>
+                <div style={{ marginTop: 20 }}>
+                  <button type="button" onClick={closeRemove} disabled={removing}
+                    style={{ background: "var(--surface)", color: "var(--text-slate)", border: "1px solid var(--border)", padding: "9px 22px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", cursor: removing ? "default" : "pointer" }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

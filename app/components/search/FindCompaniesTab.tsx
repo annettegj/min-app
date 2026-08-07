@@ -99,8 +99,8 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                       Source performance
                     </button>
                     <button type="button" onClick={enterConfigEdit}
-                      style={{ background: "var(--accent)", color: "var(--white)", border: "none", borderRadius: 4, padding: "6px 16px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
-                      Edit
+                      style={{ background: "transparent", color: "var(--white)", border: "1px solid var(--border-on-dark)", borderRadius: 4, padding: "6px 16px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", cursor: "pointer" }}>
+                      ✎ Edit
                     </button>
                   </div>
                 )}

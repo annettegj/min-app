@@ -35,7 +35,7 @@ export function IcpTab({ authEmail, categoriesApi }: { authEmail: string | null;
           <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Lysoveta ICP Criteria</p>
           {!icpEditMode && (
             <button type="button" onClick={enterIcpEdit}
-              style={{ background: "var(--accent)", border: "none", color: "var(--white)", padding: "5px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", borderRadius: 4, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+              style={{ background: "transparent", border: "1px solid var(--border-on-dark)", color: "var(--white)", padding: "5px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", borderRadius: 4, letterSpacing: "0.04em", textTransform: "uppercase" }}>
               ✎ Edit Criteria
             </button>
           )}

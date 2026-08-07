@@ -16,6 +16,20 @@ export const CAT_OPTIONS = CATEGORIES.slice(1);
 // "Distributor/enabler") — existing enabler companies were migrated to Follower (migration 020).
 export const TIERS = ["All", "Early Mover", "Follower"];
 
+// Hover-tooltip definitions for the filter options (shown when hovering an option in the dropdown).
+export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
+  "Premium/science-driven brand": "A consumer brand built on scientific credibility and premium positioning. This is the core Lysoveta target.",
+  "Pharma Rx": "A pharmaceutical company with prescription (Rx) products; sells science-backed products via pharmacy and healthcare channels.",
+  "Established CHC": "An established consumer-health (CHC / over-the-counter) company with a broad, often mass-market portfolio.",
+  "Distributor/enabler": "Resells or brings other brands to market rather than selling its own products (a distributor or market-access enabler).",
+};
+export const TIER_DESCRIPTIONS: Record<string, string> = {
+  "Early Mover": "Strong, ready-now fit: science-driven positioning with the right category and price signals for Lysoveta.",
+  "Follower": "A plausible fit likely to adopt after the early movers (includes distributors and enablers).",
+};
+// Roughly how the point total maps to stars (mirrors the scoring table in config/icp.md).
+export const ICP_STAR_POINTS: Record<number, string> = { 1: "0–3 pts", 2: "4–5 pts", 3: "6–7 pts", 4: "8–9 pts", 5: "10–11 pts" };
+
 // Search-configuration preview options — read directly from config/sources.json (one-way: config →
 // app), so the UI always mirrors the actual sources and search concepts the code uses.
 export const SEARCH_TERM_OPTIONS = Array.from(new Set([

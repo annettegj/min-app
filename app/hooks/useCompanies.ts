@@ -4,13 +4,24 @@ import { EMPTY_ADD_FORM, STATUS_OPTIONS } from "@/lib/uiConstants";
 import { fmtAddedDate, parseMulti, joinMulti } from "@/lib/format";
 import type { Company, EditDraft, AddCompanyForm } from "@/lib/uiTypes";
 
-// geography + category are multi-value: empty list = no constraint (all); otherwise a company
-// matches if ANY of its values overlaps ANY selected value. `source` filters on the single
-// `source_name` per company (empty = all).
-type SearchParams = null | { geography: string[]; category: string[]; source: string[]; priceMin: string; priceMax: string; icpMin: number; tier: string[] };
+// The live filter values. Empty = no constraint. geography/category are multi-value (a company
+// matches if ANY of its values overlaps ANY selected value); `source` matches the single source_name.
+type Filters = { name: string; geography: string[]; category: string[]; source: string[]; priceMin: string; priceMax: string; icpMin: number; tier: string[] };
 
 // Priority-tier filter labels → the stored priority_tier values.
-const TIER_VALUE_BY_LABEL: Record<string, string> = { "Early Mover": "early_mover", "Follower": "follower", "Enabler": "enabler" };
+const TIER_VALUE_BY_LABEL: Record<string, string> = { "Early Mover": "early_mover", "Follower": "follower" };
+
+function matchesFilters(c: Company, f: Filters): boolean {
+  if (f.name && !(c.name ?? "").toLowerCase().includes(f.name.trim().toLowerCase())) return false;
+  if (f.geography.length && !parseMulti(c.geography).some((g) => f.geography.includes(g))) return false;
+  if (f.category.length && !parseMulti(c.product_category).some((pc) => f.category.includes(pc))) return false;
+  if (f.source.length && !f.source.includes(c.source_name ?? "")) return false;
+  if (f.priceMin && (c.max_price ?? 0) < Number(f.priceMin)) return false;
+  if (f.priceMax && (c.max_price ?? 0) > Number(f.priceMax)) return false;
+  if (c.icp_fit < f.icpMin) return false;
+  if (f.tier.length && !f.tier.map((l) => TIER_VALUE_BY_LABEL[l]).includes(c.priority_tier ?? "")) return false;
+  return true;
+}
 
 // Owns the entire Company Database domain: the saved companies, the filter panel + results, inline
 // edit / soft-delete, row selection + view-only, the manual "Add company" form, Excel export, and the
@@ -18,6 +29,7 @@ const TIER_VALUE_BY_LABEL: Record<string, string> = { "Early Mover": "early_move
 // the search flow / source-performance modal), and the result is passed to <CompanyDatabaseTab>.
 export function useCompanies() {
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [nameQuery, setNameQuery] = useState("");
   const [geography, setGeography] = useState<string[]>([]);
   const [category, setCategory] = useState<string[]>([]);
   const [source, setSource] = useState<string[]>([]);
@@ -25,8 +37,9 @@ export function useCompanies() {
   const [priceMax, setPriceMax] = useState("");
   const [icpMin, setIcpMin] = useState(1);
   const [tier, setTier] = useState<string[]>([]);
+  // "idle" = filter panel only; "done" = results table shown (and it updates live as filters change).
   const [searchState, setSearchState] = useState<"idle" | "loading" | "done">("idle");
-  const [searchParams, setSearchParams] = useState<SearchParams>(null);
+  const filters: Filters = { name: nameQuery, geography, category, source, priceMin, priceMax, icpMin, tier };
   const [editingCompanyId, setEditingCompanyId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [editOriginal, setEditOriginal] = useState<EditDraft | null>(null);
@@ -67,8 +80,22 @@ export function useCompanies() {
     if (data) setCompanies(data.filter((c: Company) => c.added && !c.rejected) as Company[]);
   }
 
-  // Load the company database on mount (previously done in page.tsx's mount effect).
-  useEffect(() => { loadCompanies(); }, []);
+  // Short per-source descriptions (type · market. note) for the Source filter's hover tooltips.
+  const [sourceDescriptions, setSourceDescriptions] = useState<Record<string, string>>({});
+  async function loadSourceDescriptions() {
+    const { data } = await supabase.from("sources").select("name, type, market, note");
+    const map: Record<string, string> = { "Manually added": "Companies added by hand, without running a search." };
+    for (const s of (data ?? []) as { name: string; type: string | null; market: string | null; note: string | null }[]) {
+      const typeLabel = s.type === "web page" ? "Single page" : s.type === "youtube" ? "YouTube" : "Website";
+      let d = typeLabel + (s.market ? ` · ${s.market}` : "");
+      if (s.note && s.note.trim()) d += `. ${s.note.trim()}`;
+      map[s.name] = d;
+    }
+    setSourceDescriptions(map);
+  }
+
+  // Load the company database + source descriptions on mount (previously done in page.tsx's mount effect).
+  useEffect(() => { loadCompanies(); loadSourceDescriptions(); }, []);
 
   function openAddCompany() { setAddForm(EMPTY_ADD_FORM); setAddFormError(""); setAddOpen(true); }
   async function submitAddCompany() {
@@ -94,7 +121,7 @@ export function useCompanies() {
     if (error) { setAddFormError("Could not save: " + error.message); setAddSaving(false); return; }
     await loadCompanies();
     setAddSaving(false); setAddOpen(false);
-    setSearchParams({ geography: [], category: [], source: [], priceMin: "", priceMax: "", icpMin: 1, tier: [] });
+    resetFilters();
     setSearchState("done");
   }
 
@@ -104,19 +131,26 @@ export function useCompanies() {
     if (error) { console.error("[status] update failed:", error.message); loadCompanies(); }
   }
 
-  const results = useMemo(() => {
-    if (!searchParams) return [];
-    return companies.filter((c) => {
-      if (searchParams.geography.length && !parseMulti(c.geography).some((g) => searchParams.geography.includes(g))) return false;
-      if (searchParams.category.length && !parseMulti(c.product_category).some((pc) => searchParams.category.includes(pc))) return false;
-      if (searchParams.source.length && !searchParams.source.includes(c.source_name ?? "")) return false;
-      if (searchParams.priceMin && (c.max_price ?? 0) < Number(searchParams.priceMin)) return false;
-      if (searchParams.priceMax && (c.max_price ?? 0) > Number(searchParams.priceMax)) return false;
-      if (c.icp_fit < searchParams.icpMin) return false;
-      if (searchParams.tier.length && !searchParams.tier.map((l) => TIER_VALUE_BY_LABEL[l]).includes(c.priority_tier ?? "")) return false;
-      return true;
-    });
-  }, [searchParams, companies]);
+  // Results update LIVE from the filters once the table is shown — no need to re-run "Find companies".
+  const results = useMemo(
+    () => searchState !== "done" ? [] : companies.filter((c) => matchesFilters(c, filters)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [searchState, companies, nameQuery, geography, category, source, priceMin, priceMax, icpMin, tier]
+  );
+
+  // How many companies the current filters would match, regardless of whether the table is shown yet
+  // (drives the "no companies match" warning before you open the results).
+  const liveMatchCount = useMemo(
+    () => companies.filter((c) => matchesFilters(c, filters)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [companies, nameQuery, geography, category, source, priceMin, priceMax, icpMin, tier]
+  );
+
+  // Upper bound for the price slider: the most expensive product across the database (rounded up).
+  const priceBound = useMemo(() => {
+    const max = Math.max(0, ...companies.map((c) => c.max_price ?? 0));
+    return max > 0 ? Math.ceil(max / 50) * 50 : 300;
+  }, [companies]);
 
   // Sort the shown table (via the "Sort by" control). Default: newest-added first.
   const [sortKey, setSortKey] = useState<string>("added");
@@ -298,9 +332,9 @@ export function useCompanies() {
     if (expandedCompanyId === id) setExpandedCompanyId(null);
   }
   function restoreHidden() { setHiddenIds(new Set()); }
+  function resetFilters() { setNameQuery(""); setGeography([]); setCategory([]); setSource([]); setPriceMin(""); setPriceMax(""); setIcpMin(1); setTier([]); }
   function clearResults() {
     setSearchState("idle");
-    setSearchParams(null);
     setExpandedCompanyId(null);
     setEditMode(false);
     cancelEdit();
@@ -315,26 +349,23 @@ export function useCompanies() {
     if (hasUnsavedEdit()) setPendingNav(() => proceed);
     else proceed();
   }
-  function handleSearch() {
-    setSearchState("loading");
-    setSearchParams(null);
-    setTimeout(() => {
-      setSearchParams({ geography, category, source, priceMin, priceMax, icpMin, tier });
-      setSearchState("done");
-    }, 500);
-  }
+  // Show the results table. Filtering itself is live, so this only flips the view on.
+  function handleSearch() { setSearchState("done"); }
+  // Show every company: clear all filters and open the table.
+  function showAllCompanies() { resetFilters(); setSearchState("done"); }
 
   return {
-    companies, loadCompanies, savedBySource, sourceNames,
+    companies, loadCompanies, savedBySource, sourceNames, sourceDescriptions,
+    nameQuery, setNameQuery,
     geography, setGeography, category, setCategory, source, setSource, priceMin, setPriceMin, priceMax, setPriceMax, icpMin, setIcpMin, tier, setTier,
-    searchState, setSearchState, searchParams, setSearchParams, results, visibleResults,
+    searchState, setSearchState, results, visibleResults, liveMatchCount, priceBound,
     sortKey, setSortKey, sortDir, setSortDir,
     editingCompanyId, editDraft, setEditDraft, savingEdit, editError, confirmRemoveId, setConfirmRemoveId, setEditError, removing, removeTarget,
     editMode, hiddenIds, selectedIds, setSelectedIds, showOnlySelected, setShowOnlySelected, expandedCompanyId, setExpandedCompanyId,
     pendingNav, setPendingNav, pendingExport, setPendingExport, exporting,
     addOpen, setAddOpen, addForm, setAddForm, addSaving, addFormError,
     openAddCompany, submitAddCompany, updateCompanyStatus, toggleSelected, clearSelection, handleExportExcel,
-    startEdit, cancelEdit, saveEdit, removeCompany, toggleEditMode, hideFromView, restoreHidden, clearResults, hasUnsavedEdit, guardUnsavedEdit, handleSearch,
+    startEdit, cancelEdit, saveEdit, removeCompany, toggleEditMode, hideFromView, restoreHidden, clearResults, hasUnsavedEdit, guardUnsavedEdit, handleSearch, showAllCompanies,
   };
 }
 
