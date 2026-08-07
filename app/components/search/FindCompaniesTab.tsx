@@ -184,7 +184,7 @@ export function FindCompaniesTab({ api, savedBySource, onGoToDatabase, categorie
                   {configEditMode ? (
                     <>
                       <p style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>Tick <strong>Recommended</strong> to show a source in the short default list. Click a source name to edit its details.</p>
-                      <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 20, marginTop: 4 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 20, marginTop: 4 }}>
                         {[
                           { heading: "Website", type: "web site" },
                           { heading: "Single page", type: "web page" },
@@ -193,7 +193,7 @@ export function FindCompaniesTab({ api, savedBySource, onGoToDatabase, categorie
                           const items = draftSources.filter(s => (s.type ?? "web site") === group.type).sort((a, b) => a.name.localeCompare(b.name));
                           if (items.length === 0) return null;
                           return (
-                            <div key={group.heading}>
+                            <div key={group.heading} style={{ flex: "1 1 220px", minWidth: 0 }}>
                               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{group.heading}</p>
                               <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
                                 {items.map(s => {
@@ -287,7 +287,9 @@ export function FindCompaniesTab({ api, savedBySource, onGoToDatabase, categorie
                     };
                     return (
                     <>
-                    <div className="grid grid-cols-1 md:grid-cols-3" style={{ gap: 20, marginTop: 4 }}>
+                    {/* Flex (not a fixed 3-col grid) so the visible type groups always fill the full
+                        width, instead of leaving an empty column when a group (e.g. Single page) is empty. */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 20, marginTop: 4 }}>
                       {groups.map(group => {
                         if (group.items.length === 0) return null;
                         const featured = group.items.filter(s => s.featured);
@@ -296,7 +298,7 @@ export function FindCompaniesTab({ api, savedBySource, onGoToDatabase, categorie
                         const expanded = !!expandedSourceGroups[group.heading];
                         const hasHidden = hasFeatured && others.length > 0; // non-recommended hidden here
                         return (
-                          <div key={group.heading}>
+                          <div key={group.heading} style={{ flex: "1 1 220px", minWidth: 0 }}>
                             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 6 }}>{group.heading}</p>
                             {hasFeatured ? (
                               // One shared scroll container so the column never has two scrollbars.
