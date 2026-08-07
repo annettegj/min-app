@@ -1,14 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { US_MARKET_ENABLED } from "@/lib/features";
 import { MarketBadge } from "@/app/components/common/MarketBadge";
 import { MultiSelect } from "@/app/components/common/MultiSelect";
-import { QueueModal } from "@/app/components/search/QueueModal";
 import { SourcePerfModal } from "@/app/components/search/SourcePerfModal";
 import { SourceModal } from "@/app/components/search/SourceModal";
+import { SearchModesInfoModal } from "@/app/components/search/SearchModesInfoModal";
 import { inputStyle, labelStyle, btnPrimary, btnSecondary, addBtnStyle } from "@/lib/styles";
 import { safeHref, fmtDate } from "@/lib/format";
 import { SEARCH_DISABLED, GEO_OPTIONS } from "@/lib/uiConstants";
+import { ENRICH_BATCH_SIZE } from "@/lib/searchLimits";
 import { useSearch } from "@/app/hooks/useSearch";
 
 // The "Find New Companies" tab. Owns nothing itself — all state + handlers live in useSearch.
@@ -33,7 +35,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
     termLastUsed, reactivatedPages, reactivateSource,
     configBusy, configError, setConfigError,
     searchProgress, activeSearchJobId, logLines, showLog, setShowLog,
-    pendingQueueCount, queueModalOpen, setQueueModalOpen, clearingQueue,
+    pendingQueueCount, queueItems, queueSelected, toggleQueueSelected, clearingQueue,
     warnThresholdPct, warnMinUses, perfModalOpen, setPerfModalOpen,
     perfDraftPct, setPerfDraftPct, perfDraftMin, setPerfDraftMin,
     perfSaving, perfEditThreshold, setPerfEditThreshold,
@@ -42,14 +44,22 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
     removeDraftSource, toggleDraftSourceFeatured, openAddSource, openEditSource, applySource, saveConfig,
     clearQueue, saveSettings,
     sourceHitRate, sourceIsLow, fmtHitRate, fmtSavedRate,
-    deleteFromQueue, resetProcessingToQueue, handleAgentSearch,
+    deleteFromQueue, resetProcessingToQueue, handleNewSearch, handleQueueSearch,
     toggleResult, handleAddSelected, updatePending, removePending, handleSave,
   } = useSearch(reloadCompanies);
 
+  // "What's the difference?" help modal for the two search actions.
+  const [modesInfoOpen, setModesInfoOpen] = useState(false);
+
+  // The two searches are mutually exclusive: ticking waiting-list companies locks the new-search
+  // controls (terms/sources/button), and picking terms/sources locks the waiting-list controls.
+  const rightEngaged = queueSelected.size > 0;
+  const leftEngaged = selectedTerms.length > 0 || selectedSources.length > 0;
+
   return (
     <>
-      {/* Narrower, centered column for this tab only — the top bar stays full-width. */}
-      <div style={{ maxWidth: 1180, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* Centered column for this tab — wide so the idle view can be a config + waiting-list split. */}
+      <div style={{ maxWidth: 1460, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 24 }}>
         {/* Live search log — mirrors the server log, so no need to open the Render dashboard */}
         {activeSearchJobId != null && logLines.length > 0 && (
           <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
@@ -68,9 +78,19 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
 
         {agentState === "idle" && addingState !== "saved" && (
           <>
+          {/* Help link spanning above both boxes — explains the two ways to search. */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: -8 }}>
+            <button type="button" onClick={() => setModesInfoOpen(true)}
+              style={{ background: "transparent", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12.5, fontWeight: 700, padding: 0 }}>
+              ⓘ What&apos;s the difference between the two searches?
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 48, alignItems: "flex-start", flexWrap: "wrap" }}>
+            {/* Left (wider): the search configuration + the "new search" action. */}
+            <div style={{ flex: "1 1 620px", minWidth: 0, display: "flex", flexDirection: "column", gap: 24 }}>
             {/* Search configuration — read from the DB; editable in place (Edit toggle) */}
             <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ background: "var(--header)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ background: "var(--header)", padding: "0 20px", height: 56, boxSizing: "border-box", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Search Configuration</p>
                 {!configEditMode && (
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -122,8 +142,8 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                           const checked = selectedTerms.includes(t);
                           const atMax = selectedTerms.length >= 3;
                           return (
-                            <label key={t} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
-                              <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                            <label key={t} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: (checked || !atMax) && !rightEngaged ? "var(--text)" : "var(--text-faint)", cursor: (checked || !atMax) && !rightEngaged ? "pointer" : "default" }}>
+                              <input type="checkbox" checked={checked} disabled={rightEngaged || (!checked && atMax)}
                                 onChange={() => setSelectedTerms(checked ? selectedTerms.filter(x => x !== t) : [...selectedTerms, t])}
                                 style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
                               <span>
@@ -149,7 +169,6 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                 <div className="md:col-span-3" style={{ display: "flex", flexDirection: "column" }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap", marginBottom: 6 }}>
                     <label style={{ ...labelStyle, marginBottom: 0 }}>{configEditMode ? "Sources" : "Sources (choose up to 4)"}</label>
-                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}><strong>Website</strong> = a whole site · <strong>Single page</strong> = one specific URL</span>
                   </div>
                   {configEditMode ? (
                     <>
@@ -224,8 +243,8 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                       const checked = selectedSources.includes(s.name);
                       const atMax = selectedSources.length >= 4;
                       return (
-                        <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: checked || !atMax ? "var(--text)" : "var(--text-faint)", cursor: checked || !atMax ? "pointer" : "default" }}>
-                          <input type="checkbox" checked={checked} disabled={!checked && atMax}
+                        <label key={s.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: (checked || !atMax) && !rightEngaged ? "var(--text)" : "var(--text-faint)", cursor: (checked || !atMax) && !rightEngaged ? "pointer" : "default" }}>
+                          <input type="checkbox" checked={checked} disabled={rightEngaged || (!checked && atMax)}
                             onChange={() => setSelectedSources(checked ? selectedSources.filter(x => x !== s.name) : [...selectedSources, s.name])}
                             style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
                           <span>
@@ -318,7 +337,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                       {open && (
                         <div style={{ marginTop: 10 }}>
                           <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 10, lineHeight: 1.5 }}>
-                            Already read once — nothing new to find, so they&apos;re kept here for reference (not selectable).
+                            Already read once, so there&apos;s nothing new to find. They&apos;re kept here for reference (not selectable).
                           </p>
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             {completed.map(s => (
@@ -358,42 +377,111 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
               )}
             </div>
 
-            {/* Search action */}
-            <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", padding: "72px 32px 48px", textAlign: "center", position: "relative" }}>
-              <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>An AI agent will search the web for companies that match Lysoveta’s ideal customer profile.</p>
+              {/* ── Mode A: brand-new search (uses the search configuration above) ── */}
+              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", padding: "36px 28px 32px", textAlign: "center", display: "flex", flexDirection: "column" }}>
+                <p style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>Search for new companies</p>
+                <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Finds new companies from your selected sources &amp; terms, then researches and scores the newest {ENRICH_BATCH_SIZE}.</p>
 
-              {/* Target market — soft region steer for discovery */}
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 28 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)" }}>Target market</span>
-                <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }}>
-                  {([
-                    { value: "eu", label: "Europe" },
-                    { value: "us", label: "US" },
-                    { value: "both", label: "No preference" },
-                  ] as const).map((opt) => {
-                    const active = targetMarket === opt.value;
-                    const locked = !US_MARKET_ENABLED; // US off → selector is a disabled placeholder
-                    return (
-                      <button key={opt.value} type="button" disabled={locked} onClick={() => setTargetMarket(opt.value)}
-                        style={{ background: active ? "var(--accent)" : "var(--white)", color: active ? "var(--white)" : (locked ? "var(--text-faint)" : "var(--text-slate)"), border: "none", borderRadius: 0, padding: "7px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", cursor: locked ? "not-allowed" : "pointer", opacity: locked && !active ? 0.5 : 1 }}>
-                        {opt.label}
-                      </button>
-                    );
-                  })}
+                {/* Target market — soft region steer for discovery */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 24 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-muted)" }}>Target market</span>
+                  <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 4, overflow: "hidden" }}>
+                    {([
+                      { value: "eu", label: "Europe" },
+                      { value: "us", label: "US" },
+                      { value: "both", label: "No preference" },
+                    ] as const).map((opt) => {
+                      const active = targetMarket === opt.value;
+                      const locked = !US_MARKET_ENABLED; // US off → selector is a disabled placeholder
+                      return (
+                        <button key={opt.value} type="button" disabled={locked} onClick={() => setTargetMarket(opt.value)}
+                          style={{ background: active ? "var(--accent)" : "var(--white)", color: active ? "var(--white)" : (locked ? "var(--text-faint)" : "var(--text-slate)"), border: "none", borderRadius: 0, padding: "7px 18px", fontSize: 12, fontWeight: 700, letterSpacing: "0.03em", cursor: locked ? "not-allowed" : "pointer", opacity: locked && !active ? 0.5 : 1 }}>
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{US_MARKET_ENABLED
+                    ? "Guides the search toward companies in this region. Any from other regions that turn up are still kept and scored against their own ICP."
+                    : "The search focuses on European companies."}</span>
                 </div>
-                <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{US_MARKET_ENABLED
-                  ? "Guides the search toward companies in this region. Any from other regions that turn up are still kept and scored against their own ICP."
-                  : "The search focuses on European companies."}</span>
+
+                <div style={{ marginTop: "auto" }}>
+                  {(() => { const off = SEARCH_DISABLED || rightEngaged; return (
+                  <button onClick={() => { if (!off) handleNewSearch(); }} disabled={off}
+                    style={{ background: off ? "var(--border-light)" : "var(--accent)", color: off ? "var(--text-dim)" : "var(--white)", border: off ? "1px solid var(--border-grey)" : "none", padding: "12px 32px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: off ? "not-allowed" : "pointer", borderRadius: 4 }}>
+                    {SEARCH_DISABLED ? "Search Disabled (Demo)" : "Search for new companies →"}
+                  </button>
+                  ); })()}
+                  {SEARCH_DISABLED && (
+                    <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 14 }}>Live search runs offline during the pilot — the database below is kept up to date.</p>
+                  )}
+                  {!SEARCH_DISABLED && rightEngaged && (
+                    <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 14 }}>You&apos;ve picked companies from the waiting list — clear that selection to run a new search instead.</p>
+                  )}
+                </div>
               </div>
 
-              <button onClick={() => { if (SEARCH_DISABLED) return; if (pendingQueueCount != null && pendingQueueCount >= 5) setQueueModalOpen(true); else handleAgentSearch(); }} disabled={SEARCH_DISABLED}
-                style={{ background: SEARCH_DISABLED ? "var(--border-light)" : "var(--accent)", color: SEARCH_DISABLED ? "var(--text-dim)" : "var(--white)", border: SEARCH_DISABLED ? "1px solid var(--border-grey)" : "none", padding: "12px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: SEARCH_DISABLED ? "not-allowed" : "pointer", borderRadius: 4 }}>
-                {SEARCH_DISABLED ? "Search Disabled (Demo)" : "Search for New Companies →"}
-              </button>
-              {SEARCH_DISABLED && (
-                <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 14 }}>Live search runs offline during the pilot — the database below is kept up to date.</p>
-              )}
             </div>
+            {/* Right (narrower): the waiting list, a self-contained panel — nothing to do with the config.
+                Sits at the top and is only as tall as its content (not stretched to the left column). */}
+            <div style={{ flex: "0 0 380px" }}>
+              {/* ── Mode B: work the waiting list (independent of the search configuration) ── */}
+              <div style={{ background: "var(--white)", border: "1px solid var(--border-card)", borderRadius: 4, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                <div style={{ background: "var(--header)", padding: "0 20px", height: 56, boxSizing: "border-box", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <p style={{ color: "var(--white)", fontSize: 15, fontWeight: 700 }}>Waiting list</p>
+                  <span style={{ color: "var(--on-dark)", fontSize: 12 }}>{pendingQueueCount ?? 0} waiting</span>
+                </div>
+                <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", flex: 1 }}>
+                  {(pendingQueueCount ?? 0) === 0 ? (
+                    <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6, margin: 0 }}>
+                      The waiting list is empty. Run a new search to find companies — anything found beyond the {ENRICH_BATCH_SIZE} researched this run waits here for you to process later.
+                    </p>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10, lineHeight: 1.5 }}>
+                        These companies were found in earlier searches but haven&apos;t been researched yet. Pick up to {ENRICH_BATCH_SIZE} to research and score now. If you don&apos;t pick any, the {ENRICH_BATCH_SIZE} that have waited longest are used.
+                      </p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto", paddingRight: 4, marginBottom: 12 }}>
+                        {queueItems.map((it) => {
+                          const checked = queueSelected.has(it.name);
+                          const atMax = queueSelected.size >= ENRICH_BATCH_SIZE;
+                          return (
+                            <label key={it.name} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: (checked || !atMax) && !leftEngaged ? "var(--text)" : "var(--text-faint)", cursor: (checked || !atMax) && !leftEngaged ? "pointer" : "default" }}>
+                              <input type="checkbox" checked={checked} disabled={leftEngaged || (!checked && atMax)}
+                                onChange={() => toggleQueueSelected(it.name)}
+                                style={{ accentColor: "var(--accent)", width: 15, height: 15, marginTop: 2, flexShrink: 0 }} />
+                              <span>
+                                {it.name}
+                                <span style={{ display: "block", fontSize: 10.5, color: "var(--text-faint)", marginTop: 1 }}>
+                                  {it.source_name ? `from ${it.source_name}` : "source unknown"}{it.discovered_at ? ` · found ${fmtDate(it.discovered_at)}` : ""}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <div style={{ marginTop: 4 }}>
+                        {leftEngaged && (
+                          <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8, lineHeight: 1.5 }}>Clear your search-term/source selection on the left to research the waiting list instead.</p>
+                        )}
+                        {(() => { const off = SEARCH_DISABLED || leftEngaged; return (
+                        <button onClick={() => { if (!off) handleQueueSearch(); }} disabled={off}
+                          style={{ ...btnPrimary, width: "100%", padding: "11px 20px", background: off ? "var(--border-light)" : "var(--accent)", color: off ? "var(--text-dim)" : "var(--white)", border: off ? "1px solid var(--border-grey)" : "none", opacity: 1, cursor: off ? "not-allowed" : "pointer" }}>
+                          Research {queueSelected.size > 0 ? queueSelected.size : Math.min(ENRICH_BATCH_SIZE, pendingQueueCount ?? 0)} from the waiting list →
+                        </button>
+                        ); })()}
+                        <button type="button" onClick={() => { if (!clearingQueue) clearQueue(); }} disabled={clearingQueue}
+                          style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: clearingQueue ? "default" : "pointer", fontSize: 11.5, fontWeight: 600, padding: "8px 0 0", textAlign: "center", width: "100%" }}>
+                          {clearingQueue ? "Clearing…" : "Clear waiting list"}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
           </>
         )}
 
@@ -431,7 +519,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
                   style={{ background: "var(--header)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                   Back to search options
                 </button>
-                <button onClick={() => { setStaleCompanies([]); setAgentState("searching"); handleAgentSearch(); }}
+                <button onClick={() => { setStaleCompanies([]); setAgentState("searching"); handleNewSearch(); }}
                   style={{ background: "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                   Start new search →
                 </button>
@@ -483,7 +571,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
               </div>
               <div style={{ display: "flex", gap: 12 }}>
                 {agentError.canRetry && (
-                  <button onClick={() => handleAgentSearch()}
+                  <button onClick={() => handleNewSearch()}
                     style={{ background: "var(--accent)", color: "var(--white)", border: "none", padding: "10px 28px", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                     Try again →
                   </button>
@@ -682,15 +770,7 @@ export function FindCompaniesTab({ savedBySource, reloadCompanies, onGoToDatabas
       </div>
 
       {/* Queue warning — pops up when the user clicks Search while >= 5 companies are still waiting */}
-      {queueModalOpen && (
-        <QueueModal
-          pendingQueueCount={pendingQueueCount}
-          clearingQueue={clearingQueue}
-          onResearch={() => { setQueueModalOpen(false); handleAgentSearch(); }}
-          onClearAndSearch={async () => { await clearQueue(); setQueueModalOpen(false); handleAgentSearch(); }}
-          onClose={() => setQueueModalOpen(false)}
-        />
-      )}
+      {modesInfoOpen && <SearchModesInfoModal onClose={() => setModesInfoOpen(false)} />}
 
       {/* Source-performance modal — opened by "Source performance" in the Search Configuration panel */}
       {perfModalOpen && (

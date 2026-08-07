@@ -6,6 +6,7 @@ import { US_MARKET_ENABLED } from "@/lib/features";
 import mockResultsData from "@/config/mock-results.json";
 import { DEMO_MODE, SEARCH_TERM_OPTIONS, SOURCE_OPTIONS } from "@/lib/uiConstants";
 import { parseMulti, joinMulti } from "@/lib/format";
+import { ENRICH_BATCH_SIZE } from "@/lib/searchLimits";
 import type {
   SearchResult, PendingCompany,
   SourceFields, SourceRecord, DraftTerm, DraftSource,
@@ -75,10 +76,11 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   const [activeSearchJobId, setActiveSearchJobId] = useState<number | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [showLog, setShowLog] = useState(false);
-  // Pending companies in the discovery queue. If >= 5, Step 1 (discovery) is skipped, so a run
-  // won't search newly selected sources/terms — surfaced as a warning in the UI.
+  // The discovery queue (waiting list): companies found but not yet researched. Shown in the
+  // "Waiting list" box; the user can drain it with a "queue" search (up to ENRICH_BATCH_SIZE).
   const [pendingQueueCount, setPendingQueueCount] = useState<number | null>(null);
-  const [queueModalOpen, setQueueModalOpen] = useState(false);
+  const [queueItems, setQueueItems] = useState<{ name: string; source_name: string | null; discovered_at: string | null }[]>([]);
+  const [queueSelected, setQueueSelected] = useState<Set<string>>(new Set());
   const [clearingQueue, setClearingQueue] = useState(false);
   // Source-performance warning thresholds (shared, from app_settings). A source is flagged when its
   // hit rate (companies found ÷ times used) falls below warnThresholdPct %, once it has been used at
@@ -224,13 +226,29 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     setConfigBusy(false);
   }
 
-  // How many companies are still queued for research (Step 1 is skipped while this is >= 5).
+  // Load the waiting list (pending companies, oldest first) for the count + the preview box.
   async function loadPendingCount() {
-    const { count } = await supabase.from("discovery_queue").select("*", { count: "exact", head: true }).eq("status", "pending");
-    setPendingQueueCount(count ?? 0);
+    const { data } = await supabase
+      .from("discovery_queue")
+      .select("name, source_name, discovered_at")
+      .eq("status", "pending")
+      .order("discovered_at", { ascending: true });
+    const rows = data ?? [];
+    setQueueItems(rows);
+    setPendingQueueCount(rows.length);
+    // Drop any selected names that are no longer in the queue.
+    setQueueSelected(prev => { const next = new Set([...prev].filter(n => rows.some(r => r.name === n))); return next.size === prev.size ? prev : next; });
   }
-  // Empties the pending waiting list so the next search runs discovery on the user's selected
-  // sources/terms. Discards not-yet-researched discoveries (they may be found again later).
+  // Toggle a company in the waiting-list selection (capped at ENRICH_BATCH_SIZE; extra ticks ignored).
+  function toggleQueueSelected(name: string) {
+    setQueueSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else if (next.size < ENRICH_BATCH_SIZE) next.add(name);
+      return next;
+    });
+  }
+  // Empties the pending waiting list. Discards not-yet-researched discoveries (they may be found again later).
   async function clearQueue() {
     setClearingQueue(true);
     await supabase.from("discovery_queue").delete().eq("status", "pending");
@@ -300,7 +318,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
   // starts fresh (errors keep the selections so "Try again" can reuse them). The config panel is
   // hidden during the results view, so this reset is invisible until the user returns to it.
   useEffect(() => {
-    if (agentState === "done") { setSelectedTerms([]); setSelectedSources([]); }
+    if (agentState === "done") { setSelectedTerms([]); setSelectedSources([]); setQueueSelected(new Set()); }
   }, [agentState]);
 
   async function deleteFromQueue(name: string) {
@@ -315,7 +333,8 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     await supabase.from("discovery_queue").update({ status: "pending" }).eq("status", "processing");
   }
 
-  async function handleAgentSearch() {
+  // mode "new" = discover + enrich the new finds; mode "queue" = drain the waiting list (no discovery).
+  async function handleAgentSearch(mode: "new" | "queue" = "new", queueNames?: string[]) {
     setAgentError(null);
     setSearchResults([]);
     setAddingState("idle");
@@ -356,7 +375,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
       const res = await fetch(`${workerBase}/api/search/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ searchConcepts: selectedTerms, sourceNames: selectedSources, targetMarket }),
+        body: JSON.stringify({ mode, queueNames, searchConcepts: selectedTerms, sourceNames: selectedSources, targetMarket }),
       });
       const data = await res.json();
 
@@ -449,6 +468,11 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
       setAgentState("error");
     }
   }
+
+  // "Search for new companies" — discover + enrich the new finds (uses the search configuration).
+  const handleNewSearch = () => handleAgentSearch("new");
+  // "Research the waiting list" — drain the queue: the ticked companies, or the oldest if none ticked.
+  const handleQueueSearch = () => handleAgentSearch("queue", queueSelected.size > 0 ? Array.from(queueSelected) : undefined);
 
   function toggleResult(i: number) {
     setSearchResults(prev => prev.map((r, idx) => idx === i ? { ...r, selected: !r.selected } : r));
@@ -572,7 +596,7 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     configBusy, configError, setConfigError,
     // background job / log / queue
     searchProgress, activeSearchJobId, logLines, showLog, setShowLog,
-    pendingQueueCount, queueModalOpen, setQueueModalOpen, clearingQueue,
+    pendingQueueCount, queueItems, queueSelected, toggleQueueSelected, clearingQueue,
     // perf settings
     warnThresholdPct, warnMinUses, perfModalOpen, setPerfModalOpen,
     perfDraftPct, setPerfDraftPct, perfDraftMin, setPerfDraftMin,
@@ -588,7 +612,8 @@ export function useSearch(reloadCompanies: () => Promise<void> | void) {
     // helpers
     sourceHitRate, sourceIsLow, fmtHitRate, fmtSavedRate,
     // job handlers
-    deleteFromQueue, resetProcessingToQueue, handleAgentSearch,
+    deleteFromQueue, resetProcessingToQueue,
+    handleNewSearch, handleQueueSearch,
     toggleResult, handleAddSelected, updatePending, removePending, handleSave,
   };
 }

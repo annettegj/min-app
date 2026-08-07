@@ -28,8 +28,17 @@ export async function POST(request: Request) {
   let searchConcepts: string[] | undefined;
   let sourceNames: string[] | undefined;
   let targetMarket: "eu" | "us" | "both" | undefined;
+  let mode: "new" | "queue" = "new";
+  let queueNames: string[] | undefined;
   try {
     const body = await request.json();
+    // Search mode: "new" (discover + enrich the new finds) or "queue" (drain the waiting list).
+    if (body?.mode === "queue") mode = "queue";
+    // For "queue" mode: the specific waiting-list companies the user picked (empty → the oldest are used).
+    if (Array.isArray(body?.queueNames)) {
+      const names = body.queueNames.filter((n: unknown): n is string => typeof n === "string" && n.trim().length > 0);
+      if (names.length > 0) queueNames = names;
+    }
     // Optional target market — a soft geography steer for discovery. "both"/unset = no steer.
     if (body?.targetMarket === "eu" || body?.targetMarket === "us" || body?.targetMarket === "both") {
       targetMarket = body.targetMarket;
@@ -68,7 +77,7 @@ export async function POST(request: Request) {
 
   // 2. Fire-and-forget: run the search without awaiting it. On a persistent server this keeps
   //    running after we respond. The .then/.catch write the final outcome to the job row.
-  searchForCompanies(jobId, searchConcepts, sourceNames, targetMarket)
+  searchForCompanies(jobId, searchConcepts, sourceNames, targetMarket, mode, queueNames)
     .then(async (result) => {
       if (result.noCompaniesFound) {
         await supabase.from("search_jobs").update({

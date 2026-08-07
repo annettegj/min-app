@@ -5,6 +5,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import sourcesConfig from "@/config/sources.json";
 import { CLAUDE_MODEL } from "@/lib/models";
 import { US_MARKET_ENABLED } from "@/lib/features";
+import { ENRICH_BATCH_SIZE } from "@/lib/searchLimits";
 
 
 // ---- Types ----
@@ -885,7 +886,11 @@ export async function searchForCompanies(
   jobId: number | null = null,
   searchConcepts?: string[],
   sourceNames?: string[],
-  targetMarket?: "eu" | "us" | "both"
+  targetMarket?: "eu" | "us" | "both",
+  // "new"  = run Step 1 (discovery), then enrich ONLY the newly found companies (up to 5).
+  // "queue" = skip Step 1, enrich companies already in the waiting list (queueNames, else oldest 5).
+  mode: "new" | "queue" = "new",
+  queueNames?: string[]
 ): Promise<{
   enriched: EnrichedCompany[];
   results?: EvaluatedCompany[];
@@ -962,10 +967,12 @@ export async function searchForCompanies(
   let step1Discovered = 0;
   let step1Skipped = 0;
   let step1NewToQueue = 0;
+  // The companies THIS run's Step 1 discovered (mode "new" enriches only these, up to the batch size).
+  let freshNames: string[] = [];
 
-  // Only run Step 1 if the queue has fewer than 5 pending companies
-  if (pendingCount < 5) {
-    emit(`[search] Step 1: queue below threshold — running web search...`);
+  // The mode decides whether Step 1 runs: "new" always discovers; "queue" skips it entirely.
+  if (mode === "new") {
+    emit(`[search] Step 1: mode=new — running web search...`);
 
     // Gather names we already know so Step 1 can skip them and spend its searches on NEW companies.
     // NOTE: if this list grows very large (100+), cap it here (e.g. most recent N) to keep the prompt small.
@@ -1025,6 +1032,7 @@ export async function searchForCompanies(
           emit(`[search] Failed to save to discovery_queue: ${insertError.message}`);
         } else {
           step1NewToQueue = fresh.length;
+          freshNames = fresh.map((c) => c.name);
           for (const c of fresh) foundByName.set(c.source_name, (foundByName.get(c.source_name) ?? 0) + 1);
           emit(`[search] Step 1: ${fresh.length} new companies added to queue`);
         }
@@ -1043,16 +1051,24 @@ export async function searchForCompanies(
       if (termErr) emit(`[search] Stats: could not update term last_used — ${termErr.message}`);
     }
   } else {
-    emit(`[search] Step 1: skipped — queue has ${pendingCount} pending companies`);
+    emit(`[search] Step 1: skipped — mode=queue (draining the waiting list)`);
   }
 
-  // Pick next 5 pending companies from the queue for Step 2
-  const { data: nextBatch, error: batchError } = await supabase
+  // Pick the batch for Step 2, depending on the mode:
+  //  - "new": ONLY the companies just discovered this run (ignore the older backlog), up to the batch size.
+  //  - "queue": the user-picked names if any, otherwise the oldest pending — up to the batch size.
+  let batchQuery = supabase
     .from("discovery_queue")
     .select("name, source_name")
-    .eq("status", "pending")
+    .eq("status", "pending");
+  if (mode === "new") {
+    batchQuery = batchQuery.in("name", freshNames.length > 0 ? freshNames : [" __none__"]);
+  } else if (queueNames && queueNames.length > 0) {
+    batchQuery = batchQuery.in("name", queueNames);
+  }
+  const { data: nextBatch, error: batchError } = await batchQuery
     .order("discovered_at", { ascending: true })
-    .limit(5);
+    .limit(ENRICH_BATCH_SIZE);
 
   if (batchError) {
     emit(`[search] Failed to read from discovery_queue: ${batchError.message}`);
